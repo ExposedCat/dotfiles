@@ -9,9 +9,9 @@
 5. Install <a href="https://wiki.archlinux.org/title/IMWheel">IMWheel</a>
 6. Download `IMWheel` config:  
    `wget -d ~ https://raw.githubusercontent.com/ExposedCat/sightly-linux/main/configs/.imwheelrc`
-7. Download `IMWheel` autostart service:  
-   `wget -d ~/.config/systemd/user https://raw.githubusercontent.com/ExposedCat/sightly-linux/main/configs/imwheel.service`
-8. Enable and run `logiops` daemon:  
+7. Enable and run `logiops` daemon:  
    `sudo systemctl enable --now logid`
-9. Enable and run `IMWheel` autostart service:  
-   `systemctl --user enable --now imwheel`
+8. Run IMWheel:  
+   `imwheel`
+   
+P.S. You need to run `imwheel` at system startup. For X11 use <a href="https://github.com/ExposedCat/sightly-linux/blob/main/configs/imwheel.service">IMWheel startup systemd service</a>
