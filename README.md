@@ -5,4 +5,4 @@
 
 
 ### Configs
-<a href="https://github.com/ExposedCat/sightly-linux/logitech-advanced-mice.md">Logitech advanced mice</a>
+<a href="https://github.com/ExposedCat/sightly-linux/blob/main/logitech-advanced-mice.md">Logitech advanced mice</a>
