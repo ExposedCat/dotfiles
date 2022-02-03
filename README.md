@@ -13,7 +13,7 @@ ZSH shell config:
 #### Usage
 Download file to `~`:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/stunning-gnome-de/main/configs/.zshrc 
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/configs/.zshrc 
 mv .zshrc ~
 ```
 
@@ -23,7 +23,7 @@ Powerlevel 10K ZSH theme config
 #### Usage
 Download file to `~`:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/stunning-gnome-de/main/configs/.p10k.zsh
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/configs/.p10k.zsh
 mv .p10k.zsh ~
 ```
 
@@ -33,7 +33,7 @@ Flameshot configuration
 #### Usage
 Download file to `~/.config`:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/stunning-gnome-de/main/configs/flameshot.ini
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/configs/flameshot.ini
 mv flameshot.ini ~/.config/flameshot
 ```
 
@@ -43,7 +43,7 @@ Neofetch configuration
 #### Usage
 Download file to `~/.config/neofetch`:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/stunning-gnome-de/main/configs/neofetch.conf
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/configs/neofetch.conf
 mv neofetch.conf ~/.config/neofetch/config.conf
 ```
 
@@ -60,7 +60,7 @@ Logiops driver configuration:
 #### Usage
 Download file to `/etc`:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/stunning-gnome-de/main/configs/logid.cfg
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/configs/logid.cfg
 sudo mv logid.cfg /etc
 ```
 
