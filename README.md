@@ -2,7 +2,7 @@
   <p>ExposedCat's dotfiles</p>
 </h1>
 
-### configs/.zshrc
+### zsh/.zshrc
 #### Description
 ZSH shell config:
 1. Colors
@@ -13,41 +13,41 @@ ZSH shell config:
 #### Usage
 Download file to `~`:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/configs/.zshrc 
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/zsh/.zshrc 
 mv .zshrc ~
 ```
 
-### configs/.p10k.zsh
+### zsh/.p10k.zsh
 #### Description
 Powerlevel 10K ZSH theme config
 #### Usage
 Download file to `~`:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/configs/.p10k.zsh
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/zsh/.p10k.zsh
 mv .p10k.zsh ~
 ```
 
-### configs/flameshot.ini
+### flameshot/flameshot.ini
 #### Description
 Flameshot configuration
 #### Usage
 Download file to `~/.config`:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/configs/flameshot.ini
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/flameshot/flameshot.ini
 mv flameshot.ini ~/.config/flameshot
 ```
 
-### configs/neofetch.conf
+### neofetch/neofetch.conf
 #### Description
 Neofetch configuration
 #### Usage
 Download file to `~/.config/neofetch`:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/configs/neofetch.conf
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/neofetch/neofetch.conf
 mv neofetch.conf ~/.config/neofetch/config.conf
 ```
 
-### configs/logid.cfg
+### logiops/logid.cfg
 #### Description
 Logiops driver configuration:
 1. Smartshift
@@ -60,11 +60,11 @@ Logiops driver configuration:
 #### Usage
 Download file to `/etc`:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/configs/logid.cfg
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/logiops/logid.cfg
 sudo mv logid.cfg /etc
 ```
 
-### configs/evdev.xml
+### os/evdev.xml
 #### Description
 Uppercase layout indicator names:
 1. Russian (ru → RU)
@@ -72,6 +72,26 @@ Uppercase layout indicator names:
 #### Usage
 Download file to `/usr/share/X11/xkb/rules`:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/stunning-gnome-de/main/configs/evdev.xml
+wget https://raw.githubusercontent.com/ExposedCat/stunning-gnome-de/main/os/evdev.xml
 sudo mv evdev.xml /usr/share/X11/xkb/rules
+```
+
+### vscode/settings.json
+#### Description
+VSCode extensions, look, editor and general settings
+#### Usage
+Download file to `~/.config/Code/User`:  
+```
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/vscode/settings.json
+mv settings.json ~/.config/Code/User
+```
+
+### vscode/tasks.json
+#### Description
+VSCode tasks to compile & run/debug C/C++ files
+#### Usage
+Download file to `~/.config/Code/User`:  
+```
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/main/vscode/tasks.json
+mv tasks.json ~/.config/Code/User
 ```
