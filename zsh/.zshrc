@@ -84,6 +84,11 @@ alias cls="clear && ls"
 alias dd="dd status=progress "
 alias format="sudo mkfs.vfat -IF 32 "
 alias noindex="tracker daemon -k"
+alias rt="gio trash "
+mcd() {
+  md $1
+  cd $1
+}
 
 # ---------------------------------------------------------------------------------------
 # --------------E-N-D---Z-S-H---C-O-N-F-I-G----------------------------------------------
