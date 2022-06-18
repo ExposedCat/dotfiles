@@ -1,0 +1,11 @@
+[Unit]
+Description=Startup Script
+
+[Service]
+User=root
+WorkingDirectory=/home/$USER
+ExecStart=bash /home/$USER/.startup.bash
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
