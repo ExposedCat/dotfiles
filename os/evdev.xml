@@ -1336,7 +1336,7 @@
       <configItem>
         <name>us</name>
         <!-- Keyboard indicator for English layouts -->
-        <shortDescription>EN</shortDescription>
+        <shortDescription>🇨🇿</shortDescription>
         <description>English (US)</description>
         <languageList>
           <iso639Id>eng</iso639Id>
@@ -1452,7 +1452,7 @@
           <configItem>
             <name>rus</name>
             <!-- Keyboard indicator for Russian layouts -->
-            <shortDescription>RU</shortDescription>
+            <shortDescription>🇺🇦</shortDescription>
             <description>Russian (US, phonetic)</description>
             <languageList>
               <iso639Id>rus</iso639Id>
@@ -1756,7 +1756,7 @@
       <configItem>
         <name>au</name>
         <!-- Keyboard indicator for Australian layouts -->
-        <shortDescription>EN</shortDescription>
+        <shortDescription>🇨🇿</shortDescription>
         <description>English (Australian)</description>
         <languageList>
           <iso639Id>eng</iso639Id>
@@ -2291,7 +2291,7 @@
           <configItem>
             <name>eng</name>
             <!-- Keyboard indicator for English layouts -->
-            <shortDescription>EN</shortDescription>
+            <shortDescription>🇨🇿</shortDescription>
             <description>English (India, with rupee)</description>
             <languageList>
               <iso639Id>eng</iso639Id>
@@ -2772,7 +2772,7 @@
           <configItem>
             <name>eng</name>
             <!-- Keyboard indicator for English layouts -->
-            <shortDescription>EN</shortDescription>
+            <shortDescription>🇨🇿</shortDescription>
             <description>English (Canada)</description>
             <languageList>
               <iso639Id>eng</iso639Id>
@@ -2996,7 +2996,7 @@
           <configItem>
             <name>rus</name>
             <!-- Keyboard indicator for Russian layouts -->
-            <shortDescription>RU</shortDescription>
+            <shortDescription>🇺🇦</shortDescription>
             <description>Russian (Czech, phonetic)</description>
             <languageList>
               <iso639Id>rus</iso639Id>
@@ -3432,7 +3432,7 @@
       <configItem>
         <name>gh</name>
         <!-- Keyboard indicator for English layouts -->
-        <shortDescription>EN</shortDescription>
+        <shortDescription>🇨🇿</shortDescription>
         <description>English (Ghana)</description>
         <languageList>
           <iso639Id>eng</iso639Id>
@@ -3556,7 +3556,7 @@
           <configItem>
             <name>ru</name>
             <!-- Keyboard indicator for Russian layouts -->
-            <shortDescription>RU</shortDescription>
+            <shortDescription>🇺🇦</shortDescription>
             <description>Russian (Georgia)</description>
             <languageList>
               <iso639Id>rus</iso639Id>
@@ -3706,7 +3706,7 @@
           <configItem>
             <name>ru</name>
             <!-- Keyboard indicator for Russian layouts -->
-            <shortDescription>RU</shortDescription>
+            <shortDescription>🇺🇦</shortDescription>
             <description>Russian (Germany, phonetic)</description>
             <languageList>
               <iso639Id>rus</iso639Id>
@@ -4123,7 +4123,7 @@
           <configItem>
             <name>ruskaz</name>
             <!-- Keyboard indicator for Russian layouts -->
-            <shortDescription>RU</shortDescription>
+            <shortDescription>🇺🇦</shortDescription>
             <description>Russian (Kazakhstan, with Kazakh)</description>
             <languageList>
               <iso639Id>kaz</iso639Id>
@@ -4617,7 +4617,7 @@
           <configItem>
             <name>ru_phonetic_dvorak</name>
             <!-- Keyboard indicator for Russian layouts -->
-            <shortDescription>RU</shortDescription>
+            <shortDescription>🇺🇦</shortDescription>
             <description>Russian (Poland, phonetic Dvorak)</description>
             <languageList>
               <iso639Id>rus</iso639Id>
@@ -4713,7 +4713,7 @@
       <configItem>
         <name>ru</name>
         <!-- Keyboard indicator for Russian layouts -->
-        <shortDescription>RU</shortDescription>
+        <shortDescription>🇺🇦</shortDescription>
         <description>Russian</description>
         <languageList>
           <iso639Id>rus</iso639Id>
@@ -5107,7 +5107,7 @@
           <configItem>
             <name>rus</name>
             <!-- Keyboard indicator for Russian layouts -->
-            <shortDescription>RU</shortDescription>
+            <shortDescription>🇺🇦</shortDescription>
             <description>Russian (Sweden, phonetic)</description>
             <languageList>
               <iso639Id>rus</iso639Id>
@@ -5118,7 +5118,7 @@
           <configItem>
             <name>rus_nodeadkeys</name>
             <!-- Keyboard indicator for Russian layouts -->
-            <shortDescription>RU</shortDescription>
+            <shortDescription>🇺🇦</shortDescription>
             <description>Russian (Sweden, phonetic, no dead keys)</description>
             <languageList>
               <iso639Id>rus</iso639Id>
@@ -5607,7 +5607,7 @@
       <configItem>
         <name>gb</name>
         <!-- Keyboard indicator for English layouts -->
-        <shortDescription>EN</shortDescription>
+        <shortDescription>🇨🇿</shortDescription>
         <description>English (UK)</description>
         <languageList>
           <iso639Id>eng</iso639Id>
@@ -5860,7 +5860,7 @@
       <configItem>
         <name>za</name>
         <!-- Keyboard indicator for English layouts -->
-        <shortDescription>EN</shortDescription>
+        <shortDescription>🇨🇿</shortDescription>
         <description>English (South Africa)</description>
         <languageList>
           <iso639Id>eng</iso639Id>
@@ -5903,7 +5903,7 @@
       <configItem>
         <name>ng</name>
         <!-- Keyboard indicator for English layouts -->
-        <shortDescription>EN</shortDescription>
+        <shortDescription>🇨🇿</shortDescription>
         <description>English (Nigeria)</description>
         <languageList>
           <iso639Id>eng</iso639Id>
@@ -6048,7 +6048,7 @@
           <configItem>
             <name>us-mac</name>
             <!-- Keyboard indicator for English layouts -->
-            <shortDescription>EN</shortDescription>
+            <shortDescription>🇨🇿</shortDescription>
             <description>English (Mali, US, Macintosh)</description>
             <languageList>
               <iso639Id>eng</iso639Id>
@@ -6059,7 +6059,7 @@
           <configItem>
             <name>us-intl</name>
             <!-- Keyboard indicator for English layouts -->
-            <shortDescription>EN</shortDescription>
+            <shortDescription>🇨🇿</shortDescription>
             <description>English (Mali, US, intl.)</description>
             <languageList>
               <iso639Id>eng</iso639Id>
