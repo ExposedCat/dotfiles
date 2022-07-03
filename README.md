@@ -204,3 +204,30 @@ wget -O /etc/systemd/system/startup.service https://raw.githubusercontent.com/Ex
 ```
 wget -O ~ https://raw.githubusercontent.com/ExposedCat/dotfiles/main/services/startup/.startup.bash
 ```
+<h2 align="center">
+  <p>GNOME Terminal config</p>
+</h2>
+
+<h3 align="center">
+  <p>Description</p>
+</h3>
+
+Monokai profile for GNOME Terminal
+
+<h3 align="center">
+  <p>Usage</p>
+</h3>
+
+1. Download file:  
+```
+wget https://raw.githubusercontent.com/ExposedCat/stunning-gnome-de/lo-fi/configs/terminal.conf
+```
+2. Load configuration:  
+```
+dconf load /org/gnome/terminal/ < ./terminal.conf
+```
+3. \[Optional] Remove config:  
+```
+rm terminal.conf
+```
+4. \[Optional] [Install monospace font](https://github.com/ExposedCat/stunning-gnome-de/tree/lo-fi#assetsjetbrainsmonospacettf)
