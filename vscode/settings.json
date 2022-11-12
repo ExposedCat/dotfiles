@@ -19,6 +19,11 @@
   },
 
   // Languages
+  // Bash
+  "[shellscript]": {
+    "editor.defaultFormatter": "foxundermoon.shell-format"
+  },
+  // JS & TS
   "javascript.updateImportsOnFileMove.enabled": "always",
   "[javascript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
@@ -33,12 +38,14 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "typescript.updateImportsOnFileMove.enabled": "always",
+  // Formats
   "[json]": {
     "editor.defaultFormatter": "vscode.json-language-features"
   },
   "[jsonc]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
+  // Front
   "files.associations": {
     "*.ejs": "html",
     "*.isml": "html"
@@ -49,8 +56,47 @@
   "[css]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 0}",
+  // C/C++
+  "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 80, AllowShortIfStatementsOnASingleLine: false }",
   "C_Cpp.autocompleteAddParentheses": true,
+  "launch": {
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Makefile",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${fileDirname}/.bin/${fileBasenameNoExtension}",
+        "args": [],
+        "stopAtEntry": true,
+        "cwd": "${fileDirname}",
+        "internalConsoleOptions": "neverOpen",
+        "environment": [],
+        "externalConsole": true,
+        "MIMode": "gdb",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ],
+        "preLaunchTask": "Build project",
+        "postDebugTask": "Remove directory for binaries",
+        "miDebuggerPath": "/usr/bin/gdb"
+      }
+    ]
+  },
+  // Python
+  "python.formatting.blackArgs": [
+    "--line-length",
+    "79",
+    "--skip-string-normalization"
+  ],
+  "python.formatting.provider": "black",
 
   // General
   "security.workspace.trust.untrustedFiles": "open",
@@ -81,38 +127,5 @@
   },
   "window.title": "${dirty}${activeEditorShort}${separator}${rootName}",
   "window.titleBarStyle": "custom",
-
-  // C/C++ Launch
-  "launch": {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-      {
-        "name": "gcc - Build and debug active file",
-        "type": "cppdbg",
-        "request": "launch",
-        "program": "${fileDirname}/.bin/${fileBasenameNoExtension}",
-        "args": [],
-        "stopAtEntry": false,
-        "cwd": "${fileDirname}",
-        "internalConsoleOptions": "neverOpen",
-        "environment": [],
-        "externalConsole": true,
-        "MIMode": "gdb",
-        "setupCommands": [
-          {
-            "description": "Enable pretty-printing for gdb",
-            "text": "-enable-pretty-printing",
-            "ignoreFailures": true
-          }
-        ],
-        "preLaunchTask": "Build project",
-        "postDebugTask": "Remove directory for binaries",
-        "miDebuggerPath": "/usr/bin/gdb"
-      }
-    ]
-  },
   "workbench.iconTheme": "Monokai Pro Icons"
 }
