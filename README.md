@@ -176,7 +176,7 @@ Visual Studio Code tasks to compile and run/debug C/C++ files
 1. Download [Visual Studio Code](https://code.visualstudio.com/download)
 2. Download config to `~/.config/Code/User`:  
 ```
-wget -O ~/.config/Code/User/settings.json https://raw.githubusercontent.com/ExposedCat/dotfiles/main/vscode/tasks.json
+wget -O ~/.config/Code/User/tasks.json https://raw.githubusercontent.com/ExposedCat/dotfiles/main/vscode/tasks.json
 ```
 <h2 align="center">
   <p>SystemD - Startup script</p>
