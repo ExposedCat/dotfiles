@@ -5,19 +5,21 @@
   "editor.unicodeHighlight.ambiguousCharacters": false,
   "editor.suggestSelection": "first",
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
+    "source.fixAll.eslint": "always"
   },
   "editor.tokenColorCustomizations": {
     "textMateRules": [
       {
-        "scope": ["comment", "punctuation.definition.comment"],
+        "scope": [
+          "comment",
+          "punctuation.definition.comment"
+        ],
         "settings": {
           "fontStyle": ""
         }
       }
     ]
   },
-
   // Languages
   // Bash
   "[shellscript]": {
@@ -25,17 +27,20 @@
   },
   // JS & TS
   "javascript.updateImportsOnFileMove.enabled": "always",
+  "javascript.preferences.importModuleSpecifierEnding": "js",
+  "typescript.preferences.importModuleSpecifierEnding": "js",
+  "editor.formatOnSave": true,
   "[javascript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "rvest.vs-code-prettier-eslint"
   },
   "[javascriptreact]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "rvest.vs-code-prettier-eslint"
   },
   "[typescriptreact]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "rvest.vs-code-prettier-eslint"
   },
   "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "rvest.vs-code-prettier-eslint"
   },
   "typescript.updateImportsOnFileMove.enabled": "always",
   // Formats
@@ -43,18 +48,20 @@
     "editor.defaultFormatter": "vscode.json-language-features"
   },
   "[jsonc]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
   },
   // Front
   "files.associations": {
     "*.ejs": "html",
-    "*.isml": "html"
+    "*.isml": "html",
+    "*.mdoc": "markdown",
+    "*.ftl": "fluent"
   },
   "[html]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "vscode.html-language-features"
   },
   "[css]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "vscode.css-language-features"
   },
   // C/C++
   "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 80, AllowShortIfStatementsOnASingleLine: false }",
@@ -97,14 +104,11 @@
     "--skip-string-normalization"
   ],
   "python.formatting.provider": "black",
-
   // General
   "security.workspace.trust.untrustedFiles": "open",
   "debug.onTaskErrors": "showErrors",
   "explorer.confirmDelete": false,
   "explorer.confirmDragAndDrop": false,
-  "window.zoomLevel": 1,
-  "files.autoSave": "afterDelay",
   "files.exclude": {
     "**/.classpath": true,
     "**/.project": false,
@@ -114,11 +118,8 @@
   "workbench.startupEditor": "none",
   "editor.minimap.enabled": false,
   "editor.multiCursorModifier": "ctrlCmd",
-
   // Extensions
   "git.autofetch": true,
-  "diffEditor.ignoreTrimWhitespace": false,
-
   // Theme customizations
   "workbench.colorTheme": "Monokai Pro",
   "workbench.colorCustomizations": {
@@ -127,5 +128,42 @@
   },
   "window.title": "${dirty}${activeEditorShort}${separator}${rootName}",
   "window.titleBarStyle": "custom",
-  "workbench.iconTheme": "Monokai Pro Icons"
+  "workbench.iconTheme": "Monokai Pro Icons",
+  "editor.tabSize": 2,
+  "editor.codeLens": false,
+  "editor.inlayHints.enabled": "off",
+  "editor.fontSize": 15,
+  "terminal.integrated.enableMultiLinePasteWarning": false,
+  "editor.defaultFormatter": "rvest.vs-code-prettier-eslint",
+  "[cpp]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "editor.detectIndentation": false,
+  "[c]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "window.zoomLevel": 1,
+  "code-runner.clearPreviousOutput": true,
+  "files.autoSave": "onFocusChange",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "editor.largeFileOptimizations": false,
+  "[xml]": {
+    "editor.defaultFormatter": "redhat.vscode-xml"
+  },
+  "tabnine.experimentalAutoImports": true,
+  "eslint.format.enable": true,
+  "todohighlight.keywords": [
+    {
+      "text": "NOTE:",
+      "backgroundColor": "gray",
+      "color": "white"
+    }
+  ],
+  "[dotenv]": {
+    "editor.defaultFormatter": "foxundermoon.shell-format"
+  },
+  "javascript.preferences.importModuleSpecifier": "relative",
+  "terminal.integrated.shellIntegration.enabled": false
 }
