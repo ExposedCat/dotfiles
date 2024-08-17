@@ -14,6 +14,7 @@
 2. Plugins
 3. Java PATH variables
 4. Aliases for git, dnf and other utilites
+5. Move to trash
 
 <h3 align="center">
   <p>Usage</p>
@@ -46,13 +47,14 @@ wget -O ~/.p10k.zsh https://raw.githubusercontent.com/ExposedCat/dotfiles/main/z
 ```
 
 <h2 align="center">
-  <p>Flameshot</p>
+  <p>Flameshot <sup> deprecated</sup></p>
 </h2>
 
 <h3 align="center">
   <p>Description</p>
 </h3>
 
+**[deprecated]** Use builtin GNOME screenshoter  
 Flameshot is a nice screenshot tool
 
 <h3 align="center">
@@ -66,30 +68,26 @@ wget -O ~/.config/flameshot/flameshot.ini  https://raw.githubusercontent.com/Exp
 2. Edit `savePath` option in `~/.config/flameshot/flameshot.ini`
 
 <h2 align="center">
-  <p>Neofetch</p>
+  <p>Fastfetch</p>
 </h2>
 
 <h3 align="center">
   <p>Description</p>
 </h3>
 
-Neofetch is CLI image info display tool
+Fastfetch is CLI tool to display PC info
 
 <h3 align="center">
   <p>Usage</p>
 </h3>
 
-1. Download config to `~/.config/neofetch`  
+1. Download config to `~/.config/fastfetch`  
 ```
-wget -O ~/.config/neofetch/config.conf https://raw.githubusercontent.com/ExposedCat/dotfiles/main/neofetch/neofetch.conf
+wget -O ~/.config/fastfetch/config.jsonc https://raw.githubusercontent.com/ExposedCat/dotfiles/main/fastfetch/config.jsonc
 ```
-2. Download Bongo Cat ASCII to `~/.config/neofetch` 
+2. Download Bongo Cat ASCII to `~/.config/fastfetch` 
 ```
-wget -O ~/.config/neofetch/bongo.txt https://raw.githubusercontent.com/ExposedCat/dotfiles/main/neofetch/bongo.txt
-```
-3. Add alias to execute neofetch with custom ASCII (done in ZSH shell config in this repo)
-```
-alias neofetch="neofetch --ascii ~/.config/neofetch/bongo.txt"
+wget -O ~/.config/fastfetch/bongo.txt https://raw.githubusercontent.com/ExposedCat/dotfiles/main/fastfetch/bongo.txt
 ```
 
 <h2 align="center">
@@ -119,16 +117,17 @@ sudo wget -O /etc/logid.cfg https://raw.githubusercontent.com/ExposedCat/dotfile
 ```
 
 <h2 align="center">
-  <p>Layout flags</p>
+  <p>Uppercase layouts</p>
 </h2>
 
 <h3 align="center">
   <p>Description</p>
 </h3>
 
-Set flags as layout indicator names:
-1. Russian (ru → 🇺🇦)
-2. English (en → 🇨🇿)  
+Use uppercase layout indicator names:
+1. English (en → EN)
+2. Ukrainian (uk → UK)  
+2. Russian (ru → RU)  
 \* Please open an issue if you want other languages support
 <h3 align="center">
   <p>Usage</p>
@@ -136,7 +135,7 @@ Set flags as layout indicator names:
 
 Download file to `/usr/share/X11/xkb/rules`:  
 ```
-sudo wget -O /usr/share/X11/xkb/rules/evdev.xml https://raw.githubusercontent.com/ExposedCat/stunning-gnome-de/main/os/evdev.xml
+sudo wget -O /usr/share/X11/xkb/rules/evdev.xml https://raw.githubusercontent.com/ExposedCat/dotfiles/main/os/evdev.xml
 ```
 
 <h2 align="center">
@@ -147,7 +146,9 @@ sudo wget -O /usr/share/X11/xkb/rules/evdev.xml https://raw.githubusercontent.co
   <p>Description</p>
 </h3>
 
-Visual Studio Code is free open-source code editor built for web development
+Visual Studio Code is a free open-source* code editor built for web development
+
+*Microsoft provides builds with telemetry. Consider using VSCodium for builds from sources
 
 <h3 align="center">
   <p>Usage</p>
@@ -218,9 +219,10 @@ Monokai profile for GNOME Terminal
   <p>Usage</p>
 </h3>
 
+0. [Install monospace Nerd font](https://github.com/ExposedCat/stunning-gnome-de/tree/lo-fi#assetsjetbrainsmonospacettf) for text icons in terminal
 1. Download file:  
 ```
-wget https://raw.githubusercontent.com/ExposedCat/stunning-gnome-de/lo-fi/configs/terminal.conf
+wget https://raw.githubusercontent.com/ExposedCat/dotfiles/gnome-terminal/terminal.conf
 ```
 2. Load configuration:  
 ```
@@ -230,4 +232,3 @@ dconf load /org/gnome/terminal/ < ./terminal.conf
 ```
 rm terminal.conf
 ```
-4. \[Optional] [Install monospace font](https://github.com/ExposedCat/stunning-gnome-de/tree/lo-fi#assetsjetbrainsmonospacettf)
