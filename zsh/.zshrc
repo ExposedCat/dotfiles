@@ -38,8 +38,12 @@ source $ZSH/oh-my-zsh.sh
 # echo
 
 # PATH
-export JAVA_HOME="/usr/lib64/jvm/java-1.8.0-openjdk-1.8.0/jre"
+export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which javac))))
 export PATH=$PATH:/usr/sbin:~/.local/bin
+
+export ANDROID_HOME=$HOME/Android/Sdk
+export PATH=$PATH:$ANDROID_HOME/emulator
+export PATH=$PATH:$ANDROID_HOME/platform-tools
 
 # ALIASES
 alias zshrc="$EDITOR ~/.zshrc"
@@ -48,41 +52,32 @@ alias zshreload="source ~/.zshrc && clear"
 
 alias get="sudo dnf install"
 alias remove="sudo dnf remove"
+alias upgrade="sudo dnf upgrade"
 alias installed="dnf list installed"
 alias search="dnf search"
 
-alias module="sudo npm install"
-alias pi="sudo pip3 install"
-
-alias cd-js="cd ~/Desktop/JS"
-alias cd-web="cd ~/Desktop/Web"
-alias cd-react="cd ~/Desktop/React"
-alias rn-run="sh ~/scripts/rn-runner.sh"
-
-alias dev="cd ~/Development"
-
 alias ga="g add"
+alias gaa="g add --all"
 alias gc="g commit -m"
+alias gam="g commit --amend"
 alias gp="g push"
+alias gpf="g push --force"
 
 alias sys="sudo systemctl"
 
 alias temperature="sensors | grep °C"
-alias rneofetch="neofetch | lolcat"
-alias neofetch="neofetch --ascii ~/.config/neofetch/bongo.txt"
 alias hardware="inxi"
 alias cat="bat"
-alias ls="exa -a --icons"
-alias la="exa -la --icons"
-alias iso="sudo dd status=progress of=/dev/sdb if="
-alias v="$EDITOR "
+alias ls="eza -a --icons always"
+alias la="eza -la --icons always"
+alias dd="sudo dd status=progress"
+alias e="$EDITOR "
 alias cp="cp -r "
 alias scp="scp -r "
 alias cls="clear && ls"
-alias dd="dd status=progress "
 alias format="sudo mkfs.vfat -IF 32 "
-alias noindex="tracker daemon -k"
-alias rt="gio trash "
+alias rm="gio trash "
+alias rmf="command rm "
 mcd() {
   md $1
   cd $1
@@ -94,3 +89,7 @@ mcd() {
 
 # p10k ending
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
