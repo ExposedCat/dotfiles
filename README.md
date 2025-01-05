@@ -28,44 +28,31 @@ wget -O ~/.zshrc https://raw.githubusercontent.com/ExposedCat/dotfiles/main/zsh/
 ```
 
 <h2 align="center">
-  <p>Powerlevel 10K</p>
+  <p>FireArc <sup>BETA</sup></p>
 </h2>
 
 <h3 align="center">
   <p>Description</p>
 </h3>
 
-Powerlevel 10K is a theme for ZSH shell
+FireArc is a Firefox theme that brings Arc Browser UI without extensions
 
 <h3 align="center">
   <p>Usage</p>
 </h3>
 
-Download config to the home directory
+1. Go to `about:config` in Firefox
+2. Set `sidebar.revamp` to `true`
+3. Set `sidebar.verticalTabs` to `true`
+4. Set `toolkit.legacyUserProfileCustomizations.stylesheets` to `true`
+5. Open "Configure Sidebar" at the bottom. Disable everything, select "Open on Click", select Right positioning
+6. Go to the `about:support` in Firefox and copy path under `Profile Directory`. If you use Flatpak, the base path will be `~/.var/app/org.mozilla.firefox/.mozilla/firefox/`
+7. Download configs (replace your `PATH_FROM_STEP_1`):
 ```
-wget -O ~/.p10k.zsh https://raw.githubusercontent.com/ExposedCat/dotfiles/main/zsh/.p10k.zsh
+wget -O PATH_FROM_STEP_1 https://raw.githubusercontent.com/ExposedCat/dotfiles/main/firefox/arclike.css
+wget -O PATH_FROM_STEP_1 https://raw.githubusercontent.com/ExposedCat/dotfiles/main/firefox/userChrome.css
 ```
-
-<h2 align="center">
-  <p>Flameshot <sup> deprecated</sup></p>
-</h2>
-
-<h3 align="center">
-  <p>Description</p>
-</h3>
-
-**[deprecated]** Use builtin GNOME screenshoter  
-Flameshot is a nice screenshot tool
-
-<h3 align="center">
-  <p>Usage</p>
-</h3>
-
-1. Download config to the `~/.config/flameshot`:  
-```
-wget -O ~/.config/flameshot/flameshot.ini  https://raw.githubusercontent.com/ExposedCat/dotfiles/main/flameshot/flameshot.ini
-```
-2. Edit `savePath` option in `~/.config/flameshot/flameshot.ini`
+8. Restart Firefox
 
 <h2 align="center">
   <p>Fastfetch</p>
@@ -81,11 +68,11 @@ Fastfetch is CLI tool to display PC info
   <p>Usage</p>
 </h3>
 
-1. Download config to `~/.config/fastfetch`  
+1. Download config to `~/.config/fastfetch`
 ```
 wget -O ~/.config/fastfetch/config.jsonc https://raw.githubusercontent.com/ExposedCat/dotfiles/main/fastfetch/config.jsonc
 ```
-2. Download Bongo Cat ASCII to `~/.config/fastfetch` 
+2. Download Bongo Cat ASCII to `~/.config/fastfetch`
 ```
 wget -O ~/.config/fastfetch/bongo.txt https://raw.githubusercontent.com/ExposedCat/dotfiles/main/fastfetch/bongo.txt
 ```
@@ -98,7 +85,7 @@ wget -O ~/.config/fastfetch/bongo.txt https://raw.githubusercontent.com/ExposedC
   <p>Description</p>
 </h3>
 
-Logiops is a driver for Logitech™ mice configuration. Config includes:  
+Logiops is a driver for Logitech™ mice configuration. Config includes:
 1. Smartshift
 2. HiRes scroll
 3. Volume control (gesture button ↑ ↓)
@@ -111,7 +98,7 @@ Logiops is a driver for Logitech™ mice configuration. Config includes:
   <p>Usage</p>
 </h3>
 
-Download file to `/etc`:  
+Download file to `/etc`:
 ```
 sudo wget -O /etc/logid.cfg https://raw.githubusercontent.com/ExposedCat/dotfiles/main/logiops/logid.cfg
 ```
@@ -126,14 +113,14 @@ sudo wget -O /etc/logid.cfg https://raw.githubusercontent.com/ExposedCat/dotfile
 
 Use uppercase layout indicator names:
 1. English (en → EN)
-2. Ukrainian (uk → UK)  
-2. Russian (ru → RU)  
+2. Ukrainian (uk → UK)
+2. Russian (ru → RU)
 \* Please open an issue if you want other languages support
 <h3 align="center">
   <p>Usage</p>
 </h3>
 
-Download file to `/usr/share/X11/xkb/rules`:  
+Download file to `/usr/share/X11/xkb/rules`:
 ```
 sudo wget -O /usr/share/X11/xkb/rules/evdev.xml https://raw.githubusercontent.com/ExposedCat/dotfiles/main/os/evdev.xml
 ```
@@ -155,7 +142,7 @@ Visual Studio Code is a free open-source* code editor built for web development
 </h3>
 
 1. Download [Visual Studio Code](https://code.visualstudio.com/download)
-2. Download config to `~/.config/Code/User`:  
+2. Download config to `~/.config/Code/User`:
 ```
 wget -O ~/.config/Code/User/settings.json https://raw.githubusercontent.com/ExposedCat/dotfiles/main/vscode/settings.json
 ```
@@ -175,7 +162,7 @@ Visual Studio Code tasks to compile and run/debug C/C++ files
 </h3>
 
 1. Download [Visual Studio Code](https://code.visualstudio.com/download)
-2. Download config to `~/.config/Code/User`:  
+2. Download config to `~/.config/Code/User`:
 ```
 wget -O ~/.config/Code/User/tasks.json https://raw.githubusercontent.com/ExposedCat/dotfiles/main/vscode/tasks.json
 ```
@@ -187,7 +174,7 @@ wget -O ~/.config/Code/User/tasks.json https://raw.githubusercontent.com/Exposed
   <p>Description</p>
 </h3>
 
-Runs `~/.startup.bash` on system startup. Script in repo includes:  
+Runs `~/.startup.bash` on system startup. Script in repo includes:
 1. Rights for ASUS ScreenPad+ brightness controls (requires [kernel module](https://github.com/Plippo/asus-wmi-screenpad) by [Plippo](https://github.com/Plippo))
 2. Setting ASUS ScreenPad+ brightness to maximum (requires [screenpad tool](https://github.com/Plippo/screenpad-tools) by [Plippo](https://github.com/Plippo) + see prev. paragraph)
 3. Stop charging laptops battery on 80%
@@ -220,15 +207,15 @@ Monokai profile for GNOME Terminal
 </h3>
 
 0. [Install monospace Nerd font](https://github.com/ExposedCat/stunning-gnome-de/tree/lo-fi#assetsjetbrainsmonospacettf) for text icons in terminal
-1. Download file:  
+1. Download file:
 ```
 wget https://raw.githubusercontent.com/ExposedCat/dotfiles/gnome-terminal/terminal.conf
 ```
-2. Load configuration:  
+2. Load configuration:
 ```
 dconf load /org/gnome/terminal/ < ./terminal.conf
 ```
-3. \[Optional] Remove config:  
+3. \[Optional] Remove config:
 ```
 rm terminal.conf
 ```

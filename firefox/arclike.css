@@ -1,0 +1,150 @@
+#browser>#tabbrowser-tabbox {
+    padding: 12px !important;
+    outline: unset !important;
+    box-shadow: unset !important;
+    border: unset !important;
+    background: #2b2a33 !important;
+
+    &:-moz-window-inactive {
+        background: #1a191f !important;
+    }
+}
+
+html[inFullscreen="true"] #browser>#tabbrowser-tabbox {
+    padding: 0px !important;
+    border-radius: 0px !important;
+}
+
+html:not([inFullscreen="true"]) browser {
+    border-radius: 8px !important;
+}
+
+#sidebar-main {
+    background: #2b2a33 !important;
+    padding-block: calc(40px + 12px) !important;
+
+    &:-moz-window-inactive {
+        opacity: .6;
+    }
+}
+
+.titlebar-spacer,
+.titlebar-buttonbox-container {
+    width: 0 !important;
+    margin: 0 !important;
+    display: none;
+}
+
+#vertical-tabs-newtab-button,
+#tabs-newtab-button {
+    margin: 0 !important;
+    margin-right: 12px !important;
+}
+
+#vertical-pinned-tabs-container {
+    padding-inline: 0 !important;
+    margin-right: 10px !important;
+
+    #tabbrowser-tabs[orient="vertical"]>&:not(:empty) {
+        gap: 10px;
+    }
+}
+
+tab.tabbrowser-tab {
+    margin-top: 4px !important;
+}
+
+#tabbrowser-arrowscrollbox>.tabbrowser-tab {
+    margin-top: 5px;
+}
+
+.tab-background {
+    margin: 0 !important;
+    margin-right: 12px !important;
+}
+
+#vertical-pinned-tabs-container .tab-background {
+    margin-right: 0 !important;
+}
+
+.tab-content {
+    padding: 0 12px !important;
+}
+
+.tab-close-button {
+    margin: 0 !important;
+    margin-right: 4px !important;
+}
+
+#urlbar-background {
+    background: #3a3941 !important;
+    border-radius: 8px !important;
+
+    &:-moz-window-inactive {
+        opacity: .6 !important;
+    }
+}
+
+#alltabs-button,
+.tools-and-extensions {
+    display: none !important;
+}
+
+#urlbar-container {
+    position: fixed;
+    right: 10px;
+    top: 12px !important;
+    padding-block: 0 !important;
+    margin: 0 !important;
+    width: 255.8px !important;
+}
+
+#urlbar-container:not(:has(#urlbar[open=""])) #tracking-protection-icon-container,
+#urlbar-container:not(:has(#urlbar[open=""])) #page-action-buttons,
+#urlbar-container:not(:has(#urlbar[open=""])) #identity-box {
+    width: 0 !important;
+    margin: 0 !important;
+    display: none;
+}
+
+#urlbar-container:has(#urlbar[open=""]) {
+    --urlbar-container-height: 42px !important;
+    left: calc(50% - 512px) !important;
+    width: 1024px !important;
+}
+
+toolbox#navigator-toolbox {
+    background: transparent !important;
+    position: absolute !important;
+    bottom: 12px !important;
+    right: 10px !important;
+    z-index: 99999999999 !important;
+    width: 255.8px !important;
+    border: unset !important;
+
+    &:-moz-window-inactive {
+        opacity: .6;
+    }
+}
+
+scrollbox[part="scrollbox"] {
+    scroll-behavior: unset !important;
+}
+
+#nav-bar-customization-target {
+    &> :is(toolbarbutton, toolbaritem):first-child {
+        padding-inline-start: 0 !important;
+    }
+}
+
+#PanelUI-menu-button {
+    padding-inline-end: 0 !important;
+}
+
+#tabbrowser-arrowscrollbox-periphery {
+    margin-top: 5px !important;
+}
+
+#tabs-newtab-button>label {
+    display: none !important;
+}
