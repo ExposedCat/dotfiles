@@ -4,10 +4,6 @@
     box-shadow: unset !important;
     border: unset !important;
     background: #2b2a33 !important;
-
-    &:-moz-window-inactive {
-        background: #1a191f !important;
-    }
 }
 
 html[inFullscreen="true"] #browser>#tabbrowser-tabbox {
@@ -24,7 +20,7 @@ html:not([inFullscreen="true"]) browser {
     padding-block: calc(40px + 12px) !important;
 
     &:-moz-window-inactive {
-        opacity: .6;
+        /* opacity: .6; */
     }
 }
 
@@ -79,10 +75,6 @@ tab.tabbrowser-tab {
 #urlbar-background {
     background: #3a3941 !important;
     border-radius: 8px !important;
-
-    &:-moz-window-inactive {
-        opacity: .6 !important;
-    }
 }
 
 #alltabs-button,
@@ -121,10 +113,6 @@ toolbox#navigator-toolbox {
     z-index: 99999999999 !important;
     width: 255.8px !important;
     border: unset !important;
-
-    &:-moz-window-inactive {
-        opacity: .6;
-    }
 }
 
 scrollbox[part="scrollbox"] {
@@ -147,4 +135,18 @@ scrollbox[part="scrollbox"] {
 
 #tabs-newtab-button>label {
     display: none !important;
+}
+
+.tab-label,
+#urlbar-input {
+    &:-moz-window-inactive {
+        color: #a8a7ad !important;
+    }
+}
+
+.tab-icon-image,
+#tabs-newtab-button {
+    &:-moz-window-inactive {
+        opacity: .6 !important;
+    }
 }
