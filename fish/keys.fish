@@ -1,0 +1,1 @@
+bind ctrl-h __keys_backspace

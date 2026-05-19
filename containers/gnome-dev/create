@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+NAME=gnome-dev
+IMAGE=registry.fedoraproject.org/fedora:43
+
+distrobox create \
+    --name $NAME \
+    --image $IMAGE \
+    --init \
+    --additional-packages "systemd gnome-shell mutter-devel gettext dbus-daemon gnome-extensions-app" \
+    --yes
+
+echo "DONE"

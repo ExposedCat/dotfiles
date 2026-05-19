@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# VSCode
+cp ./vscode/settings.json ~/.config/Code/User 
+
+# LogiOps
+sudo distrobox-host-exec cp logiops/logid.cfg /etc/logid.cfg
+
+# Fastfetch
+cp ./fastfetch/* ~/.config/fastfetch/
+
+# Fish
+sudo cp fish/* /etc/fish/conf.d

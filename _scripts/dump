@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+# VSCode
+cp ~/.config/Code/User/settings.json ./vscode
+
+# LogiOps
+distrobox-host-exec cat /etc/logid.cfg > logiops/logid.cfg
+
+# Fastfetch
+cp ~/.config/fastfetch/* ./fastfetch

@@ -1,0 +1,52 @@
+FROM registry.fedoraproject.org/fedora-toolbox:latest
+
+ENV H=/var/home/kitkat
+
+# DNF
+RUN dnf install -y dnf-plugins-core
+
+# Repos
+RUN dnf copr enable -y atim/starship
+RUN dnf copr enable -y che/nerd-fonts
+RUN curl -fsSL https://rpm.nodesource.com/setup_current.x | sudo bash -
+RUN sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
+RUN echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\nautorefresh=1\ntype=rpm-md\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" | sudo tee /etc/yum.repos.d/vscode.repo > /dev/null
+
+# Packages
+RUN dnf install -y \
+    fish \
+    starship \
+    nodejs \
+    fontconfig \
+    nerd-fonts \
+    libxkbfile \
+    xdg-utils \
+    fastfetch \
+    code
+
+# Cleanup
+RUN dnf clean all
+
+# Shell
+ENV SHELL_CONF=/etc/fish/conf.d
+RUN mkdir -p $SHELL_CONF
+COPY ../../fish/* $SHELL_CONF
+
+# Codex
+RUN npm i -g @openai/codex
+
+# Deno
+RUN npm	i -g deno
+RUN deno completions fish > $SHELL_CONF/deno.fish
+RUN chmod +x $SHELL_CONF/deno.fish
+
+# Godot
+RUN wget https://codeberg.org/godotsteam/godotsteam/releases/download/v4.17.1/linux64-g46-s163-gs4171-editor.tar.xz
+RUN tar -xvf linux64-g46-s163-gs4171-editor.tar.xz
+RUN mkdir -p $H/Applications/godot
+RUN mv godotsteam.46.editor.x86_64 $H/Applications/godot/editor
+RUN mv libsteam_api.so $H/Applications/godot
+RUN rm linux64-g46-s163-gs4171-editor.tar.xz
+RUN chmod +x $H/Applications/godot/editor
+
+CMD ["fish"]

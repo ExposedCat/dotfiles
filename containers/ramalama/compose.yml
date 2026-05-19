@@ -1,0 +1,51 @@
+services:
+  ramalama:
+    image: quay.io/ramalama/ramalama:latest
+    container_name: ramalama
+    restart: "no"
+
+    command:
+      - ramalama
+      - --nocontainer
+      - --store
+      - /models
+      - serve
+      - --backend
+      - vulkan
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --webui=off
+      - --ngl
+      - "999"
+      - ${RAMALAMA_MODEL}
+
+    ports:
+      - "8080:8080"
+
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+
+    group_add:
+      - keep-groups
+
+    security_opt:
+      - label=disable
+      - no-new-privileges
+
+    environment:
+      DRI_PRIME: "pci-0000_03_00_0!"
+
+    volumes:
+      - ramalama-models:/models:Z
+
+    healthcheck:
+      test: "python3 -c \"import socket; s=socket.create_connection(('127.0.0.1',8080),5); s.close()\""
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  ramalama-models:

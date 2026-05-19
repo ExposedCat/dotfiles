@@ -1,169 +1,89 @@
 {
-  // Editor
-  "editor.fontLigatures": true,
-  "editor.fontFamily": "'JetBrainsMono Nerd Font Mono', 'Droid Sans Mono', 'monospace', monospace, 'Droid Sans Fallback'",
-  "editor.unicodeHighlight.ambiguousCharacters": false,
-  "editor.suggestSelection": "first",
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "always"
-  },
-  "editor.tokenColorCustomizations": {
-    "textMateRules": [
-      {
-        "scope": [
-          "comment",
-          "punctuation.definition.comment"
-        ],
-        "settings": {
-          "fontStyle": ""
+    "window.menuBarVisibility": "compact",
+
+    "workbench.colorTheme": "Monokai Pro (Filter Spectrum)",
+    "workbench.activityBar.location": "top",
+    "workbench.layoutControl.enabled": false,
+    "workbench.browser.showInTitleBar": false,
+
+    "explorer.confirmPasteNative": false,
+    "explorer.confirmDelete": false,
+    "explorer.confirmDragAndDrop": false,
+
+    "terminal.integrated.profiles.linux": {
+        "bash": {
+            "path": "bash",
+            "icon": "terminal-bash"
+        },
+        "zsh": {
+            "path": "zsh"
+        },
+        "fish": {
+            "path": "/usr/bin/fish"
+        },
+        "tmux": {
+            "path": "tmux",
+            "icon": "terminal-tmux"
+        },
+        "pwsh": {
+            "path": "pwsh",
+            "icon": "terminal-powershell"
         }
-      }
-    ]
-  },
-  // Languages
-  // Bash
-  "[shellscript]": {
-    "editor.defaultFormatter": "foxundermoon.shell-format"
-  },
-  // JS & TS
-  "javascript.updateImportsOnFileMove.enabled": "always",
-  "javascript.preferences.importModuleSpecifierEnding": "js",
-  "typescript.preferences.importModuleSpecifierEnding": "js",
-  "editor.formatOnSave": true,
-  "[javascript]": {
-    "editor.defaultFormatter": "rvest.vs-code-prettier-eslint"
-  },
-  "[javascriptreact]": {
-    "editor.defaultFormatter": "rvest.vs-code-prettier-eslint"
-  },
-  "[typescriptreact]": {
-    "editor.defaultFormatter": "rvest.vs-code-prettier-eslint"
-  },
-  "[typescript]": {
-    "editor.defaultFormatter": "rvest.vs-code-prettier-eslint"
-  },
-  "typescript.updateImportsOnFileMove.enabled": "always",
-  // Formats
-  "[json]": {
-    "editor.defaultFormatter": "vscode.json-language-features"
-  },
-  "[jsonc]": {
-    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
-  },
-  // Front
-  "files.associations": {
-    "*.ejs": "html",
-    "*.isml": "html",
-    "*.mdoc": "markdown",
-    "*.ftl": "fluent"
-  },
-  "[html]": {
-    "editor.defaultFormatter": "vscode.html-language-features"
-  },
-  "[css]": {
-    "editor.defaultFormatter": "vscode.css-language-features"
-  },
-  // C/C++
-  "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 80, AllowShortIfStatementsOnASingleLine: false }",
-  "C_Cpp.autocompleteAddParentheses": true,
-  "launch": {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-      {
-        "name": "Makefile",
-        "type": "cppdbg",
-        "request": "launch",
-        "program": "${fileDirname}/.bin/${fileBasenameNoExtension}",
-        "args": [],
-        "stopAtEntry": true,
-        "cwd": "${fileDirname}",
-        "internalConsoleOptions": "neverOpen",
-        "environment": [],
-        "externalConsole": true,
-        "MIMode": "gdb",
-        "setupCommands": [
-          {
-            "description": "Enable pretty-printing for gdb",
-            "text": "-enable-pretty-printing",
-            "ignoreFailures": true
-          }
-        ],
-        "preLaunchTask": "Build project",
-        "postDebugTask": "Remove directory for binaries",
-        "miDebuggerPath": "/usr/bin/gdb"
-      }
-    ]
-  },
-  // Python
-  "python.formatting.blackArgs": [
-    "--line-length",
-    "79",
-    "--skip-string-normalization"
-  ],
-  "python.formatting.provider": "black",
-  // General
-  "security.workspace.trust.untrustedFiles": "open",
-  "debug.onTaskErrors": "showErrors",
-  "explorer.confirmDelete": false,
-  "explorer.confirmDragAndDrop": false,
-  "files.exclude": {
-    "**/.classpath": true,
-    "**/.project": false,
-    "**/.settings": true,
-    "**/.factorypath": true
-  },
-  "workbench.startupEditor": "none",
-  "editor.minimap.enabled": false,
-  "editor.multiCursorModifier": "ctrlCmd",
-  // Extensions
-  "git.autofetch": true,
-  // Theme customizations
-  "workbench.colorTheme": "Monokai Pro",
-  "workbench.colorCustomizations": {
-    "titleBar.activeBackground": "#1e1e1e",
-    "titleBar.activeForeground": "#b8b8b8"
-  },
-  "window.title": "${dirty}${activeEditorShort}${separator}${rootName}",
-  "window.titleBarStyle": "custom",
-  "workbench.iconTheme": "Monokai Pro Icons",
-  "editor.tabSize": 2,
-  "editor.codeLens": false,
-  "editor.inlayHints.enabled": "off",
-  "editor.fontSize": 15,
-  "terminal.integrated.enableMultiLinePasteWarning": false,
-  "editor.defaultFormatter": "rvest.vs-code-prettier-eslint",
-  "[cpp]": {
-    "editor.defaultFormatter": "ms-vscode.cpptools"
-  },
-  "editor.detectIndentation": false,
-  "[c]": {
-    "editor.defaultFormatter": "ms-vscode.cpptools"
-  },
-  "window.zoomLevel": 1,
-  "code-runner.clearPreviousOutput": true,
-  "files.autoSave": "onFocusChange",
-  "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter"
-  },
-  "editor.largeFileOptimizations": false,
-  "[xml]": {
-    "editor.defaultFormatter": "redhat.vscode-xml"
-  },
-  "tabnine.experimentalAutoImports": true,
-  "eslint.format.enable": true,
-  "todohighlight.keywords": [
-    {
-      "text": "NOTE:",
-      "backgroundColor": "gray",
-      "color": "white"
-    }
-  ],
-  "[dotenv]": {
-    "editor.defaultFormatter": "foxundermoon.shell-format"
-  },
-  "javascript.preferences.importModuleSpecifier": "relative",
-  "terminal.integrated.shellIntegration.enabled": false
+    },
+    "terminal.integrated.defaultProfile.linux": "fish",
+
+    "editor.minimap.enabled": false,
+    "editor.fontLigatures": true,
+    "editor.fontFamily": "'Adwaita Mono', 'BlexMono Nerd Font', serif",
+    "editor.unicodeHighlight.ambiguousCharacters": false,
+    "editor.suggestSelection": "first",
+    "editor.formatOnSave": true,
+    "editor.detectIndentation": false,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.biome": "always"
+    },
+
+    "diffEditor.ignoreTrimWhitespace": false,
+
+    "git.replaceTagsWhenPull": true,
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    "git.autofetch": true,
+
+    "json.schemaDownload.trustedDomains": {
+        "https://schemastore.azurewebsites.net/": true,
+        "https://raw.githubusercontent.com/microsoft/vscode/": true,
+        "https://raw.githubusercontent.com/devcontainers/spec/": true,
+        "https://www.schemastore.org/": true,
+        "https://json.schemastore.org/": true,
+        "https://json-schema.org/": true,
+        "https://developer.microsoft.com/json-schemas/": true,
+        "https://raw.githubusercontent.com": true,
+        "https://biomejs.dev": true
+    },
+    "[json]": {
+        "editor.defaultFormatter": "biomejs.biome"
+    },
+
+    "[shellscript]": {
+        "editor.defaultFormatter": "foxundermoon.shell-format"
+    },
+
+    "[typescript]": {
+        "editor.defaultFormatter": "biomejs.biome"
+    },
+    "js/ts.updateImportsOnFileMove.enabled": "always",
+    "js/ts.preferences.importModuleSpecifierEnding": "js",
+
+    "files.associations": {
+        "*.ejs": "html",
+        "*.isml": "html",
+        "*.mdoc": "markdown",
+        "*.ftl": "fluent"
+    },
+    "files.autoSave": "onFocusChange",
+
+    "chat.viewSessions.orientation": "stacked",
+    
+    "security.workspace.trust.untrustedFiles": "open"
 }

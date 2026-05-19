@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+NAME=dev
+
+podman build -t $NAME -f Containerfile .
+distrobox create --name $NAME --image $NAME --yes
+
+distrobox enter $NAME -- bash -lc '
+    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/dbus-run-session
+    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/xdg-open
+    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/gio
+    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/podman
+    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/distrobox
+    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/systemctl
+'
+
+echo "DONE"
