@@ -2,7 +2,7 @@
 set -euo pipefail
 
 NAME=gnome-dev
-IMAGE=registry.fedoraproject.org/fedora:43
+IMAGE=quay.io/fedora/fedora:43
 
 distrobox create \
     --name $NAME \

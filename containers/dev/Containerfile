@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora-toolbox:latest
+FROM quay.io/fedora/fedora-toolbox:latest
 
 ENV H=/var/home/kitkat
 
@@ -30,7 +30,7 @@ RUN dnf clean all
 # Shell
 ENV SHELL_CONF=/etc/fish/conf.d
 RUN mkdir -p $SHELL_CONF
-COPY ../../fish/* $SHELL_CONF
+COPY fish/*.fish $SHELL_CONF/
 
 # Codex
 RUN npm i -g @openai/codex
