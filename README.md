@@ -74,10 +74,17 @@ Logiops is a driver for Logitech mice configuration. Config includes:
   <p>Usage</p>
 </h3>
 
-Copy the file to `/etc`:
+Copy the config file to `/etc`:
 
 ```bash
 sudo wget -O /etc/logid.cfg https://raw.githubusercontent.com/ExposedCat/dotfiles/main/logiops/logid.cfg
+```
+
+Copy the resume fix script to `/etc/systemd/system-sleep/after-resume`:
+
+```bash
+sudo wget -O /etc/systemd/system-sleep/after-resume https://raw.githubusercontent.com/ExposedCat/dotfiles/main/logiops/resume-fix
+sudo chmod +x /etc/systemd/system-sleep/after-resume
 ```
 
 <h2 align="center">

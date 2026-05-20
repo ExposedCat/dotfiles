@@ -5,6 +5,8 @@ cp ./vscode/settings.json ~/.config/Code/User
 
 # LogiOps
 sudo distrobox-host-exec cp logiops/logid.cfg /etc/logid.cfg
+sudo mkdir -p /etc/systemd/system-sleep
+sudo cp logiops/resume-fix /etc/systemd/system-sleep/after-resume
 
 # Fastfetch
 cp ./fastfetch/* ~/.config/fastfetch/
