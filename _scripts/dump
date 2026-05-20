@@ -5,7 +5,10 @@ cp ~/.config/Code/User/settings.json ./vscode
 
 # LogiOps
 distrobox-host-exec cat /etc/logid.cfg > logiops/logid.cfg
-sudo cp /etc/systemd/system-sleep/after-resume logiops/resume-fix
+distrobox-host-exec cp /etc/systemd/system-sleep/after-resume logiops/resume-fix
 
 # Fastfetch
 cp ~/.config/fastfetch/* ./fastfetch
+
+# Ptyxis
+dconf dump /org/gnome/Ptyxis/ > ptyxis/ptyxis.dconf

@@ -13,3 +13,6 @@ cp ./fastfetch/* ~/.config/fastfetch/
 
 # Fish
 sudo cp fish/* /etc/fish/conf.d
+
+# Ptyxis
+dconf load /org/gnome/Ptyxis/ < ptyxis/ptyxis.dconf
