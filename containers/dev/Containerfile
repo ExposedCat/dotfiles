@@ -15,6 +15,8 @@ RUN echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft
 # Packages
 RUN dnf install -y \
     fish \
+    podman-compose \
+    ffmpeg \
     starship \
     nodejs \
     fontconfig \
