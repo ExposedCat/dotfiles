@@ -24,6 +24,8 @@ RUN dnf install -y \
     libxkbfile \
     xdg-utils \
     fastfetch \
+    jq \
+    httpie \
     code
 
 # Cleanup
