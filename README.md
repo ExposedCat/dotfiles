@@ -88,6 +88,45 @@ sudo chmod +x /etc/systemd/system-sleep/after-resume
 ```
 
 <h2 align="center">
+  <p>Audio outputs (WirePlumber)</p>
+</h2>
+
+Custom ALSA profiles keep HDMI / DisplayPort 5 on the OMEN monitor as the
+only output on the Navi GPU and make the RØDE PodMic USB input-only. The
+PodMic microphone remains available. Alternate GPU outputs, PodMic playback
+ports, and the Pro Audio profiles for these two devices are hidden.
+
+The rule targets GPU `alsa_card.pci-0000_03_00.1` and PodMic
+`alsa_card.usb-R__DE_R__DE_PodMic_USB_973F4E9B-00`. On another machine, adjust
+the device matches and HDMI mapping using `wpctl status` and `wpctl inspect`.
+Other audio devices are unaffected. This uses WirePlumber 0.5 configuration
+and PipeWire's user ALSA profile directory (verified with PipeWire 1.6.9).
+
+<h3 align="center">
+  <p>Usage</p>
+</h3>
+
+From the repository root, install both profiles before the rule, then reload:
+
+```bash
+mkdir -p ~/.config/alsa-card-profile/mixer/profile-sets ~/.config/wireplumber/wireplumber.conf.d
+cp ./alsa-card-profile/mixer/profile-sets/{omen-hdmi5-only,podmic-input-only}.conf ~/.config/alsa-card-profile/mixer/profile-sets/ &&
+    cp ./wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf ~/.config/wireplumber/wireplumber.conf.d/ &&
+    systemctl --user restart wireplumber
+```
+
+The profile filenames resolve from `~/.config/alsa-card-profile/mixer/profile-sets/`,
+so the rule contains no username or absolute home path. `_scripts/load` installs
+these files; `_scripts/dump` saves them and normalizes any absolute profile paths.
+
+To restore the available output choices:
+
+```bash
+rm ~/.config/wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf
+systemctl --user restart wireplumber
+```
+
+<h2 align="center">
   <p>Visual Studio Code</p>
 </h2>
 

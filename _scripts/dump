@@ -12,3 +12,10 @@ cp ~/.config/fastfetch/* ./fastfetch
 
 # Ptyxis
 dconf dump /org/gnome/Ptyxis/ > ptyxis/ptyxis.dconf
+
+# Audio: keep profile references independent of the local home directory.
+mkdir -p ./alsa-card-profile/mixer/profile-sets ./wireplumber/wireplumber.conf.d
+cp ~/.config/alsa-card-profile/mixer/profile-sets/{omen-hdmi5-only,podmic-input-only}.conf ./alsa-card-profile/mixer/profile-sets/
+sed -E 's|(device\.profile-set = ")[^"]*/|\1|' \
+    ~/.config/wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf \
+    > ./wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf
