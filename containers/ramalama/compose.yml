@@ -19,6 +19,8 @@ services:
       - --webui=off
       - --ngl
       - "999"
+      - --ctx-size
+      - "16384"
       - ${RAMALAMA_MODEL}
 
     ports:
@@ -39,13 +41,72 @@ services:
 
     volumes:
       - ramalama-models:/models:Z
+      - ./healthcheck.py:/healthcheck.py:ro
+
+    # Healthy while ready, loading (HTTP 503) or downloading (.partial growing).
+    healthcheck:
+      test: ["CMD", "python3", "/healthcheck.py"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 2m
+
+  # Second model on port 8081, sharing the same model store.
+  # NOT started by default: it is in the "mistral" profile because the GPU cannot
+  # hold both models at once (Qwen ~13.8 GB + Mistral ~8.5 GB > 16 GB VRAM).
+  # Stop the qwen service first, then start this one with:
+  #   podman-compose --profile mistral up -d ramalama-mistral
+  ramalama-mistral:
+    profiles: ["mistral"]
+    image: quay.io/ramalama/ramalama:latest
+    container_name: ramalama-mistral
+    restart: "no"
+
+    command:
+      - ramalama
+      - --nocontainer
+      - --store
+      - /models
+      - serve
+      - --backend
+      - vulkan
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --webui=off
+      - --ngl
+      - "999"
+      - --ctx-size
+      - "8192"
+      - ${RAMALAMA_MODEL_MISTRAL}
+
+    ports:
+      - "8081:8080"
+
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+
+    group_add:
+      - keep-groups
+
+    security_opt:
+      - label=disable
+      - no-new-privileges
+
+    environment:
+      DRI_PRIME: "pci-0000_03_00_0!"
+
+    volumes:
+      - ramalama-models:/models:Z
+      - ./healthcheck.py:/healthcheck.py:ro
 
     healthcheck:
-      test: "python3 -c \"import socket; s=socket.create_connection(('127.0.0.1',8080),5); s.close()\""
+      test: ["CMD", "python3", "/healthcheck.py"]
       interval: 30s
-      timeout: 10s
+      timeout: 20s
       retries: 5
-      start_period: 60s
+      start_period: 2m
 
 volumes:
   ramalama-models:
