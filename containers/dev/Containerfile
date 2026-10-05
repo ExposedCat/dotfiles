@@ -8,6 +8,7 @@ RUN dnf install -y dnf-plugins-core
 # Repos
 RUN dnf copr enable -y atim/starship
 RUN dnf copr enable -y che/nerd-fonts
+RUN dnf copr enable -y exposedcat/pm3
 RUN curl -fsSL https://rpm.nodesource.com/setup_current.x | sudo bash -
 RUN sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
 RUN echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\nautorefresh=1\ntype=rpm-md\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" | sudo tee /etc/yum.repos.d/vscode.repo > /dev/null
@@ -26,7 +27,8 @@ RUN dnf install -y \
     fastfetch \
     jq \
     httpie \
-    code
+    code \
+    pm3
 
 # Cleanup
 RUN dnf clean all
