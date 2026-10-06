@@ -88,6 +88,66 @@ sudo chmod +x /etc/systemd/system-sleep/after-resume
 ```
 
 <h2 align="center">
+  <p>System sleep</p>
+</h2>
+
+`services/sleep/` restricts normal systemd suspend to deep (S3) sleep using
+`SuspendState=mem` and `MemorySleepMode=deep`. If that attempt fails, systemd
+stops instead of trying the `freeze` / `s2idle` fallback. Requires systemd 256+
+and hardware with deep sleep support; this is the configuration for the
+TUF GAMING B650-PLUS desktop with AMD graphics.
+
+On October 6, 2026, a pending wake event interrupted deep sleep. Both GPUs
+recovered from that attempt, but the immediate `s2idle` fallback was rejected
+by the integrated GPU and left the dedicated Radeon wedged. The original wake
+device was not recorded. This configuration removes that fallback; it does not
+guarantee recovery from every possible GPU or firmware fault.
+
+The suspend service also enables kernel power-management debug messages and
+records wake IRQ information, wake-source counters, suspend statistics, interrupt
+mapping, and USB / ACPI wake settings before and after each attempt. Diagnostics
+are saved in the system journal, time-limited to five seconds per hook, and
+cannot block sleep on failure. Kernel PM debug messages remain enabled until
+reboot (or until `/sys/power/pm_debug_messages` is set back to `0`).
+
+<h3 align="center">
+  <p>Usage</p>
+</h3>
+
+From the repository root:
+
+```bash
+./services/sleep/manage install
+```
+
+The helper installs the two configuration files under `/etc/systemd/` and the
+executable under `/usr/local/sbin/`, restores SELinux labels when available, and
+reloads systemd. It takes effect on the next sleep attempt without rebooting.
+When run from Distrobox, it executes on the host and requests administrator
+authentication there. Installation does not trigger sleep.
+
+`_scripts/load` includes this installation. `_scripts/dump` calls
+`./services/sleep/manage dump` to save the installed host files back to the repo.
+
+After the next sleep attempt, inspect these logs on the host (use `-b -1`
+instead of `-b` if you have rebooted since the attempt):
+
+```bash
+journalctl -b -u systemd-suspend.service
+journalctl -b -k -g 'PM:|Wakeup|wakeup|amdgpu'
+```
+
+To remove this configuration, run on the host:
+
+```bash
+sudo rm /etc/systemd/sleep.conf.d/90-deep-only.conf \
+    /etc/systemd/system/systemd-suspend.service.d/90-wake-diagnostics.conf \
+    /usr/local/sbin/sleep-wake-diagnostics
+sudo systemctl daemon-reload
+echo 0 | sudo tee /sys/power/pm_debug_messages
+```
+
+<h2 align="center">
   <p>Audio outputs (WirePlumber)</p>
 </h2>
 

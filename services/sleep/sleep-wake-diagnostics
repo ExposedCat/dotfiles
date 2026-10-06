@@ -1,0 +1,28 @@
+#!/bin/sh
+# Output is saved in the systemd-suspend.service journal.
+printf 'SLEEP-DIAGNOSTICS phase=%s result=%s time=%s\n' "$1" "${SERVICE_RESULT:-n/a}" "$(date -Is)"
+if [ "$1" = before ]; then
+    # Enables kernel messages naming wake IRQs and active wakeup sources.
+    echo 1 > /sys/power/pm_debug_messages
+fi
+for f in /sys/power/mem_sleep /sys/power/pm_wakeup_irq /sys/kernel/debug/wakeup_sources /sys/power/suspend_stats/*; do
+    [ -f "$f" ] || continue
+    printf '\n%s\n' "$f"
+    cat "$f" 2>/dev/null || true
+done
+printf '\nInterrupt mapping and counters:\n'
+cat /proc/interrupts
+printf '\nACPI wake configuration:\n'
+cat /proc/acpi/wakeup
+printf '\nUSB device mapping and wake settings:\n'
+for d in /sys/bus/usb/devices/*; do
+    [ -f "$d/product" ] || continue
+    printf '%s product=' "${d##*/}"
+    cat "$d/product"
+    if [ -f "$d/power/wakeup" ]; then
+        printf '  wakeup='
+        cat "$d/power/wakeup"
+    fi
+done
+printf 'SLEEP-DIAGNOSTICS end phase=%s\n' "$1"
+exit 0

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script=$(realpath "${BASH_SOURCE[0]}")
+source_dir=$(dirname "$script")
+
+case "${1:-}" in
+    install|dump) ;;
+    *) echo "Usage: $0 {install|dump}" >&2; exit 2 ;;
+esac
+
+# System sleep belongs to the host, even when dotfiles are managed in Distrobox.
+if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
+    exec distrobox-host-exec bash "$script" "$@"
+fi
+
+sleep_config=/etc/systemd/sleep.conf.d/90-deep-only.conf
+diagnostics_config=/etc/systemd/system/systemd-suspend.service.d/90-wake-diagnostics.conf
+diagnostics_script=/usr/local/sbin/sleep-wake-diagnostics
+
+if [[ $1 == dump ]]; then
+    # Check every source before replacing any tracked files.
+    for source in "$sleep_config" "$diagnostics_config" "$diagnostics_script"; do
+        [[ -r $source ]] || { echo "Cannot read $source" >&2; exit 1; }
+    done
+    cp "$sleep_config" "$diagnostics_config" "$diagnostics_script" "$source_dir/"
+    chmod +x "$source_dir/sleep-wake-diagnostics"
+    exit 0
+fi
+
+if ! grep -qw deep /sys/power/mem_sleep; then
+    echo 'This configuration requires deep (S3) sleep support.' >&2
+    exit 1
+fi
+
+if (( EUID != 0 )); then
+    exec sudo bash "$script" "$@"
+fi
+
+install -d -m 0755 /etc/systemd/sleep.conf.d /etc/systemd/system/systemd-suspend.service.d /usr/local/sbin
+install -o root -g root -m 0644 "$source_dir/90-deep-only.conf" "$sleep_config"
+install -o root -g root -m 0755 "$source_dir/sleep-wake-diagnostics" "$diagnostics_script"
+install -o root -g root -m 0644 "$source_dir/90-wake-diagnostics.conf" "$diagnostics_config"
+if command -v restorecon >/dev/null; then
+    restorecon "$sleep_config" "$diagnostics_script" "$diagnostics_config"
+fi
+systemctl daemon-reload
+echo 'Deep sleep only and wake diagnostics installed. No reboot or sleep test performed.'

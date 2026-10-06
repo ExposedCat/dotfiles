@@ -7,6 +7,9 @@ cp ~/.config/Code/User/settings.json ./vscode
 distrobox-host-exec cat /etc/logid.cfg > logiops/logid.cfg
 distrobox-host-exec cp /etc/systemd/system-sleep/after-resume logiops/resume-fix
 
+# System sleep: capture the host configuration and wake diagnostic helper.
+./services/sleep/manage dump
+
 # Fastfetch
 cp ~/.config/fastfetch/* ./fastfetch
 
