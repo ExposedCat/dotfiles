@@ -22,3 +22,4 @@ cp ~/.config/alsa-card-profile/mixer/profile-sets/{omen-hdmi5-only,podmic-input-
 sed -E 's|(device\.profile-set = ")[^"]*/|\1|' \
     ~/.config/wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf \
     > ./wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf
+cp ~/.config/wireplumber/wireplumber.conf.d/52-bluetooth-headphones-only.conf ./wireplumber/wireplumber.conf.d/

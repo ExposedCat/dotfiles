@@ -20,8 +20,8 @@ sudo cp fish/* /etc/fish/conf.d
 # Ptyxis
 dconf load /org/gnome/Ptyxis/ < ptyxis/ptyxis.dconf
 
-# Audio: install profiles before enabling the WirePlumber rule.
+# Audio: install profiles before enabling the WirePlumber rules.
 mkdir -p ~/.config/alsa-card-profile/mixer/profile-sets ~/.config/wireplumber/wireplumber.conf.d
 cp ./alsa-card-profile/mixer/profile-sets/{omen-hdmi5-only,podmic-input-only}.conf ~/.config/alsa-card-profile/mixer/profile-sets/ &&
-    cp ./wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf ~/.config/wireplumber/wireplumber.conf.d/ &&
+    cp ./wireplumber/wireplumber.conf.d/{51-audio-output-cleanup,52-bluetooth-headphones-only}.conf ~/.config/wireplumber/wireplumber.conf.d/ &&
     systemctl --user restart wireplumber

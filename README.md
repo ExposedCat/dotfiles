@@ -159,19 +159,26 @@ ports, and the Pro Audio profiles for these two devices are hidden.
 The rule targets GPU `alsa_card.pci-0000_03_00.1` and PodMic
 `alsa_card.usb-R__DE_R__DE_PodMic_USB_973F4E9B-00`. On another machine, adjust
 the device matches and HDMI mapping using `wpctl status` and `wpctl inspect`.
-Other audio devices are unaffected. This uses WirePlumber 0.5 configuration
+These ALSA rules leave other audio devices unaffected. This uses WirePlumber 0.5 configuration
 and PipeWire's user ALSA profile directory (verified with PipeWire 1.6.9).
+
+`52-bluetooth-headphones-only.conf` separately limits Bluetooth audio to A2DP
+roles and disables the HFP/HSP backend and automatic headset switching. Bluetooth
+headphones retain music playback, while hands-free/headset profiles and their
+microphones are unavailable. This applies to all Bluetooth headsets, including
+the WH-1000XM5; LE Audio (BAP) roles are also excluded. The USB PodMic remains
+available for calls.
 
 <h3 align="center">
   <p>Usage</p>
 </h3>
 
-From the repository root, install both profiles before the rule, then reload:
+From the repository root, install both profiles before the rules, then reload:
 
 ```bash
 mkdir -p ~/.config/alsa-card-profile/mixer/profile-sets ~/.config/wireplumber/wireplumber.conf.d
 cp ./alsa-card-profile/mixer/profile-sets/{omen-hdmi5-only,podmic-input-only}.conf ~/.config/alsa-card-profile/mixer/profile-sets/ &&
-    cp ./wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf ~/.config/wireplumber/wireplumber.conf.d/ &&
+    cp ./wireplumber/wireplumber.conf.d/{51-audio-output-cleanup,52-bluetooth-headphones-only}.conf ~/.config/wireplumber/wireplumber.conf.d/ &&
     systemctl --user restart wireplumber
 ```
 
@@ -183,6 +190,13 @@ To restore the available output choices:
 
 ```bash
 rm ~/.config/wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf
+systemctl --user restart wireplumber
+```
+
+To re-enable Bluetooth headset modes separately:
+
+```bash
+rm ~/.config/wireplumber/wireplumber.conf.d/52-bluetooth-headphones-only.conf
 systemctl --user restart wireplumber
 ```
 
