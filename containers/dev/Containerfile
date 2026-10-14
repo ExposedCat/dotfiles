@@ -13,6 +13,9 @@ RUN curl -fsSL https://rpm.nodesource.com/setup_current.x | sudo bash -
 RUN sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
 RUN echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\nautorefresh=1\ntype=rpm-md\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" | sudo tee /etc/yum.repos.d/vscode.repo > /dev/null
 
+# Flatpak
+RUN flatpak --user remote-add --if-not-exists flatpak https://dl.flatpak.org/flatpak.flatpakrepo
+
 # Packages
 RUN dnf install -y \
     fish \
