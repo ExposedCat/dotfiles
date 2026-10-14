@@ -31,7 +31,16 @@ RUN dnf install -y \
     jq \
     httpie \
     code \
-    pm3
+    pm3 \
+    python3 \
+    xorg-x11-server-Xvfb \
+    xorg-x11-xauth \
+    xdpyinfo \
+    xprop \
+    xdotool \
+    openbox \
+    ImageMagick \
+    dbus-daemon
 
 # Cleanup
 RUN dnf clean all

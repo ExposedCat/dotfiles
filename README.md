@@ -224,6 +224,37 @@ wget -O ~/.config/Code/User/settings.json https://raw.githubusercontent.com/Expo
 ```
 
 <h2 align="center">
+  <p>Codex skills</p>
+</h2>
+
+`codex/skills/isolated-gui/` contains the [isolated GUI skill](codex/skills/isolated-gui/SKILL.md)
+and its Python helpers. It runs Linux GUI tests and diagnostics on a private
+Xvfb display and D-Bus session, with screenshots, mouse input, and keyboard input.
+The skill documents the local Fedora `dev` container and keeps agent-owned GUI
+work off the user's desktop.
+
+The [server skill](codex/skills/server/SKILL.md) defines `kitkat@server.local`
+as the default deployment target, keeps remote diagnostics read-only, and uses
+`pm3 restart -d` to deploy pushed local changes when instructed.
+
+<h3 align="center">
+  <p>Usage</p>
+</h3>
+
+From the repository root:
+
+```bash
+mkdir -p ~/.codex/skills
+cp -R ./codex/skills/isolated-gui ~/.codex/skills/
+cp -R ./codex/skills/server ~/.codex/skills/
+```
+
+`_scripts/load` installs both skills; `_scripts/dump` saves their source files back
+to the repo. Both exclude generated Python caches. The dev container image
+includes the GUI dependencies; for an existing container, use the dependency
+installation command in the skill.
+
+<h2 align="center">
   <p>SystemD - Startup script</p>
 </h2>
 

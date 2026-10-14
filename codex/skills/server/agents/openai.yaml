@@ -1,0 +1,4 @@
+interface:
+  display_name: "Server"
+  short_description: "Inspect server apps and deploy local fixes with pm3"
+  default_prompt: "Use $server to inspect deployed applications on kitkat@server.local."

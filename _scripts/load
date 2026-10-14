@@ -3,6 +3,17 @@
 # VSCode
 cp ./vscode/settings.json ~/.config/Code/User 
 
+# Codex: install the isolated GUI skill without generated Python caches.
+mkdir -p ~/.codex/skills/isolated-gui/{agents,scripts}
+cp ./codex/skills/isolated-gui/SKILL.md ~/.codex/skills/isolated-gui/
+cp ./codex/skills/isolated-gui/agents/openai.yaml ~/.codex/skills/isolated-gui/agents/
+cp ./codex/skills/isolated-gui/scripts/{desktop,runtime}.py ~/.codex/skills/isolated-gui/scripts/
+
+# Codex: install the server workflow skill.
+mkdir -p ~/.codex/skills/server/agents
+cp ./codex/skills/server/SKILL.md ~/.codex/skills/server/
+cp ./codex/skills/server/agents/openai.yaml ~/.codex/skills/server/agents/
+
 # LogiOps
 sudo distrobox-host-exec cp logiops/logid.cfg /etc/logid.cfg
 sudo mkdir -p /etc/systemd/system-sleep

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Isolated GUI"
+  short_description: "Test Linux GUI apps without disturbing your desktop"
+  default_prompt: "Use $isolated-gui to run and inspect GUI diagnostics on a private desktop."
