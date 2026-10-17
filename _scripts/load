@@ -14,6 +14,10 @@ mkdir -p ~/.codex/skills/server/agents
 cp ./codex/skills/server/SKILL.md ~/.codex/skills/server/
 cp ./codex/skills/server/agents/openai.yaml ~/.codex/skills/server/agents/
 
+# Claude: share the installed Codex server and isolated GUI workflows.
+mkdir -p ~/.claude
+cp ./claude/CLAUDE.md ~/.claude/CLAUDE.md
+
 # LogiOps
 sudo distrobox-host-exec cp logiops/logid.cfg /etc/logid.cfg
 sudo mkdir -p /etc/systemd/system-sleep

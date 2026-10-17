@@ -224,7 +224,7 @@ wget -O ~/.config/Code/User/settings.json https://raw.githubusercontent.com/Expo
 ```
 
 <h2 align="center">
-  <p>Codex skills</p>
+  <p>Codex and Claude workflows</p>
 </h2>
 
 `codex/skills/isolated-gui/` contains the [isolated GUI skill](codex/skills/isolated-gui/SKILL.md)
@@ -247,10 +247,19 @@ From the repository root:
 mkdir -p ~/.codex/skills
 cp -R ./codex/skills/isolated-gui ~/.codex/skills/
 cp -R ./codex/skills/server ~/.codex/skills/
+mkdir -p ~/.claude
+cp ./claude/CLAUDE.md ~/.claude/CLAUDE.md
 ```
 
-`_scripts/load` installs both skills; `_scripts/dump` saves their source files back
-to the repo. Both exclude generated Python caches. The dev container image
+The global [Claude instructions](claude/CLAUDE.md) use
+[Claude Code file imports](https://code.claude.com/docs/en/memory#import-additional-files)
+to load these same skill files from `~/.codex/skills/`. Keep both skills installed
+even when using only Claude; the GUI commands use the shared Codex helper path.
+Workflow changes then apply to both agents without maintaining duplicate copies.
+
+`_scripts/load` installs both skills and `~/.claude/CLAUDE.md`; `_scripts/dump`
+saves their source files back to the repo. Both exclude generated Python caches.
+The dev container image
 includes the GUI dependencies; for an existing container, use the dependency
 installation command in the skill.
 

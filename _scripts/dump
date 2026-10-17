@@ -14,6 +14,10 @@ mkdir -p ./codex/skills/server/agents
 cp ~/.codex/skills/server/SKILL.md ./codex/skills/server/
 cp ~/.codex/skills/server/agents/openai.yaml ./codex/skills/server/agents/
 
+# Claude: capture the global instructions that import the shared workflows.
+mkdir -p ./claude
+cp ~/.claude/CLAUDE.md ./claude/CLAUDE.md
+
 # LogiOps
 distrobox-host-exec cat /etc/logid.cfg > logiops/logid.cfg
 distrobox-host-exec cp /etc/systemd/system-sleep/after-resume logiops/resume-fix
