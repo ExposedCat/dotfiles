@@ -26,6 +26,9 @@ sudo cp logiops/resume-fix /etc/systemd/system-sleep/after-resume
 # System sleep: install on the host, including when called from Distrobox.
 ./services/sleep/manage install
 
+# GNOME Keyring: keep the upstream OpenSession fix installed on the host.
+./gnome-keyring/manage install
+
 # Fastfetch
 cp ./fastfetch/* ~/.config/fastfetch/
 

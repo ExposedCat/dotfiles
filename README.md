@@ -299,6 +299,16 @@ sudo systemctl enable --now startup
 ```
 
 <h2 align="center">
+  <p>GNOME Keyring</p>
+</h2>
+
+`./gnome-keyring/manage install` restores the Fedora 44 keyring fix for GOA
+using rpm-ostree; `_scripts/load` includes it. The [fork](https://github.com/ExposedCat/gnome-keyring)
+has upstream MR !112 merged into `main`. Build from the Fedora 44 dev container
+with `./gnome-keyring/manage build`; sources, tested RPMs and logs stay in
+`~/.local/state/dotfiles/gnome-keyring/`. New installs take effect after reboot.
+
+<h2 align="center">
   <p>Dev Container</p>
 </h2>
 

@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+recipe=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+state=${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/gnome-keyring
+version=50.0-2.mr112.fc44
+arch=x86_64
+rpms=("$state/rpmbuild/RPMS/$arch/gnome-keyring-$version.$arch.rpm"
+      "$state/rpmbuild/RPMS/$arch/gnome-keyring-pam-$version.$arch.rpm")
+
+host() {
+    if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
+        distrobox-host-exec "$@"
+    else
+        "$@"
+    fi
+}
+
+build() {
+    for tool in rpmbuild curl sha256sum flock; do
+        command -v "$tool" >/dev/null || {
+            echo 'Build inside the Fedora 44 dev container. Install dependencies with:' >&2
+            echo "sudo dnf install rpm-build rpmdevtools dbus-daemon && sudo dnf builddep '$recipe/gnome-keyring.spec'" >&2
+            exit 1
+        }
+    done
+    [[ $(rpm --eval '%{fedora} %{_arch}') == '44 x86_64' ]] || {
+        echo 'This recipe builds Fedora 44 x86_64 packages.' >&2
+        exit 1
+    }
+    mkdir -p "$state"
+    exec 9>"$state/build.lock"
+    flock 9
+    cd "$state"
+    cp "$recipe/"{gnome-keyring.spec,78.patch,mr112.patch,sources.sha256} .
+    if [[ ! -f gnome-keyring-50.0.tar.xz ]]; then
+        curl --fail --location --retry 3 \
+            https://download.gnome.org/sources/gnome-keyring/50/gnome-keyring-50.0.tar.xz \
+            -o gnome-keyring-50.0.tar.xz.part
+        mv gnome-keyring-50.0.tar.xz{.part,}
+    fi
+    sha256sum --check sources.sha256
+    mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+    # Keep sources and binaries outside the disposable cache directory.
+    rpmbuild -ba gnome-keyring.spec --noclean \
+        --define "_topdir $state/rpmbuild" --define "_sourcedir $state" \
+        2>&1 | tee "$state/build.log"
+    rpm -K "${rpms[@]}"
+    sha256sum "$recipe/"{gnome-keyring.spec,78.patch,mr112.patch,sources.sha256} > recipe.sha256
+    sha256sum "${rpms[@]}" > packages.sha256
+    echo "Built and tested packages in $state/rpmbuild/RPMS/$arch"
+}
+
+install_packages() {
+    [[ $(host rpm --eval '%{fedora} %{_arch}') == '44 x86_64' ]] || {
+        echo 'This recipe installs on a Fedora 44 x86_64 rpm-ostree host.' >&2
+        exit 1
+    }
+    # Match the pending deployment too: a successful rerun must not stage it again.
+    if host rpm-ostree status --json | python3 -c '
+import json, sys
+d = json.load(sys.stdin)["deployments"][0]
+required = {"gnome-keyring-" + sys.argv[1] + ".x86_64",
+            "gnome-keyring-pam-" + sys.argv[1] + ".x86_64"}
+sys.exit(0 if required <= set(d.get("requested-base-local-replacements", [])) else 1)
+' "$version"; then
+        echo "gnome-keyring and PAM $version are already installed in the default deployment."
+        return
+    fi
+    if [[ ! -f $state/recipe.sha256 || ! -f $state/packages.sha256 ]] ||
+       ! sha256sum --check --status "$state/recipe.sha256" ||
+       ! sha256sum --check --status "$state/packages.sha256"; then
+        build
+    fi
+    # rpm-ostree keeps these replacements through upgrades. Never restart keyring
+    # or reboot here; the new deployment takes effect at the next normal boot.
+    host rpm-ostree override replace "${rpms[@]}"
+    echo 'Patched keyring staged. It takes effect after your next normal reboot.'
+}
+
+case "${1:-}" in
+    build) build ;;
+    install) install_packages ;;
+    *) echo "Usage: $0 {build|install}" >&2; exit 2 ;;
+esac
