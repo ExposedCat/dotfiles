@@ -1,0 +1,36 @@
+# Hyprland desktop packages
+
+- hyprland
+- quickshell
+- hyprlock
+- hypridle
+- polkit
+- kitty
+- qt6-qtwayland
+- qt6-qtsvg
+- MacTahoe-blue (reuse existing application icons)
+- adwaita-icon-theme (folders, Places, and file types)
+- hicolor-icon-theme (fallback)
+- Lucide SVG assets (small shell controls and indicators)
+- xdg-desktop-portal
+- xdg-desktop-portal-hyprland
+- xdg-desktop-portal-gtk
+- pipewire
+- pipewire-pulseaudio
+- wireplumber
+- NetworkManager
+- NetworkManager-wifi
+- bluez
+- upower
+- tuned-ppd
+- grim
+- slurp
+- satty
+- wl-screenrec
+- wl-clipboard
+- cliphist
+- gnome-online-accounts
+- evolution-data-server
+- libsecret
+- oo7-daemon
+- pam_oo7

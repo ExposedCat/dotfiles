@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+host_command="${0##*/}"
+if [[ "$host_command" == distrobox-host-exec ]]; then
+    host_command="${1:?Specify a host command}"
+    shift
+fi
+if [[ "$host_command" != /* ]]; then
+    host_command="/usr/bin/$host_command"
+fi
+
+export XDG_RUNTIME_DIR="/run/host/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+
+# Distrobox's default forwarding only passes TERM, losing Wayland focus tokens.
+exec /usr/bin/host-spawn --no-pty \
+    --env=TERM,XDG_ACTIVATION_TOKEN,DESKTOP_STARTUP_ID \
+    "$host_command" "$@"

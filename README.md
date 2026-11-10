@@ -88,6 +88,36 @@ sudo chmod +x /etc/systemd/system-sleep/after-resume
 ```
 
 <h2 align="center">
+  <p>LAN hostname resolution</p>
+</h2>
+
+`services/mdns/` configures this PC to resolve LAN names such as `server.local`.
+The server advertises its own name using the configuration and `setup.sh` in
+`ExposedCat/infra`. PC services are managed separately in `ExposedCat/local-infra`.
+
+From this repository on the PC:
+
+```bash
+./services/mdns/manage install
+./services/mdns/manage check
+getent ahostsv4 server.local
+ssh kitkat@server.local
+```
+
+`_scripts/load` includes installation; `_scripts/dump` captures the two installed
+configuration files. The helper runs on the host when called from Distrobox and
+requests sudo for installation. It backs up replaced files, enables Avahi, and
+configures systemd-resolved and NetworkManager to resolve mDNS names. Existing
+active Ethernet/Wi-Fi profiles are set to resolver mode; a NetworkManager default
+covers new profiles. It applies the resolver setting without disconnecting links.
+Requires the host's Avahi, systemd-resolved, and NetworkManager packages.
+
+NetworkManager's [mDNS resolver mode](https://networkmanager.pages.freedesktop.org/NetworkManager/NetworkManager/nm-settings-nmcli.html)
+uses `connection.mdns=1`; Avahi continues to own this PC's name advertisements.
+The configuration discovers the server's current address rather than storing
+an IP address in `/etc/hosts`.
+
+<h2 align="center">
   <p>System sleep</p>
 </h2>
 
@@ -332,6 +362,19 @@ Build and create the distrobox:
 ```bash
 ./containers/dev/create
 ```
+
+To apply host command forwarding to an existing `dev` container, run inside it:
+
+```bash
+./containers/dev/setup-host-commands
+```
+
+This forwards `xdg-open` from both `/usr/local/bin` and `/usr/bin`, so Electron
+apps still use the host browser when Vite+ puts `/usr/bin` first in PATH. The
+launcher explicitly uses the host session bus and `/usr/bin/xdg-open`, forwarding
+Wayland activation tokens so the browser can come to the foreground. The original
+container opener is saved at `/usr/local/libexec/dev-container/xdg-open`.
+Reapply the script after reinstalling or updating the container's `xdg-utils` package.
 
 <h2 align="center">
   <p>GNOME Dev Container</p>

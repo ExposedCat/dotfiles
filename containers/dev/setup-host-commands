@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ! -f /run/.containerenv ]]; then
+    echo "Run this script inside the dev container." >&2
+    exit 1
+fi
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+HOST_EXEC=/usr/local/libexec/dev-container/distrobox-host-exec
+
+for command in dbus-run-session gio podman distrobox systemctl; do
+    sudo ln -sf /usr/bin/distrobox-host-exec "/usr/local/bin/$command"
+done
+
+sudo install -D -m 0755 "$SCRIPT_DIR/host-desktop-exec" "$HOST_EXEC"
+if [[ ! /usr/bin/xdg-open -ef /usr/bin/distrobox-host-exec &&
+      ! /usr/bin/xdg-open -ef "$HOST_EXEC" ]]; then
+    sudo install -D -m 0755 /usr/bin/xdg-open /usr/local/libexec/dev-container/xdg-open
+fi
+
+# Vite+ puts /usr/bin before /usr/local/bin.
+sudo ln -sf "$HOST_EXEC" /usr/bin/xdg-open
+sudo ln -sf "$HOST_EXEC" /usr/local/bin/xdg-open

@@ -8,14 +8,9 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 podman build -t "$NAME" -f "$SCRIPT_DIR/Containerfile" "$REPO_ROOT"
 distrobox create --name $NAME --image $NAME --yes
 
-distrobox enter $NAME -- bash -lc '
-    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/dbus-run-session
-    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/xdg-open
-    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/gio
-    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/podman
-    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/distrobox
-    sudo ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/systemctl
+distrobox enter "$NAME" -- bash "$SCRIPT_DIR/setup-host-commands"
 
+distrobox enter $NAME -- bash -lc '
     distrobox-export --app code
 '
 

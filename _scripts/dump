@@ -25,6 +25,9 @@ distrobox-host-exec cp /etc/systemd/system-sleep/after-resume logiops/resume-fix
 # System sleep: capture the host configuration and wake diagnostic helper.
 ./services/sleep/manage dump
 
+# LAN hostname resolution on this PC.
+./services/mdns/manage dump
+
 # Fastfetch
 cp ~/.config/fastfetch/* ./fastfetch
 

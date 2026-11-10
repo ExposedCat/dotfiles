@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script=$(realpath "${BASH_SOURCE[0]}")
+source_dir=$(dirname "$script")
+case "${1:-}" in
+    install|dump|check) ;;
+    *) echo "Usage: $0 {install|dump|check}" >&2; exit 2 ;;
+esac
+
+# These settings belong to the PC host, including when loaded in Distrobox.
+if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
+    exec distrobox-host-exec bash "$script" "$@"
+fi
+if [[ $(hostname) == server ]]; then
+    echo 'Use infra/setup.sh for the server; these are PC dotfiles.' >&2
+    exit 1
+fi
+
+sources=("$source_dir/mdns.conf" "$source_dir/60-mdns.conf")
+targets=(/etc/systemd/resolved.conf.d/mdns.conf /etc/NetworkManager/conf.d/60-mdns.conf)
+
+case $1 in
+    dump)
+        for target in "${targets[@]}"; do
+            [[ -r $target ]] || { echo "Cannot read $target" >&2; exit 1; }
+        done
+        for i in "${!targets[@]}"; do cp "${targets[$i]}" "${sources[$i]}"; done
+        exit 0
+        ;;
+    check)
+        for i in "${!targets[@]}"; do
+            cmp -s "${sources[$i]}" "${targets[$i]}" || {
+                echo "Installed configuration differs: ${targets[$i]}" >&2; exit 1;
+            }
+        done
+        systemctl is-enabled --quiet avahi-daemon.service
+        systemctl is-active --quiet avahi-daemon.service systemd-resolved.service NetworkManager.service
+        echo 'PC mDNS configuration matches; resolver services are running.'
+        exit 0
+        ;;
+esac
+
+for source in "${sources[@]}"; do
+    [[ -r $source ]] || { echo "Cannot read $source" >&2; exit 1; }
+done
+command -v nmcli >/dev/null
+command -v resolvectl >/dev/null
+command -v avahi-daemon >/dev/null
+systemctl is-active --quiet systemd-resolved.service NetworkManager.service
+if (( EUID != 0 )); then exec sudo bash "$script" install; fi
+
+changed=false
+for i in "${!targets[@]}"; do
+    if ! cmp -s "${sources[$i]}" "${targets[$i]}"; then
+        if [[ -e ${targets[$i]} ]]; then
+            cp -a "${targets[$i]}" "${targets[$i]}.before-mdns-$(date +%Y%m%d-%H%M%S-%N)"
+        fi
+        install -D -o root -g root -m 0644 "${sources[$i]}" "${targets[$i]}"
+        if command -v restorecon >/dev/null; then restorecon "${targets[$i]}"; fi
+        changed=true
+    fi
+done
+systemctl enable --now avahi-daemon.service
+if $changed; then
+    nmcli general reload conf
+    systemctl restart systemd-resolved.service
+fi
+
+# Preserve resolver mode in existing active profiles, and apply it without
+# disconnecting the device or reapplying unrelated pending network changes.
+while IFS=: read -r device type state; do
+    [[ $state == connected && ( $type == ethernet || $type == wifi ) ]] || continue
+    uuid=$(nmcli -g GENERAL.CON-UUID device show "$device")
+    if [[ $(nmcli -g connection.mdns connection show uuid "$uuid") != 1 ]]; then
+        nmcli connection modify uuid "$uuid" connection.mdns 1
+    fi
+    resolvectl mdns "$device" resolve
+done < <(nmcli -t -f DEVICE,TYPE,STATE device status)
+echo 'PC mDNS resolution installed. Verify with: getent ahostsv4 server.local'
