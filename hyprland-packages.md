@@ -1,6 +1,8 @@
 # Hyprland desktop packages
 
 - hyprland
+- hyprland-guiutils
+- uwsm
 - quickshell
 - hyprlock
 - hypridle
