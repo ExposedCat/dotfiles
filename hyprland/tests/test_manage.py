@@ -59,6 +59,16 @@ class InstallTests(unittest.TestCase):
         self.assertFalse(self.backups.exists())
         self.reload_session.assert_not_called()
 
+    def test_support_files_are_installed_and_checked(self):
+        (self.source / "tools").mkdir()
+        (self.source / "tools/desktop.py").write_text("helper")
+        (self.source / "hypridle.conf").write_text("idle config")
+        manage.install()
+        self.assertEqual((self.target / "tools/desktop.py").read_text(), "helper")
+        self.assertEqual((self.target / "hypridle.conf").read_text(), "idle config")
+        (self.target / "hypridle.conf").write_text("changed")
+        self.assertEqual(manage.differences(), ["hypridle.conf"])
+
     def test_failed_reload_restores_original_files(self):
         self.reload_session.side_effect = [RuntimeError("reload failed"), None]
         with self.assertRaisesRegex(RuntimeError, "reload failed"):

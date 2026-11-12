@@ -1,4 +1,25 @@
 -- Window rules inherited from the packaged configuration.
+-- Capture and recording masks must appear immediately, with no layer fade.
+hl.layer_rule({
+    name = "instant-capture-overlays",
+    match = { namespace = "^dotfiles-(capture|record-shade|record-status)$" },
+    no_anim = true,
+})
+
+hl.window_rule({
+    name = "app-launcher",
+    match = { class = "org.quickshell", title = "Applications" },
+    float = true,
+    center = true,
+})
+
+hl.window_rule({
+    name = "clipboard-picker",
+    match = { class = "org.quickshell", title = "Clipboard history" },
+    float = true,
+    center = true,
+})
+
 local suppressMaximizeRule = hl.window_rule({
     -- Ignore maximize requests from all apps. You'll probably like this.
     name  = "suppress-maximize-events",
@@ -30,12 +51,3 @@ hl.window_rule({
 --     no_anim = true,
 -- })
 -- overlayLayerRule:set_enabled(false)
-
--- Hyprland-run windowrule
-hl.window_rule({
-    name  = "move-hyprland-run",
-    match = { class = "hyprland-run" },
-
-    move  = "20 monitor_h-120",
-    float = true,
-})

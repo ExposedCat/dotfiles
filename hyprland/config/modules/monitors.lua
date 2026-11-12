@@ -11,7 +11,7 @@ hl.monitor({
 })
 hl.monitor({
     output = "desc:Dell Inc. DELL S2721H 9P8HZ13",
-    mode = "1920x1080@60",
+    mode = "1920x1080@74.97",
     position = "320x0",
     scale = 1,
 })

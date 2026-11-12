@@ -1,10 +1,11 @@
 -- Keyboard, mouse, and touchpad settings.
 hl.config({
     input = {
-        kb_layout  = "us",
+        kb_layout  = "us,ru",
         kb_variant = "",
         kb_model   = "",
-        kb_options = "",
+        -- Caps switches layouts; Shift+Caps toggles normal Caps Lock.
+        kb_options = "grp:caps_toggle",
         kb_rules   = "",
 
         follow_mouse = 1,

@@ -8,6 +8,10 @@
 - hypridle
 - polkit
 - kitty
+- nautilus
+- python3-gobject (Gio/D-Bus media controls)
+- xdg-user-dirs (screenshot directory)
+- ddcutil (external-monitor brightness)
 - qt6-qtwayland
 - qt6-qtsvg
 - MacTahoe-blue (reuse existing application icons)
@@ -26,8 +30,6 @@
 - upower
 - tuned-ppd
 - grim
-- slurp
-- satty
 - wl-screenrec
 - wl-clipboard
 - cliphist

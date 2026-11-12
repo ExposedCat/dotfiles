@@ -45,6 +45,16 @@ def reload_session():
     errors = run("hyprctl", "configerrors").strip()
     if errors:
         raise RuntimeError(f"Live configuration errors:\n{errors}")
+    helper = TARGET / "tools/desktop.py"
+    if helper.is_file():
+        run("/usr/bin/python3", str(helper), "session-start", "--refresh")
+    else:
+        # A rollback to the initial config also stops the added background jobs.
+        subprocess.run(["systemctl", "--user", "stop",
+                        "dotfiles-hyprland-clipboard-text.service",
+                        "dotfiles-hyprland-clipboard-image.service",
+                        "dotfiles-hyprland-idle.service"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
 
 
 def snapshot(kind):
@@ -89,8 +99,14 @@ def apply(staged):
             shutil.rmtree(previous)
 
 
+def source_files():
+    return [path for path in sorted(SOURCE.rglob("*"))
+            if path.is_file() and path.suffix in (".lua", ".conf", ".py", ".qml")
+            and "__pycache__" not in path.parts]
+
+
 def differences():
-    return [str(path.relative_to(SOURCE)) for path in sorted(SOURCE.rglob("*.lua"))
+    return [str(path.relative_to(SOURCE)) for path in source_files()
             if not (TARGET / path.relative_to(SOURCE)).is_file()
             or path.read_bytes() != (TARGET / path.relative_to(SOURCE)).read_bytes()]
 
@@ -107,7 +123,7 @@ def install():
             shutil.copytree(TARGET, staged, symlinks=True)
         else:
             staged.mkdir()
-        for source in sorted(SOURCE.rglob("*.lua")):
+        for source in source_files():
             destination = staged / source.relative_to(SOURCE)
             # Refuse linked parents so an overlay cannot write outside staging.
             if any(parent.is_symlink() for parent in destination.parents if parent != staged.parent):
