@@ -48,11 +48,16 @@ def reload_session():
     helper = TARGET / "tools/desktop.py"
     if helper.is_file():
         run("/usr/bin/python3", str(helper), "session-start", "--refresh")
+        if not (TARGET / "tools/capture-daemon.qml").is_file():
+            subprocess.run(["systemctl", "--user", "stop", "dotfiles-hyprland-capture.service"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
     else:
         # A rollback to the initial config also stops the added background jobs.
         subprocess.run(["systemctl", "--user", "stop",
                         "dotfiles-hyprland-clipboard-text.service",
                         "dotfiles-hyprland-clipboard-image.service",
+                        "dotfiles-hyprland-shell.service",
+                        "dotfiles-hyprland-capture.service",
                         "dotfiles-hyprland-idle.service"],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
 
@@ -101,7 +106,7 @@ def apply(staged):
 
 def source_files():
     return [path for path in sorted(SOURCE.rglob("*"))
-            if path.is_file() and path.suffix in (".lua", ".conf", ".py", ".qml")
+            if path.is_file() and path.suffix in (".lua", ".conf", ".py", ".qml", ".svg", ".txt")
             and "__pycache__" not in path.parts]
 
 

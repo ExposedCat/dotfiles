@@ -3,18 +3,18 @@
 
 import argparse
 import fcntl
-import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "dotfiles/hyprland"
 PREFIX = "dotfiles-hyprland-"
-BACKGROUND = ("clipboard-text", "clipboard-image", "idle")
+BACKGROUND = ("clipboard-text", "clipboard-image", "shell", "capture", "idle")
 
 
 def run(*args, **kwargs):
@@ -45,11 +45,6 @@ def service(name, command, restart=True):
     run(*args, "--", *command)
 
 
-def idle_ready():
-    marker = STATE / "lock-verified"
-    return marker.is_file() and marker.read_text().strip() == hashlib.sha256((ROOT / "hyprlock.conf").read_bytes()).hexdigest()
-
-
 def session_start(refresh=False):
     if "Hyprland" not in os.environ.get("XDG_CURRENT_DESKTOP", "").split(":"):
         raise RuntimeError("Desktop services must be started inside the Hyprland session.")
@@ -59,13 +54,42 @@ def session_start(refresh=False):
         for kind in ("text", "image"):
             service("clipboard-" + kind,
                     ["/usr/bin/wl-paste", "--type", kind, "--watch", "/usr/bin/cliphist", "store"])
-        if idle_ready():
-            if refresh and active("idle"):
-                run("systemctl", "--user", "restart", PREFIX + "idle")
-            else:
-                service("idle", ["/usr/bin/hypridle"])
-        elif active("idle"):
+        # Automatic locking is deliberately disabled, including old verified installs.
+        if active("idle"):
             run("systemctl", "--user", "stop", PREFIX + "idle")
+        STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if (ROOT / "shell/shell.qml").is_file():
+            if refresh and active("shell"):
+                run("systemctl", "--user", "restart", PREFIX + "shell")
+            else:
+                service("shell", ["/usr/bin/quickshell", "--no-duplicate", "--path", str(ROOT / "shell/shell.qml")])
+            wait_shell()
+        elif active("shell"):
+            run("systemctl", "--user", "stop", PREFIX + "shell")
+        if (ROOT / "tools/capture-daemon.qml").is_file():
+            if refresh and active("capture"):
+                run("systemctl", "--user", "restart", PREFIX + "capture")
+            else:
+                service("capture", ["/usr/bin/quickshell", "--no-duplicate", "--path", str(ROOT / "tools/capture-daemon.qml")])
+            wait_shell("tools/capture-daemon.qml", "capture", "ready")
+        elif active("capture"):
+            run("systemctl", "--user", "stop", PREFIX + "capture")
+
+
+def wait_shell(config="shell/shell.qml", target="shell", field="polkit"):
+    # A systemd start job can succeed before QML finishes loading. Make a failed
+    # shell load fail the installer too, so its normal rollback can restore it.
+    command = ["/usr/bin/quickshell", "ipc", "--path", str(ROOT / config), "call", target, "status"]
+    for attempt in range(30):
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=1)
+            status = json.loads(result.stdout)
+            if result.returncode == 0 and isinstance(status, dict) and field in status and (field != "ready" or status[field] is True):
+                return
+        except (ValueError, subprocess.TimeoutExpired):
+            pass
+        time.sleep(0.1)
+    raise RuntimeError("Desktop shell did not become ready; inspect journalctl --user -u dotfiles-hyprland-shell.")
 
 
 def clipboard_list():
@@ -140,7 +164,8 @@ def media(method):
 
 def brightness(direction):
     monitors = json.loads(run("hyprctl", "monitors", "-j", capture_output=True, text=True).stdout)
-    serial = next(m["serial"] for m in monitors if m["focused"])
+    monitor = next(m for m in monitors if m["focused"])
+    serial = monitor["serial"]
     if not serial:
         raise RuntimeError("Focused monitor has no serial for DDC selection.")
     # Do not queue up slow DDC writes when a mouse gesture repeats rapidly.
@@ -151,13 +176,31 @@ def brightness(direction):
             return
         run("ddcutil", "--sn", serial, "--noverify", "setvcp", "10",
             "+" if direction == "up" else "-", "5", timeout=5)
+        result = run("ddcutil", "--sn", serial, "--terse", "getvcp", "10",
+                     capture_output=True, text=True, timeout=5)
+        # Continuous VCP terse output: VCP 10 C <current> <maximum>.
+        values = next((line.split()[3:] for line in result.stdout.splitlines()
+                       if line.split()[:3] == ["VCP", "10", "C"]), [])
+        if len(values) != 2 or not all(value.isdecimal() for value in values):
+            raise RuntimeError("Cannot read the monitor's brightness level.")
+        current, maximum = map(int, values)
+        if maximum <= 0 or not 0 <= current <= maximum:
+            raise RuntimeError("Monitor returned an invalid brightness level.")
+        # Brightness still works if the shell is absent or restarting.
+        try:
+            run("quickshell", "ipc", "--path", str(ROOT / "shell/shell.qml"),
+                "call", "shell", "brightness", monitor["name"], str(current), str(maximum),
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+        except (OSError, subprocess.SubprocessError):
+            pass
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     actions = parser.add_subparsers(dest="action", required=True)
-    for name in ("clipboard", "clipboard-list", "launcher", "apps-list", "record", "lock", "session-stop", "enable-idle"):
+    for name in ("clipboard", "clipboard-list", "launcher", "apps-list", "record", "lock", "session-stop"):
         actions.add_parser(name)
+    actions.add_parser("shell").add_argument("panel", choices=("notifications", "power", "connections", "ethernet", "bluetooth"))
     actions.add_parser("clipboard-copy").add_argument("id")
     actions.add_parser("screenshot").add_argument("mode", choices=("region", "window"))
     actions.add_parser("app-launch").add_argument("id")
@@ -188,16 +231,13 @@ def main():
         brightness(args.direction)
     elif args.action == "lock":
         service("lock", ["/usr/bin/hyprlock", "--no-fade-in"], restart=False)
+    elif args.action == "shell":
+        run("quickshell", "ipc", "--path", str(ROOT / "shell/shell.qml"), "call", "shell", "toggle", args.panel)
     elif args.action == "session-start":
         session_start(args.refresh)
     elif args.action == "session-stop":
         subprocess.run(["systemctl", "--user", "stop", *[PREFIX + name + ".service" for name in BACKGROUND]],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    elif args.action == "enable-idle":
-        STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
-        (STATE / "lock-verified").write_text(hashlib.sha256((ROOT / "hyprlock.conf").read_bytes()).hexdigest() + "\n")
-        session_start()
-        print("Idle locking enabled: lock after 10 minutes, screens off after 11 minutes.")
 
 
 if __name__ == "__main__":

@@ -39,7 +39,15 @@ cp ./fastfetch/* ~/.config/fastfetch/
 sudo cp fish/* /etc/fish/conf.d
 
 # Ptyxis
-dconf load /org/gnome/Ptyxis/ < ptyxis/ptyxis.dconf
+./ptyxis/manage install
+
+# GTK client decorations
+mkdir -p ~/.config/gtk-{3,4}.0
+cp ./gtk/gtk.css ~/.config/gtk-3.0/gtk.css
+cp ./gtk/gtk.css ~/.config/gtk-4.0/gtk.css
+
+# Hyprland portals: Nautilus chooser, custom dialogs, and sharing picker.
+./xdg-desktop-portal/manage install
 
 # Audio: install profiles before enabling the WirePlumber rules.
 mkdir -p ~/.config/alsa-card-profile/mixer/profile-sets ~/.config/wireplumber/wireplumber.conf.d

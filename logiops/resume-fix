@@ -1,3 +1,6 @@
 #!/usr/bin/env bash
 
-sudo systemctl restart logid.service
+# system-sleep hooks run as root, once before sleep and once after waking.
+if [[ ${1:-} == post ]]; then
+    /usr/bin/systemctl try-restart logid.service
+fi

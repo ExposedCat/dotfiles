@@ -5,7 +5,7 @@ end
 local configHome = os.getenv("XDG_CONFIG_HOME") or (os.getenv("HOME") .. "/.config")
 local helper = "python3 " .. quote(configHome .. "/hypr/tools/desktop.py")
 return {
-    terminal = "uwsm app -- kitty",
+    terminal = "uwsm app -- ptyxis --new-window",
     fileManager = "uwsm app -- nautilus --new-window",
     menu = helper .. " launcher",
     helper = helper,

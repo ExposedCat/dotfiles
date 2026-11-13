@@ -3,13 +3,13 @@
 - hyprland
 - hyprland-guiutils
 - uwsm
-- quickshell
+- quickshell (0.3.2+; bar, notifications/history, Polkit, volume OSD, power menu)
 - hyprlock
-- hypridle
+- hypridle (optional, unused; automatic locking is disabled)
 - polkit
-- kitty
+- ptyxis
 - nautilus
-- python3-gobject (Gio/D-Bus media controls)
+- python3-gobject (Gio/D-Bus media controls and custom portal backend)
 - xdg-user-dirs (screenshot directory)
 - ddcutil (external-monitor brightness)
 - qt6-qtwayland
@@ -21,6 +21,7 @@
 - xdg-desktop-portal
 - xdg-desktop-portal-hyprland
 - xdg-desktop-portal-gtk
+- xdg-desktop-portal-gnome (modern Nautilus file chooser)
 - pipewire
 - pipewire-pulseaudio
 - wireplumber
@@ -34,7 +35,8 @@
 - wl-clipboard
 - cliphist
 - gnome-online-accounts
-- evolution-data-server
+- evolution-data-server (selected GNOME calendars and today's events)
+- libgweather4 (saved GNOME Clocks locations)
 - libsecret
 - oo7-daemon
 - pam_oo7

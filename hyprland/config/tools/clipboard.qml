@@ -6,6 +6,7 @@ import Quickshell.Io
 
 Scope {
     id: root
+    ShellTheme { id: typography }
     property var entries: []
     property string error: ""
     readonly property string helper: decodeURIComponent(Qt.resolvedUrl("desktop.py").toString().replace(/^file:\/\//, ""))
@@ -24,11 +25,11 @@ Scope {
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
-                try { root.entries = JSON.parse(text); }
-                catch (e) { root.error = "Could not load clipboard history."; }
+                try { root.entries = JSON.parse(text) }
+                catch (e) { root.error = "Could not load clipboard history." }
             }
         }
-        stderr: StdioCollector { onStreamFinished: { if (text.trim()) root.error = "Could not load clipboard history."; } }
+        stderr: StdioCollector { onStreamFinished: { if (text.trim()) root.error = "Could not load clipboard history." } }
     }
 
     Process {
@@ -54,12 +55,14 @@ Scope {
             spacing: 14
 
             Text {
+                font.family: typography.fontFamily; font.weight: typography.fontWeight; font.pixelSize: typography.bodySize
                 text: "Clipboard history"
                 color: "#cdd6f4"
-                font.pixelSize: 23
-                font.weight: Font.DemiBold
+
+
             }
             TextField {
+                font.family: typography.fontFamily; font.weight: typography.fontWeight; font.pixelSize: typography.bodySize
                 id: search
                 Layout.fillWidth: true
                 implicitHeight: 44
@@ -68,7 +71,7 @@ Scope {
                 placeholderText: "Search copied text and images"
                 placeholderTextColor: "#a6adc8"
                 selectByMouse: true
-                font.pixelSize: 15
+
                 leftPadding: 12
                 background: Rectangle {
                     color: "#313244"
@@ -99,6 +102,7 @@ Scope {
                     radius: 9
                     color: ListView.isCurrentItem ? "#45475a" : mouse.containsMouse ? "#313244" : "transparent"
                     Text {
+                        font.family: typography.fontFamily; font.weight: typography.fontWeight; font.pixelSize: typography.bodySize
                         anchors.fill: parent
                         anchors.leftMargin: 12
                         anchors.rightMargin: 12
@@ -106,7 +110,7 @@ Scope {
                         text: modelData.preview
                         textFormat: Text.PlainText
                         color: "#cdd6f4"
-                        font.pixelSize: 14
+
                         elide: Text.ElideRight
                         maximumLineCount: 1
                     }
@@ -114,22 +118,24 @@ Scope {
                         id: mouse
                         anchors.fill: parent
                         hoverEnabled: true
-                        onClicked: { list.currentIndex = index; root.copySelected(); }
+                        onClicked: { list.currentIndex = index; root.copySelected() }
                     }
                 }
                 Text {
+                    font.family: typography.fontFamily; font.weight: typography.fontWeight; font.pixelSize: typography.bodySize
                     anchors.centerIn: parent
                     visible: list.count === 0
                     text: root.error || (reader.running ? "Loading…" : root.entries.length ? "No matches" : "Nothing copied yet")
                     color: "#a6adc8"
-                    font.pixelSize: 15
+
                 }
             }
             Text {
+                font.family: typography.fontFamily; font.weight: typography.fontWeight; font.pixelSize: typography.bodySize
                 Layout.fillWidth: true
                 text: root.error || "↑ ↓  Select     Enter  Copy     Esc  Close"
                 color: root.error ? "#f38ba8" : "#a6adc8"
-                font.pixelSize: 12
+
             }
         }
     }

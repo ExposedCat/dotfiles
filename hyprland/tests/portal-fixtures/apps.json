@@ -1,0 +1,37 @@
+{
+  "fixture": true,
+  "kind": "apps",
+  "app": {
+    "id": "com.chipichapa.sele",
+    "name": "Sele",
+    "icon": ""
+  },
+  "title": "Open with",
+  "filename": "Project brief.pdf",
+  "apps": [
+    {
+      "id": "org.mozilla.firefox",
+      "name": "Firefox",
+      "description": "Browse the web",
+      "icon": "firefox"
+    },
+    {
+      "id": "org.gnome.Papers",
+      "name": "Document Viewer",
+      "description": "View PDF documents",
+      "icon": "org.gnome.Papers"
+    },
+    {
+      "id": "org.libreoffice.LibreOffice.writer",
+      "name": "LibreOffice Writer",
+      "description": "Edit documents and reports",
+      "icon": "libreoffice-writer"
+    },
+    {
+      "id": "com.visualstudio.code",
+      "name": "Visual Studio Code",
+      "description": "Edit text and source code",
+      "icon": "visual-studio-code"
+    }
+  ]
+}

@@ -1,0 +1,179 @@
+{
+  "fixture": true,
+  "kind": "share",
+  "app": {
+    "name": "Screen sharing"
+  },
+  "outputs": [
+    {
+      "id": "screen:DP-3",
+      "name": "HP OMEN",
+      "output": "DP-3",
+      "width": 2560,
+      "height": 1440,
+      "kind": "screen",
+      "subtitle": "2560 \u00d7 1440 \u00b7 Main display",
+      "aspect": 1.7777777777777777,
+      "tiles": [
+        {
+          "x": 0.02,
+          "y": 0.03,
+          "width": 0.57,
+          "height": 0.94,
+          "kind": "window",
+          "flavor": "code",
+          "name": "",
+          "appId": ""
+        },
+        {
+          "x": 0.6,
+          "y": 0.03,
+          "width": 0.38,
+          "height": 0.94,
+          "kind": "window",
+          "flavor": "browser",
+          "name": "",
+          "appId": ""
+        }
+      ]
+    },
+    {
+      "id": "screen:HDMI-A-1",
+      "name": "Dell",
+      "output": "HDMI-A-1",
+      "width": 1920,
+      "height": 1080,
+      "kind": "screen",
+      "subtitle": "1920 \u00d7 1080 \u00b7 Second display",
+      "aspect": 1.7777777777777777,
+      "tiles": [
+        {
+          "x": 0.04,
+          "y": 0.06,
+          "width": 0.6,
+          "height": 0.65,
+          "kind": "window",
+          "flavor": "browser",
+          "name": "",
+          "appId": ""
+        },
+        {
+          "x": 0.3,
+          "y": 0.42,
+          "width": 0.66,
+          "height": 0.54,
+          "kind": "window",
+          "flavor": "terminal",
+          "name": "",
+          "appId": ""
+        }
+      ]
+    }
+  ],
+  "windows": [
+    {
+      "id": "window:21",
+      "name": "Editor",
+      "subtitle": "code",
+      "appId": "code",
+      "kind": "window",
+      "flavor": "code"
+    },
+    {
+      "id": "window:22",
+      "name": "Browser",
+      "subtitle": "firefox",
+      "appId": "firefox",
+      "kind": "window",
+      "flavor": "browser"
+    },
+    {
+      "id": "window:23",
+      "name": "Terminal",
+      "subtitle": "kitty",
+      "appId": "kitty",
+      "kind": "window",
+      "flavor": "terminal"
+    }
+  ],
+  "workspaces": [
+    {
+      "id": "workspace-id:1",
+      "name": "Workspace 1",
+      "subtitle": "HP OMEN",
+      "kind": "workspace",
+      "aspect": 1.7777777777777777,
+      "tiles": [
+        {
+          "x": 0.02,
+          "y": 0.03,
+          "width": 0.57,
+          "height": 0.94,
+          "kind": "window",
+          "flavor": "code",
+          "name": "",
+          "appId": ""
+        },
+        {
+          "x": 0.6,
+          "y": 0.03,
+          "width": 0.38,
+          "height": 0.94,
+          "kind": "window",
+          "flavor": "browser",
+          "name": "",
+          "appId": ""
+        }
+      ]
+    },
+    {
+      "id": "workspace-id:2",
+      "name": "Workspace 2",
+      "subtitle": "HP OMEN",
+      "kind": "workspace",
+      "aspect": 1.7777777777777777,
+      "tiles": [
+        {
+          "x": 0.04,
+          "y": 0.06,
+          "width": 0.6,
+          "height": 0.65,
+          "kind": "window",
+          "flavor": "browser",
+          "name": "",
+          "appId": ""
+        },
+        {
+          "x": 0.3,
+          "y": 0.42,
+          "width": 0.66,
+          "height": 0.54,
+          "kind": "window",
+          "flavor": "terminal",
+          "name": "",
+          "appId": ""
+        }
+      ]
+    },
+    {
+      "id": "workspace-id:3",
+      "name": "Workspace 3",
+      "subtitle": "HP OMEN",
+      "kind": "workspace",
+      "aspect": 1.7777777777777777,
+      "tiles": [
+        {
+          "x": 0.03,
+          "y": 0.05,
+          "width": 0.94,
+          "height": 0.9,
+          "kind": "window",
+          "flavor": "terminal",
+          "name": "",
+          "appId": ""
+        }
+      ]
+    }
+  ],
+  "remember": false
+}

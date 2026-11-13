@@ -5,13 +5,14 @@ import Quickshell.Wayland
 
 PanelWindow {
     id: window
+    ShellTheme { id: typography }
     required property var controller
     required property var display
     screen: Quickshell.screens.find(s => s.name === display.name) || Quickshell.screens[0]
     anchors { top: true; bottom: true; left: true; right: true }
-    exclusiveZone: 0
+    exclusionMode: ExclusionMode.Ignore
     color: "transparent"
-    visible: !controller.recording
+    visible: controller.active && !controller.recording
     WlrLayershell.namespace: "dotfiles-capture"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: controller.current === display.name ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
@@ -28,14 +29,14 @@ PanelWindow {
     readonly property bool selected: current && selectionWidth >= 2 && selectionHeight >= 2
     readonly property bool video: controller.data.mode === "record"
 
-    function repaint() { drawing.requestPaint(); }
+    function repaint() { drawing.requestPaint() }
     function finish() {
         if (!selected || controller.exporting) return;
-        if (textInput.visible) { textInput.commit(); return; }
+        if (textInput.visible) { textInput.commit(); return }
         if (video) controller.beginRecording(display, selectionX, selectionY, selectionWidth, selectionHeight);
         else controller.exportImage(selectionContent, display.scale);
     }
-    function undo() { strokes = strokes.slice(0, -1); repaint(); }
+    function undo() { strokes = strokes.slice(0, -1); repaint() }
     Component.onCompleted: {
         const selection = controller.data.selection;
         if (selection && selection.monitor === display.name) {
@@ -46,24 +47,34 @@ PanelWindow {
 
     component ActionButton: Rectangle {
         property string caption
+        property string icon
         property bool chosen: false
         signal clicked()
         implicitHeight: 34
-        implicitWidth: captionLabel.implicitWidth + 22
-        color: chosen ? "#89b4fa" : hover.containsMouse ? "#45475a" : "#313244"
+        implicitWidth: 36
+        color: hover.containsMouse ? "#45475a" : "#313244"
+        border.width: chosen ? 1 : 0
+        border.color: "#89b4fa"
         opacity: enabled ? 1 : 0.45
         radius: 8
-        Text { id: captionLabel; anchors.centerIn: parent; text: parent.caption; color: parent.chosen ? "#1e1e2e" : "#cdd6f4"; font.pixelSize: 13 }
+        Accessible.role: Accessible.Button
+        Accessible.name: caption
+        Image { anchors.centerIn: parent; width: 19; height: 19; sourceSize.width: 19; sourceSize.height: 19; source: Qt.resolvedUrl("icons/" + parent.icon + ".svg") }
         MouseArea { id: hover; anchors.fill: parent; hoverEnabled: true; onClicked: parent.clicked() }
+
+
+
     }
 
     Item {
         id: scene
         anchors.fill: parent
         focus: window.current
+        Connections { target: scene.Window.window; function onFrameSwapped() { controller.noteFrame(display.name) } }
         Image {
             anchors.fill: parent
             source: controller.includeCursor ? display.cursor : display.plain
+            cache: false
             fillMode: Image.Stretch
         }
 
@@ -79,6 +90,7 @@ PanelWindow {
                 x: -window.selectionX; y: -window.selectionY
                 width: scene.width; height: scene.height
                 source: controller.includeCursor ? display.cursor : display.plain
+                cache: false
                 fillMode: Image.Stretch
             }
             Canvas {
@@ -110,11 +122,11 @@ PanelWindow {
                             ctx.closePath(); ctx.fill();
                         } else if (item.type === "pen") {
                             ctx.beginPath();
-                            item.points.forEach((p, index) => { if (index === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+                            item.points.forEach((p, index) => { if (index === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y) });
                             ctx.stroke();
                         } else if (item.type === "text") {
-                            ctx.font = "24px sans-serif";
-                            ctx.fillText(item.text, item.x, item.y + 24);
+                            ctx.font = typography.bodySize + 'px "' + typography.fontFamily + '"';
+                            ctx.fillText(item.text, item.x, item.y + typography.bodySize);
                         }
                     }
                 }
@@ -170,15 +182,16 @@ PanelWindow {
                 }
             }
             onReleased: {
-                if (window.draft) { window.strokes = window.strokes.concat([window.draft]); window.draft = null; window.repaint(); }
+                if (window.draft) { window.strokes = window.strokes.concat([window.draft]); window.draft = null; window.repaint() }
             }
         }
         TextField {
+            font.family: typography.fontFamily; font.weight: typography.fontWeight; font.pixelSize: typography.bodySize
             id: textInput
             visible: false
             width: Math.min(380, scene.width - x)
             color: window.ink
-            font.pixelSize: 24
+
             placeholderText: "Type a label, then Enter"
             background: Rectangle { color: "#e61e1e2e"; radius: 6; border.color: "#89b4fa" }
             function commit() {
@@ -189,7 +202,7 @@ PanelWindow {
         }
         Rectangle {
             id: toolbar
-            visible: window.selected
+            visible: window.selected && !(pointer.pressed && window.tool === "select")
             x: Math.max(12, (scene.width - width) / 2)
             y: window.selected ? (window.selectionY + window.selectionHeight + height + 24 < scene.height
                 ? window.selectionY + window.selectionHeight + 12 : Math.max(12, window.selectionY - height - 12)) : scene.height - height - 28
@@ -202,12 +215,13 @@ PanelWindow {
                 id: controls
                 anchors.centerIn: parent
                 spacing: 5
-                ActionButton { caption: "Select"; chosen: window.tool === "select"; onClicked: window.tool = "select" }
+                ActionButton { caption: "Select area"; icon: "scan"; chosen: window.tool === "select"; onClicked: window.tool = "select" }
                 Repeater {
                     model: window.video ? [] : ["pen", "arrow", "box", "text", "redact"]
                     delegate: ActionButton {
                         required property string modelData
                         caption: modelData[0].toUpperCase() + modelData.slice(1)
+                        icon: ({pen: "pen-line", arrow: "arrow-up-right", box: "square", text: "type", redact: "rectangle-ellipsis"})[modelData]
                         chosen: window.tool === modelData
                         enabled: window.selected
                         onClicked: window.tool = modelData
@@ -224,10 +238,10 @@ PanelWindow {
                         MouseArea { anchors.fill: parent; onClicked: window.ink = parent.modelData }
                     }
                 }
-                ActionButton { visible: !window.video; caption: "Undo"; enabled: window.strokes.length > 0; onClicked: window.undo() }
-                ActionButton { caption: "Cursor " + (controller.includeCursor ? "On" : "Off"); chosen: controller.includeCursor; onClicked: controller.includeCursor = !controller.includeCursor }
-                ActionButton { caption: window.video ? "Record" : controller.exporting ? "Copying…" : "Copy + Save"; chosen: true; enabled: window.selected && !controller.exporting; onClicked: window.finish() }
-                ActionButton { caption: "Cancel"; onClicked: Qt.quit() }
+                ActionButton { visible: !window.video; caption: "Undo"; icon: "undo-2"; enabled: window.strokes.length > 0; onClicked: window.undo() }
+                ActionButton { caption: "Cursor " + (controller.includeCursor ? "On" : "Off"); icon: controller.includeCursor ? "mouse-pointer-2" : "mouse-pointer-2-off"; chosen: controller.includeCursor; onClicked: controller.includeCursor = !controller.includeCursor }
+                ActionButton { caption: window.video ? "Record" : controller.exporting ? "Copying…" : "Copy and save · Enter / Ctrl+C"; icon: window.video ? "circle-dot" : "copy"; chosen: true; enabled: window.selected && !controller.exporting; onClicked: window.finish() }
+                ActionButton { caption: "Cancel · Escape"; icon: "x"; onClicked: controller.closeSession() }
             }
         }
         Rectangle {
@@ -238,16 +252,17 @@ PanelWindow {
             width: status.implicitWidth + 30; height: 38; radius: 10
             color: "#e61e1e2e"
             Text {
+                font.family: typography.fontFamily; font.weight: typography.fontWeight; font.pixelSize: typography.bodySize
                 id: status
                 anchors.centerIn: parent
                 text: controller.error
                 color: "#f38ba8"
-                font.pixelSize: 14
+
             }
         }
-        Shortcut { sequence: "Escape"; enabled: window.current; onActivated: { if (textInput.visible) textInput.visible = false; else Qt.quit(); } }
-        Shortcut { sequence: "Return"; enabled: window.current && !textInput.visible; onActivated: window.finish() }
-        Shortcut { sequence: "Ctrl+C"; enabled: window.current && !textInput.visible && !window.video; onActivated: window.finish() }
-        Shortcut { sequence: "Ctrl+Z"; enabled: window.current && !textInput.visible && !window.video; onActivated: window.undo() }
+        Shortcut { context: Qt.ApplicationShortcut; sequence: "Escape"; enabled: window.current; onActivated: { if (textInput.visible) textInput.visible = false; else controller.closeSession() } }
+        Shortcut { context: Qt.ApplicationShortcut; sequence: "Return"; enabled: window.current && !textInput.visible; onActivated: window.finish() }
+        Shortcut { context: Qt.ApplicationShortcut; sequence: "Ctrl+C"; enabled: window.current && !textInput.visible && !window.video; onActivated: window.finish() }
+        Shortcut { context: Qt.ApplicationShortcut; sequence: "Ctrl+Z"; enabled: window.current && !textInput.visible && !window.video; onActivated: window.undo() }
     }
 }

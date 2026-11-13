@@ -8,7 +8,7 @@ PanelWindow {
     required property var selection
     screen: Quickshell.screens.find(s => s.name === display.name) || Quickshell.screens[0]
     anchors { top: true; bottom: true; left: true; right: true }
-    exclusiveZone: 0
+    exclusionMode: ExclusionMode.Ignore
     color: "transparent"
     // Empty input region: applications remain clickable across both displays.
     mask: Region {}

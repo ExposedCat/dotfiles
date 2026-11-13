@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+script=$(realpath "${BASH_SOURCE[0]}")
+if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
+    exec distrobox-host-exec env HYPRLAND_INSTANCE_SIGNATURE="${HYPRLAND_INSTANCE_SIGNATURE:-}" bash "$script" "$@"
+fi
+exec /usr/bin/python3 "$(dirname "$script")/manage.py" "$@"

@@ -1,0 +1,13 @@
+/* Keep client-decorated windows free of outlines and shadows. */
+window.csd,
+window.csd:backdrop,
+window.solid-csd,
+window.solid-csd:backdrop,
+window.csd decoration,
+window.csd:backdrop decoration,
+window.solid-csd decoration,
+window.solid-csd:backdrop decoration {
+    border: none;
+    outline: none;
+    box-shadow: none;
+}

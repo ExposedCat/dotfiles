@@ -2,6 +2,7 @@
 
 import base64
 import importlib.util
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -14,6 +15,31 @@ spec.loader.exec_module(capture)
 
 
 class CaptureTests(unittest.TestCase):
+    def test_warm_capture_returns_when_ui_signals_completion(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "result.json").write_text('{"done":true}')
+            responses = [subprocess.CompletedProcess([], 0, "123\n", ""),
+                         subprocess.CompletedProcess([], 0, "true\n", "")]
+            with patch.object(capture.subprocess, "run", side_effect=responses) as run:
+                self.assertTrue(capture.open_warm_capture(directory))
+            self.assertIn("capture-daemon.qml", run.call_args.args[0][3])
+
+    def test_missing_warm_worker_uses_cold_fallback(self):
+        response = subprocess.CompletedProcess([], 0, "0\n", "")
+        with patch.object(capture.subprocess, "run", return_value=response) as run:
+            self.assertFalse(capture.open_warm_capture(Path("/unused")))
+        self.assertEqual(run.call_count, 1)
+
+    def test_crashed_warm_worker_does_not_leave_shortcut_waiting(self):
+        responses = [subprocess.CompletedProcess([], 0, "123\n", ""),
+                     subprocess.CompletedProcess([], 0, "true\n", "")]
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.object(capture.subprocess, "run", side_effect=responses), \
+             patch.object(capture.os, "kill", side_effect=ProcessLookupError):
+            with self.assertRaisesRegex(RuntimeError, "stopped before finishing"):
+                capture.open_warm_capture(Path(temporary))
+
     def test_capture_outputs_finishes_both_raw_variants_and_skips_disabled_displays(self):
         monitors = [{"name": "HP", "x": 0, "y": 1080, "width": 2560, "height": 1440,
                      "scale": 1, "focused": True},

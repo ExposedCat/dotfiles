@@ -5,6 +5,7 @@ local fileManager = programs.fileManager
 local menu = programs.menu
 local helper = programs.helper
 local capture = programs.capture
+local workspaces = require("modules.workspaces")
 
 local mainMod = "SUPER" -- Sets "Windows" key as main modifier
 
@@ -12,7 +13,8 @@ local mainMod = "SUPER" -- Sets "Windows" key as main modifier
 hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())
 hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen({ action = "toggle", mode = "fullscreen" }))
-hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch 'hl.dsp.exit()'"))
+hl.bind(mainMod .. " + M", hl.dsp.exec_cmd(helper .. " shell power"))
+hl.bind(mainMod .. " + N", hl.dsp.exec_cmd(helper .. " shell notifications"))
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(menu))
@@ -31,16 +33,23 @@ hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
 hl.bind(mainMod .. " + up",    hl.dsp.focus({ direction = "up" }))
 hl.bind(mainMod .. " + down",  hl.dsp.focus({ direction = "down" }))
 
--- Logitech side buttons emit these GNOME-compatible shortcuts.
-hl.bind("CTRL + ALT + left", hl.dsp.focus({ workspace = "e-1" }))
-hl.bind("CTRL + ALT + right", hl.dsp.focus({ workspace = "e+1" }))
+-- GNOME shortcuts, scoped to the focused monitor. Logitech side buttons
+-- emit Ctrl+Alt+Left/Right as well.
+hl.bind("SUPER + Page_Up", function() workspaces.step(-1) end)
+hl.bind("SUPER + Page_Down", function() workspaces.step(1) end)
+hl.bind("CTRL + ALT + left", function() workspaces.step(-1) end)
+hl.bind("CTRL + ALT + right", function() workspaces.step(1) end)
+hl.bind("SUPER + SHIFT + Page_Up", function() workspaces.step(-1, true) end)
+hl.bind("SUPER + SHIFT + Page_Down", function() workspaces.step(1, true) end)
+hl.bind("CTRL + ALT + SHIFT + left", function() workspaces.step(-1, true) end)
+hl.bind("CTRL + ALT + SHIFT + right", function() workspaces.step(1, true) end)
 
 -- Switch workspaces with mainMod + [0-9]
 -- Move active window to a workspace with mainMod + SHIFT + [0-9]
 for i = 1, 10 do
     local key = i % 10 -- 10 maps to key 0
-    hl.bind(mainMod .. " + " .. key,             hl.dsp.focus({ workspace = i}))
-    hl.bind(mainMod .. " + SHIFT + " .. key,     hl.dsp.window.move({ workspace = i }))
+    hl.bind(mainMod .. " + " .. key, function() workspaces.select(i) end)
+    hl.bind(mainMod .. " + SHIFT + " .. key, function() workspaces.select(i, true) end)
 end
 
 -- Example special workspace (scratchpad)
@@ -48,8 +57,8 @@ hl.bind(mainMod .. " + S",         hl.dsp.workspace.toggle_special("magic"))
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
 
 -- Scroll through existing workspaces with mainMod + scroll
-hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
-hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
+hl.bind(mainMod .. " + mouse_down", function() workspaces.step(1) end)
+hl.bind(mainMod .. " + mouse_up", function() workspaces.step(-1) end)
 
 -- Move/resize windows with mainMod + LMB/RMB and dragging
 hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })

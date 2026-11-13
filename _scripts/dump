@@ -32,7 +32,14 @@ distrobox-host-exec cp /etc/systemd/system-sleep/after-resume logiops/resume-fix
 cp ~/.config/fastfetch/* ./fastfetch
 
 # Ptyxis
-dconf dump /org/gnome/Ptyxis/ > ptyxis/ptyxis.dconf
+./ptyxis/manage dump
+
+# Shared GTK client decoration rules
+mkdir -p ./gtk
+cp ~/.config/gtk-4.0/gtk.css ./gtk/gtk.css
+
+# Hyprland portal preferences
+./xdg-desktop-portal/manage dump
 
 # Audio: keep profile references independent of the local home directory.
 mkdir -p ./alsa-card-profile/mixer/profile-sets ./wireplumber/wireplumber.conf.d

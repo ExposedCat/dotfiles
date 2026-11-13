@@ -11,10 +11,12 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 
 
 HERE = Path(__file__).resolve().parent
 RECORD_UNIT = "dotfiles-hyprland-record.service"
+CAPTURE_UNIT = "dotfiles-hyprland-capture.service"
 
 
 def run(*args, **kwargs):
@@ -99,9 +101,42 @@ def select(mode):
             data = {"mode": mode, "outputs": outputs, "render": str(directory / "render.png"),
                     "selection": window_selection(window, outputs) if mode == "window" else None}
             (directory / "session.json").write_text(json.dumps(data))
+            if open_warm_capture(directory):
+                return
             env = os.environ.copy()
             env["DOTFILES_CAPTURE_SESSION"] = str(directory)
             run("quickshell", "--path", str(HERE / "capture.qml"), env=env)
+
+
+def open_warm_capture(directory):
+    """Use the already-loaded Qt UI; retain a cold fallback outside the session."""
+    pid_result = subprocess.run(["systemctl", "--user", "show", CAPTURE_UNIT, "--property=MainPID", "--value"],
+                                capture_output=True, text=True)
+    pid_text = pid_result.stdout.strip()
+    if pid_result.returncode or not pid_text.isdecimal() or int(pid_text) <= 0:
+        return False
+    pid = int(pid_text)
+    result = subprocess.run(["quickshell", "ipc", "--path", str(HERE / "capture-daemon.qml"),
+                             "call", "capture", "open", str(directory)], capture_output=True, text=True, timeout=2)
+    if result.returncode or result.stdout.strip() != "true":
+        return False
+    polls = 0
+    while not (directory / "result.json").is_file():
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError as error:
+            raise RuntimeError("The capture UI stopped before finishing.") from error
+        time.sleep(0.025)
+        polls += 1
+        if polls % 40 == 0:
+            state = subprocess.run(["quickshell", "ipc", "--path", str(HERE / "capture-daemon.qml"),
+                                    "call", "capture", "status"], capture_output=True, text=True, timeout=2)
+            try:
+                if state.returncode == 0 and json.loads(state.stdout).get("active") is False:
+                    return True
+            except ValueError:
+                pass
+    return True
 
 
 def session():
@@ -154,6 +189,7 @@ def record_area(monitor_name, x, y, width, height, cursor):
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--session", type=Path, help="Capture session directory for the persistent UI")
     actions = parser.add_subparsers(dest="action", required=True)
     actions.add_parser("select").add_argument("mode", choices=("region", "window", "record"))
     for name in ("info", "export", "stop"):
@@ -164,6 +200,8 @@ def main():
         record.add_argument(name, type=int)
     record.add_argument("cursor", choices=("yes", "no"))
     args = parser.parse_args()
+    if args.session is not None:
+        os.environ["DOTFILES_CAPTURE_SESSION"] = str(args.session)
     if args.action == "select":
         select(args.mode)
     elif args.action == "info":

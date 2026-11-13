@@ -2,7 +2,8 @@
 cursor-shape='ibeam'
 default-profile-uuid='5938f894c8013231d9bc7ad06995aa54'
 enable-a11y=true
-font-name='Adwaita Mono 13'
+font-name='Adwaita Mono 9.75'
+interface-style='dark'
 profile-uuids=['5938f894c8013231d9bc7ad06995aa54', 'eea812f67f91c101abb23e7d69a81edd']
 restore-session=false
 use-system-font=false
@@ -11,12 +12,13 @@ window-size=(uint32 153, uint32 39)
 [Profiles/5938f894c8013231d9bc7ad06995aa54]
 bold-is-bright=false
 custom-command='/usr/bin/fish'
-default-container='b522dd29863bcc64c25680085ad567d1bd4de4c46db111d5331f6712856df6d0'
+default-container='@DEV_CONTAINER_ID@'
 delete-binding='delete-sequence'
 label='Dev'
 limit-scrollback=false
 login-shell=true
 palette='Catppuccin Mocha'
+preserve-container='never'
 scroll-on-output=true
 use-custom-command=true
 

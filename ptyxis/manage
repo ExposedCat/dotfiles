@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+script=$(realpath "${BASH_SOURCE[0]}")
+if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
+    exec distrobox-host-exec bash "$script" "$@"
+fi
+source_dir=$(dirname "$script")
+action=${1:-install}
+case "$action" in install|dump) ;; *) echo "Usage: $0 [install|dump]" >&2; exit 2 ;; esac
+dev_id=$(podman inspect dev --format '{{.Id}}')
+[[ "$dev_id" =~ ^[a-f0-9]{64}$ ]] || { echo "Cannot find the dev container" >&2; exit 1; }
+if [[ "$action" = dump ]]; then
+    dconf dump /org/gnome/Ptyxis/ | sed "s/^default-container='$dev_id'$/default-container='@DEV_CONTAINER_ID@'/" > "$source_dir/ptyxis.dconf"
+    exit
+fi
+
+state_dir=${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/ptyxis
+mkdir -p "$state_dir/backups"
+backup=$(mktemp -d "$state_dir/backups/$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
+dconf dump /org/gnome/Ptyxis/ > "$backup/ptyxis.dconf"
+dconf dump /org/gnome/desktop/default-applications/terminal/ > "$backup/default-terminal.dconf"
+
+# Standalone symbol font: keep Nerd glyphs available after removing Kitty.
+font_dir=${XDG_DATA_HOME:-$HOME/.local/share}/fonts/nerd-symbols
+cache_dir=${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/fonts
+font_name=SymbolsNerdFontMono-Regular.ttf
+font_hash=f0f624d9b474bea1662cf7e862d44aebe1ae1f6c7f9cb7a0ca5d0e5ac9561c60
+mkdir -p "$font_dir" "$cache_dir"
+if ! printf '%s  %s\n' "$font_hash" "$font_dir/$font_name" | sha256sum --check --status 2>/dev/null; then
+    if ! printf '%s  %s\n' "$font_hash" "$cache_dir/$font_name" | sha256sum --check --status 2>/dev/null; then
+        download=$(mktemp "$cache_dir/.nerd-symbols-XXXXXX")
+        trap 'rm -f "$download"' EXIT
+        curl --fail --location --silent --show-error --max-time 60 \
+            'https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFontMono-Regular.ttf' \
+            --output "$download"
+        printf '%s  %s\n' "$font_hash" "$download" | sha256sum --check --status
+        mv "$download" "$cache_dir/$font_name"
+        trap - EXIT
+    fi
+    install -m 644 "$cache_dir/$font_name" "$font_dir/$font_name"
+    fc-cache -f "$font_dir"
+fi
+font_config=${XDG_CONFIG_HOME:-$HOME/.config}/fontconfig/conf.d/60-adwaita-mono-nerd.conf
+mkdir -p "$(dirname "$font_config")"
+if [[ -f "$font_config" ]]; then cp -a "$font_config" "$backup/"; fi
+install -m 644 "$source_dir/60-adwaita-mono-nerd.conf" "$font_config"
+sed "s/@DEV_CONTAINER_ID@/$dev_id/g" "$source_dir/ptyxis.dconf" | dconf load /org/gnome/Ptyxis/
+gsettings set org.gnome.desktop.default-applications.terminal exec ptyxis
+gsettings set org.gnome.desktop.default-applications.terminal exec-arg '--'
+terminal_list=${XDG_CONFIG_HOME:-$HOME/.config}/xdg-terminals.list
+if [[ -f "$terminal_list" ]]; then cp -a "$terminal_list" "$backup/"; fi
+install -m 644 "$source_dir/xdg-terminals.list" "$terminal_list"
+echo "Ptyxis configured: dev / Fish, dark interface, Adwaita Mono 13px with Nerd symbols."
+echo "Previous preferences: $backup/ptyxis.dconf"
