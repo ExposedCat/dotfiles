@@ -18,19 +18,17 @@ cp ./codex/skills/server/agents/openai.yaml ~/.codex/skills/server/agents/
 mkdir -p ~/.claude
 cp ./claude/CLAUDE.md ~/.claude/CLAUDE.md
 
-# LogiOps
-sudo distrobox-host-exec cp logiops/logid.cfg /etc/logid.cfg
-sudo mkdir -p /etc/systemd/system-sleep
-sudo cp logiops/resume-fix /etc/systemd/system-sleep/after-resume
-
 # System sleep: install on the host, including when called from Distrobox.
 ./services/sleep/manage install
 
 # LAN hostname resolution on this PC.
 ./services/mdns/manage install
 
-# GNOME Keyring: keep the upstream OpenSession fix installed on the host.
-./gnome-keyring/manage install
+# Secret Service: start oo7 for each desktop session and recover after bus loss.
+./services/secrets/manage install
+
+# Build and install the pinned Papers, Bazecor and OpenLogi forks and wl-screenrec.
+./apps/manage install all
 
 # Fastfetch
 cp ./fastfetch/* ~/.config/fastfetch/

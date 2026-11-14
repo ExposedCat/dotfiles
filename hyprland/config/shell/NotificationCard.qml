@@ -24,7 +24,7 @@ Item {
         while (item) { if (item === root) return true; item = item.parent; }
         return false;
     }
-    EmberSlot { id: unreadSlot; shell: root.emberShell; x: 8; y: 14; width: 3; height: Math.max(4, parent.height - 28); shapeRadius: 1.5 }
+    EmberSlot { id: unreadSlot; shell: root.emberShell; x: 4; y: 12; width: 3; height: Math.max(4, parent.height - 24); shapeRadius: 1.5 }
     property bool embedded: false
     property bool groupControls: false
     property bool groupExpanded: false
@@ -32,6 +32,7 @@ Item {
     signal toggleGroup()
     property bool geometryReady: false
     property bool actionsExpanded: false
+    readonly property bool detailsExpanded: inCenter || actionsExpanded || composing || containsFocus
     property bool hoverExpansionAllowed: true
     onHoverExpansionAllowedChanged: { if (hoverExpansionAllowed) actionsExpanded = cardHover.hovered || composing || containsFocus; }
     readonly property var notification: store.live[entry.id] || null
@@ -46,13 +47,14 @@ Item {
     Component.onCompleted: appearance = 1
     opacity: inCenter ? (removing ? 0 : appearance * groupReveal) : 1
     Behavior on opacity { enabled: root.inCenter && root.removing; NumberAnimation { duration: 120 } }
-    implicitHeight: inCenter && removing ? 0 : content.implicitHeight + 26
-    Behavior on implicitHeight { enabled: root.geometryReady; NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
+    implicitHeight: inCenter && removing ? 0 : content.implicitHeight + 24
+    Behavior on implicitHeight { enabled: root.geometryReady && !root.inCenter; NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
     Rectangle {
         visible: !root.embedded
         anchors.fill: parent; z: -1
-        radius: 12; color: root.theme.surface
-        border.width: root.entry.critical ? 1 : 0; border.color: root.theme.red
+        radius: 12; color: root.inCenter ? Qt.alpha(root.theme.text, 0.055) : root.theme.surface
+        border.width: root.inCenter || root.entry.critical ? 1 : 0
+        border.color: root.entry.critical ? root.theme.red : Qt.alpha(root.theme.text, 0.07)
     }
     Connections {
         enabled: !root.geometryReady
@@ -70,7 +72,7 @@ Item {
         onHoveredChanged: {
             if (hovered) {
                 hoverExit.stop();
-                if (root.hoverExpansionAllowed) root.actionsExpanded = true;
+                if (!root.inCenter && root.hoverExpansionAllowed) root.actionsExpanded = true;
                 if (!root.inCenter) root.store.hoverPopup(root.entry.id, true);
             } else hoverExit.restart();
         }
@@ -78,8 +80,8 @@ Item {
     Timer {
         id: hoverExit; interval: 80
         onTriggered: {
-            if (cardHover.hovered || root.composing || !root.hoverExpansionAllowed) return;
-            root.actionsExpanded = false;
+            if (cardHover.hovered || !root.hoverExpansionAllowed) return;
+            // Retain the expanded pixels while a hovered banner slides away.
             if (!root.inCenter) root.store.hoverPopup(root.entry.id, false);
         }
     }
@@ -92,42 +94,42 @@ Item {
         clip: true
     ColumnLayout {
         id: content
-        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 13 }
-        spacing: 10
+        anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: 14; rightMargin: 14; topMargin: 12 }
+        spacing: 8
         RowLayout {
-            Layout.fillWidth: true; spacing: 12
+            Layout.fillWidth: true; spacing: 10
             Image {
                 source: root.entry.image || ""
                 visible: source.toString().length > 0 && status !== Image.Error
-                Layout.preferredWidth: 56; Layout.preferredHeight: 56
+                Layout.preferredWidth: root.inCenter ? 40 : 48; Layout.preferredHeight: root.inCenter ? 40 : 48
                 Layout.alignment: Qt.AlignTop
                 sourceSize.width: 112; sourceSize.height: 112
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
             }
             ColumnLayout {
-                Layout.fillWidth: true; spacing: 5
+                Layout.fillWidth: true; spacing: 2
                 RowLayout {
                     Layout.fillWidth: true; spacing: 7
                     Image {
                         source: root.entry.icon ? (/^(file:|image:|\/)/.test(root.entry.icon) ? root.entry.icon : Quickshell.iconPath(root.entry.icon, true)) : Quickshell.iconPath("application-x-executable", true)
-                        visible: source.toString().length > 0 && status !== Image.Error
-                        Layout.preferredWidth: 18; Layout.preferredHeight: 18
-                        Layout.alignment: Qt.AlignTop; Layout.topMargin: 3
-                        sourceSize.width: 18; sourceSize.height: 18
+                        visible: !root.inCenter && source.toString().length > 0 && status !== Image.Error
+                        Layout.preferredWidth: 21; Layout.preferredHeight: 21
+                        Layout.alignment: Qt.AlignVCenter
+                        sourceSize.width: 42; sourceSize.height: 42
                     }
                     Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; Layout.fillWidth: true; text: root.entry.summary; textFormat: Text.PlainText; color: root.theme.text; wrapMode: Text.NoWrap; maximumLineCount: 1; elide: Text.ElideRight }
                     ShellButton { visible: root.groupControls; theme: root.theme; icon: root.groupExpanded ? "chevron-up" : "chevron-down"; hint: root.groupExpanded ? "Collapse notifications" : "Expand notifications"; implicitWidth: 30; implicitHeight: 30; Layout.alignment: Qt.AlignTop; onClicked: root.toggleGroup() }
-                    ShellButton { theme: root.theme; icon: "x"; hint: root.groupControls ? "Dismiss group" : "Dismiss notification"; opacity: root.groupControls || root.actionsExpanded || root.composing || activeFocus ? 1 : 0; enabled: opacity > 0; implicitWidth: 30; implicitHeight: 30; Layout.alignment: Qt.AlignTop; onClicked: root.groupControls ? root.store.removeGroup(root.groupKey) : root.store.remove(root.entry.id) }
+                    ShellButton { theme: root.theme; icon: "x"; hint: root.groupControls ? "Dismiss group" : "Dismiss notification"; opacity: root.inCenter || root.groupControls || root.actionsExpanded || root.composing || activeFocus ? 1 : 0; enabled: opacity > 0; implicitWidth: 30; implicitHeight: 30; Layout.alignment: Qt.AlignTop; onClicked: root.groupControls ? root.store.removeGroup(root.groupKey) : root.store.remove(root.entry.id) }
                 }
-                Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; visible: text.length > 0; Layout.fillWidth: true; text: root.entry.body; textFormat: Text.PlainText; color: root.theme.text; wrapMode: Text.Wrap; maximumLineCount: root.actionsExpanded || root.composing || root.containsFocus ? 2147483647 : 1; elide: Text.ElideRight }
+                Text { objectName: "notificationBody"; font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; visible: text.length > 0; Layout.fillWidth: true; text: root.entry.body; textFormat: Text.PlainText; color: root.theme.secondary; wrapMode: Text.Wrap; maximumLineCount: root.detailsExpanded ? 5 : 1; elide: Text.ElideRight }
             }
         }
         Item {
             id: actionReveal
             objectName: "notificationActionReveal"
             Layout.fillWidth: true
-            property real reveal: (root.actionsExpanded || root.composing || root.containsFocus) && (root.hasActions || (root.canReply && !root.composing)) ? 1 : 0
+            property real reveal: root.detailsExpanded && (root.hasActions || (root.canReply && !root.composing)) ? 1 : 0
             Layout.topMargin: -content.spacing * (1 - reveal)
             Layout.preferredHeight: actions.implicitHeight * reveal
             implicitHeight: actions.implicitHeight * reveal
@@ -146,7 +148,7 @@ Item {
                         onHoveredChanged: root.followAction(this, hovered, false)
                         onActiveFocusChanged: root.followAction(this, activeFocus, true)
                         theme: root.theme; text: modelData.text; selected: true
-                        color: emberSlot.occupied ? "transparent" : root.theme.hover
+                        color: emberSlot.occupied ? "transparent" : Qt.alpha(root.theme.text, 0.085)
                         onClicked: root.store.invoke(root.entry.id, modelData.identifier)
                     }
                 }
@@ -155,7 +157,7 @@ Item {
                     onHoveredChanged: root.followAction(this, hovered, false)
                     onActiveFocusChanged: root.followAction(this, activeFocus, true)
                     theme: root.theme; text: "Reply"; selected: true
-                    color: emberSlot.occupied ? "transparent" : root.theme.hover
+                    color: emberSlot.occupied ? "transparent" : Qt.alpha(root.theme.text, 0.085)
                     visible: root.canReply && !root.composing
                     onClicked: { root.store.startReply(root.entry.id, root.inCenter ? "center" : "banner"); Qt.callLater(() => replyText.forceActiveFocus()) }
                 }

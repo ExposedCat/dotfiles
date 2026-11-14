@@ -60,16 +60,17 @@ ColumnLayout {
         clip: true; spacing: 6
         model: deviceModel
         boundsBehavior: Flickable.StopAtBounds
+        PillWheel { flickable: list }
         ScrollBar.vertical: ScrollBar {}
         delegate: ColumnLayout {
             id: deviceRow
             required property string address
-            readonly property var modelData: root.deviceData[address] || ({address: address, name: address, connected: false})
+            readonly property var device: root.deviceData[address] || ({address: address, name: address, connected: false})
             required property int index
             width: list.width
             spacing: 6
             Rectangle {
-                visible: deviceRow.index > 0 && !deviceRow.modelData.connected && root.bluetooth.devices[deviceRow.index - 1].connected
+                visible: deviceRow.index > 0 && !deviceRow.device?.connected && !!root.bluetooth.devices[deviceRow.index - 1]?.connected
                 Layout.fillWidth: true; implicitHeight: 1; Layout.topMargin: 8; Layout.bottomMargin: 8
                 color: root.theme.surface
             }
@@ -79,19 +80,19 @@ ColumnLayout {
                 onActiveFocusChanged: { if (activeFocus) root.focusedDevice = this; else if (root.focusedDevice === this) root.focusedDevice = null; }
                 theme: root.theme
                 Layout.fillWidth: true; implicitHeight: 54
-                icon: deviceRow.modelData.connected ? "check" : "bluetooth"
+                icon: deviceRow.device?.connected ? "check" : "bluetooth"
                 elideText: true
-                text: deviceRow.modelData.name || deviceRow.modelData.deviceName || deviceRow.modelData.address
-                hint: (deviceRow.modelData.connected ? "Disconnect " : "Connect to ") + text
-                selected: !!deviceRow.modelData.connected
-                pending: root.bluetooth.busy(deviceRow.modelData)
+                text: deviceRow.device?.name || deviceRow.device?.deviceName || deviceRow.address
+                hint: (deviceRow.device?.connected ? "Disconnect " : "Connect to ") + text
+                selected: !!deviceRow.device?.connected
+                pending: root.bluetooth.busy(deviceRow.device)
                 enabled: !pending && !!root.deviceData[deviceRow.address]
-                onClicked: root.bluetooth.toggle(deviceRow.modelData)
+                onClicked: root.bluetooth.toggle(deviceRow.device)
             }
             Text {
                 font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
                 Layout.fillWidth: true; Layout.leftMargin: 12; Layout.rightMargin: 12
-                text: root.bluetooth.errors[deviceRow.modelData.address] || ""
+                text: root.bluetooth.errors[deviceRow.address] || ""
                 visible: text.length > 0; wrapMode: Text.Wrap
                 color: root.theme.red;
             }

@@ -202,7 +202,7 @@ def main():
         actions.add_parser(name)
     actions.add_parser("shell").add_argument("panel", choices=("notifications", "power", "connections", "ethernet", "bluetooth", "media", "mixer", "system"))
     pill = actions.add_parser("pill")
-    pill.add_argument("gesture", choices=("tap", "hide", "show", "launcher", "power", "notifications"))
+    pill.add_argument("gesture", choices=("tap", "hide", "show", "visibility", "launcher", "power", "notifications"))
     pill.add_argument("timestamp", nargs="?", default="")
     actions.add_parser("clipboard-copy").add_argument("id")
     actions.add_parser("copy-text").add_argument("text")

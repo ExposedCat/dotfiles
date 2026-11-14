@@ -38,13 +38,13 @@ Scope {
             case 4:
                 test.stableClock();test.app.toggle("mixer");break;
             case 5:
-                test.slider=test.all(test.app.pill.activePane).filter(c=>c.handle && c.backendValue!==undefined).slice(-1)[0];
+                test.slider=test.all(test.app.pill.activePane).find(c=>c.objectName==="fader:Output");
                 test.app.pill.activePane.follow(test.slider);test.slider.forceActiveFocus();break;
             case 6:
-                test.app.brightness.setLevel("DP-3",0.42);test.app.brightness.setLevel("DP-3",0.83);break;
+                test.app.audio.setVolume(0.42,false);test.app.audio.setVolume(0.83,false);break;
             case 7:
-                test.check(test.all(test.app.pill.activePane).includes(test.slider) && test.slider.activeFocus,"Saving brightness recreated the control or lost focus");
-                test.check(test.app.pill.activePane.focusedSlider===test.slider && test.app.emberTarget===test.slider.emberSlot && test.app.pill.ember.dock===test.slider.emberSlot,"Saving brightness restarted the bead animation");
+                test.check(test.all(test.app.pill.activePane).includes(test.slider) && test.slider.activeFocus,"Updating volume recreated the control or lost focus");
+                test.check(test.app.pill.activePane.focusedSlider===test.slider && test.app.emberTarget===test.slider.emberSlot && test.app.pill.ember.dock===test.slider.emberSlot,"Updating volume restarted the bead animation");
                 test.app.toggle("notifications");break;
             case 8:
                 test.app.agenda.selectDate(new Date(test.app.clock.date.getTime()+86400000));
@@ -53,7 +53,7 @@ Scope {
                 test.check(String(test.number.color)==="#ffffff" && !test.day.emberSlot.landed,"Calendar darkened its number before landing");break;
             case 9:
                 test.check(test.day.emberSlot.landed && String(test.number.color)!=="#ffffff","Calendar did not change contrast after landing");
-                console.warn("INTERACTION PASS: one connected pill, compact progress feedback, stationary clock, red workspace OSD, stable brightness controls/focus/marker, calendar landing contrast");Qt.quit();
+                console.warn("INTERACTION PASS: one connected pill, compact progress feedback, stationary clock, red workspace OSD, stable audio controls/focus/marker, calendar landing contrast");Qt.quit();
             }
         }
     }

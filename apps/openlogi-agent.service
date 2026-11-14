@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenLogi agent (local fork)
+PartOf=graphical-session.target
+After=graphical-session-pre.target
+
+[Service]
+ExecStart=%h/.local/opt/openlogi/current/bin/openlogi-agent
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

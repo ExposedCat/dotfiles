@@ -42,10 +42,13 @@ RUN dnf install -y \
     xdotool \
     openbox \
     ImageMagick \
-    dbus-daemon
+    dbus-daemon \
+    git gcc gcc-c++ clang make pkgconf-pkg-config rustup \
+    systemd-devel fontconfig-devel wayland-devel libxkbcommon-x11-devel \
+    libX11-devel libxcb-devel openssl-devel libzstd-devel alsa-lib-devel \
+    libusb1-devel squashfs-tools flatpak-builder
 
-COPY gnome-keyring/gnome-keyring.spec /tmp/gnome-keyring.spec
-RUN dnf builddep -y /tmp/gnome-keyring.spec && rm /tmp/gnome-keyring.spec
+RUN npm install -g corepack@0.34.5
 
 # Cleanup
 RUN dnf clean all

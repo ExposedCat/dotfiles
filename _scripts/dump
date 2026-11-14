@@ -18,10 +18,6 @@ cp ~/.codex/skills/server/agents/openai.yaml ./codex/skills/server/agents/
 mkdir -p ./claude
 cp ~/.claude/CLAUDE.md ./claude/CLAUDE.md
 
-# LogiOps
-distrobox-host-exec cat /etc/logid.cfg > logiops/logid.cfg
-distrobox-host-exec cp /etc/systemd/system-sleep/after-resume logiops/resume-fix
-
 # System sleep: capture the host configuration and wake diagnostic helper.
 ./services/sleep/manage dump
 

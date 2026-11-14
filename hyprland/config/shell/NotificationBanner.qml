@@ -49,10 +49,13 @@ Item {
     }
     // Follow the visible card all the way out; retire the region with its item.
     Region { id: input; item: root }
+    PillTheme { id: colors }
+    PillBackground { anchors.fill: parent; theme: colors; radius: 16 }
+    Rectangle { anchors.fill: parent; radius: 16; color: "transparent"; border.width: root.entry.critical ? 1 : 0; border.color: colors.red }
     NotificationCard {
         id: card
         objectName: "notification-banner-card"
         width: root.width; height: root.height
-        theme: root.theme; store: root.store; entry: root.entry
+        theme: colors; store: root.store; entry: root.entry; embedded: true
     }
 }

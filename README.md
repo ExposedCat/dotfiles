@@ -188,16 +188,18 @@ manual locking. Startup stops the legacy idle service even if an old lock
 verification marker remains.
 
 The persistent Quickshell desktop lives in `hyprland/config/shell/`. The main HP
-OMEN (DP-3) has one floating pill, centered 12 pixels below the top edge.
+OMEN (DP-3) has one floating pill, centered 8 pixels below the top edge.
+Super+Ctrl+Shift+F toggles its visibility until pressed again. The pill also
+hides automatically while its monitor's active workspace has a fullscreen app.
 It overlaps applications and reserves no tiling space. The compact pill shows
 only the time and EN/RU keyboard layout, with a lit notification dot only while
 active notifications remain. There is no separator or inactive dot. Click the time or dot for the calendar and notification
-center. Notification popups, volume/microphone/brightness feedback, and workspace
-changes temporarily use the pill itself; there are no separate corner banners
-or bottom-screen OSD windows.
+center. Volume/microphone/brightness feedback and workspace changes temporarily
+use the pill itself. Notifications appear independently in the top-right corner,
+with the same small gap from the top and right edges.
 
 Hover widens the pill to reveal workspaces fixed to its left inset, app tray
-icons, media, sound/brightness, system statistics, network, Bluetooth, and power
+icons, media, sound, system statistics, network, Bluetooth, and power
 controls. Month, date, and weekday appear
 immediately to the left of the stationary clock. A recording indicator appears
 while recording, and the sound icon reflects mute state. Leaving collapses it after 240 ms; an open menu or tray menu keeps it
@@ -212,11 +214,25 @@ the MIT attribution is retained in `shell/RICELIN-LICENSE.txt`.
 The native surface stays fixed while its input region follows the pill, keeping
 hover stable and allowing clicks through empty space. Opening a view lets an
 outside click dismiss it. The launcher also closes with Escape or a second tap.
+Escape dismisses open views. Every section replaces the entire pill header with
+its view, with no close cross in the expanded bar. Header controls hold their
+screen positions while fading out, and the workspace highlight stays terracotta
+through collapse. Scrollable pill content uses twice the standard wheel step.
 Destructive power actions require a second click to confirm.
 
 The media view shows album artwork, title/artist/album, player selection, playback
 controls, and a seek bar through MPRIS. The mixer controls PipeWire output/input
-selection, output and microphone levels/mute, and each monitor's DDC brightness.
+selection and output and microphone levels/mute.
+Search uses compact single-line app rows with icons and descriptions.
+All sections use the full surface without the clock header.
+Sound has two vertical faders for the output and microphone.
+Left-click each bottom icon to toggle mute; right-click it to
+choose a device. Device names appear only in that dropdown. Brightness remains on the hardware
+keys with feedback in the pill; opening Sound does not query monitor brightness.
+Notification cards use subtle glass fills in the center and brown glass for
+corner banners. The center keeps the calendar alongside the list without a
+dividing line. App groups collapse into stacked previews; individual message
+bodies and available actions stay expanded whenever those messages are shown.
 Brightness writes are serialized and the most recent requested setting is kept.
 The system view samples CPU, GPU, memory, temperatures, VRAM, storage, swap,
 network rates, and uptime, with separate labelled 0–100% utilization meters. Its worker runs only
@@ -251,9 +267,8 @@ Panel buttons have no hover highlights or tooltips; icon-button hints are used
 for accessibility. Tray menus use the shell's dark colors and typography, with
 checks, disabled actions, separators, and navigable submenus. Clickable controls
 use a pointer cursor. Bluetooth uses a fixed-height scrolling viewport.
-All Quickshell text uses Adwaita Sans Regular at 18px, matching the calendar numbers,
-including the panel, popups, notifications, prompts, launcher, clipboard,
-capture UI, and portal dialogs. Typography is defined in `shell/ShellTheme.qml`;
+Quickshell uses Adwaita Sans Regular with 18px text, including the compact launcher
+and mixer. Typography is defined in `shell/ShellTheme.qml`;
 `tools/ShellTheme.qml` links to that shared theme for standalone tools.
 Workspaces appear as dim dots with a white active
 indicator that stretches to fill a minimum-width block when there are few workspaces.
@@ -292,9 +307,9 @@ Bluetooth can be enabled or disabled with the menu’s power icon.
 
 The notification center follows the GNOME layout: notifications on the left,
 calendar on the right, then events for the selected day and world clocks below it.
-Notifications are grouped by app, with the newest card initially visible,
-icon-only expand/collapse controls beside the dismiss icon on the first card
-and at the bottom of expanded groups. Collapsed groups show stacked card edges.
+Notifications are grouped under app headings with expand/collapse controls and
+stacked previews. Visible messages show their expanded bodies, available actions,
+and reply button, with individual and group dismiss controls.
 The clear-all icon sits at the bottom right beside Do not disturb.
 The calendar uses evenly sized rows and larger navigation arrows, with no Today button
 or day-of-week heading. Day highlights are circles inside equally spaced square cells.
@@ -310,22 +325,26 @@ The center lists active notifications, with a limit of 100 non-transient entries
 App withdrawals, activation, replies, and dismissal remove active entries;
 explicit dismissal and clearing fade and collapse the cards.
 Banner timeouts hide the banner while retaining the active
-entry and its app callbacks in the center. Transient notifications skip the
+entry and its app callbacks in the center. Hovering a banner and then leaving it
+consumes that banner too. Transient notifications skip the
 center. DND preferences alone are saved in
 `$XDG_STATE_HOME/dotfiles/hyprland/notifications.json` (normally under
 `~/.local/state`); notification contents are not saved or restored as history.
 Critical notifications bypass Do not disturb.
 Cards show the notification image, summary, body, app actions, and dismiss
-control. Titles are one line with ellipsis; bodies are one line at rest and
-expand in full on hover. Actions and inline Reply appear on hover when provided
-by the app.
+control. Titles are one line with ellipsis. Banner bodies are one line at rest
+and expand to at most five lines on hover, revealing actions and inline Reply
+when provided by the app. Center bodies are always expanded to at most five lines.
 Clicking a live card invokes its default action and removes the entry. Inline
 Reply supports Send/Cancel, Enter to send, and Escape to cancel; drafts remain
-in memory only. Banners slide in at the top-right, independently of the pill.
-Arrivals queue during banner hover/reply and while the notification center is open.
-Actions reveal in one height animation; groups slide down into individual cards
-and back into brighter, protruding stacked layers.
-Center notifications retain their order during pointer interaction.
+in memory only, and follow the message into the center when its banner is consumed.
+Banners slide in at the top-right, independently of the pill.
+Arrivals queue during banner hover/reply. Opening the center consumes visible and
+queued banners; arrivals while it is open go directly into the center. Those
+messages, including later updates, do not replay as banners after it closes.
+Banner actions reveal in one height animation. Center notifications retain
+their order during pointer interaction, and the marker stays on its last target
+when the pointer moves through gaps between messages.
 
 Notification arrivals never request keyboard focus. A reply editor requests it
 only after an explicit Reply click. Mixer and media controls accept keyboard
@@ -377,8 +396,12 @@ private D-Bus session, setting `DOTFILES_SHELL_SOURCE` to the absolute
 `hyprland/config/shell` directory and `XDG_STATE_HOME` to a test-only directory.
 `hyprland/tests/panel-pointer.qml` checks the legacy drop components in isolation.
 `hyprland/tests/launcher.js` checks fuzzy ranking and safe calculator precedence.
+`hyprland/tests/notification-layout.qml` checks card separation and stable delegates
+through reordering, variable body heights, width changes, and inline reply/cancel.
 `hyprland/tests/pill-features.qml` exercises the integrated views, notification
 queue/expiry pause, media/mixer controls, retained state, and Super restoration.
+`hyprland/tests/pill-dismissal.qml` covers notification arrivals while a menu is
+open, stable full-view geometry, Bluetooth device churn, and releasing input on close.
 `hyprland/tests/pill.lua` exercises Super tap/hold/chord handling with a fake
 compositor as part of the Python suite. `hyprland/tests/pill-behavior.qml` checks
 the real shell's pill geometry, launcher, menu switching, collapse, hidden input
@@ -481,46 +504,20 @@ wget -O ~/.config/fastfetch/bongo.txt https://raw.githubusercontent.com/ExposedC
 ```
 
 <h2 align="center">
-  <p>Logiops</p>
+  <p>OpenLogi</p>
 </h2>
 
-Logiops is a driver for Logitech mice configuration. Config includes:
-
-1. SmartShift
-2. HiRes scroll
-3. Volume control on gesture up/down
-4. Brightness control on gesture left/right
-5. Play/Pause on gesture click
-6. Workspace switching on side forward/backward buttons
-7. `Super` button emulation on DPI button click
-
-<h3 align="center">
-  <p>Usage</p>
-</h3>
-
-Copy the config file to `/etc`:
+OpenLogi replaces LogiOps. Build the pinned fork and enable its user agent:
 
 ```bash
-sudo wget -O /etc/logid.cfg https://raw.githubusercontent.com/ExposedCat/dotfiles/main/logiops/logid.cfg
+./apps/manage install openlogi
+./apps/manage check openlogi
 ```
 
-Copy the resume fix script to `/etc/systemd/system-sleep/after-resume`:
-
-```bash
-sudo wget -O /etc/systemd/system-sleep/after-resume https://raw.githubusercontent.com/ExposedCat/dotfiles/main/logiops/resume-fix
-sudo chmod +x /etc/systemd/system-sleep/after-resume
-```
-
-The config increases the HID++ I/O timeout to 3000 ms because Bolt receivers can
-be detected before their mouse is ready. The resume hook restarts an already
-running daemon only after waking. To apply the local files from this checkout
-on the host:
-
-```bash
-sudo install -m 644 logiops/logid.cfg /etc/logid.cfg
-sudo install -m 755 logiops/resume-fix /etc/systemd/system-sleep/after-resume
-sudo systemctl restart logid.service
-```
+Existing mappings in `~/.config/openlogi/config.toml` are preserved and backed up
+before an upgrade. The fork includes configurable gesture hold and sensitivity;
+see [local application builds](apps/README.md). Keep `logid.service` masked so
+both daemons cannot claim the same mouse. The files in `logiops/` are historical.
 
 <h2 align="center">
   <p>LAN hostname resolution</p>
@@ -764,14 +761,27 @@ sudo systemctl enable --now startup
 ```
 
 <h2 align="center">
-  <p>GNOME Keyring</p>
+  <p>Secret Service</p>
 </h2>
 
-`./gnome-keyring/manage install` restores the Fedora 44 keyring fix for GOA
-using rpm-ostree; `_scripts/load` includes it. The [fork](https://github.com/ExposedCat/gnome-keyring)
-has upstream MR !112 merged into `main`. Build from the Fedora 44 dev container
-with `./gnome-keyring/manage build`; sources, tested RPMs and logs stay in
-`~/.local/state/dotfiles/gnome-keyring/`. New installs take effect after reboot.
+Fedora 45 uses the packaged `oo7-daemon` and `pam_oo7`, including for GOA.
+`./services/secrets/manage install` ties oo7 to `graphical-session.target` so it
+starts on every desktop login and stops on logout even with lingering enabled.
+It also restarts oo7 after a clean exit caused by losing D-Bus. `_scripts/load`
+installs this setup; `./services/secrets/manage check` verifies it.
+
+GDM's packaged PAM configuration delivers the password at login. D-Bus activation
+alone is insufficient for that handoff, so this setup starts oo7 with the session.
+A daemon restart can still leave encrypted collections locked: setup does not
+retain the login password or preserve oo7's in-memory unlock state. Unlock the
+keyring again or log out and back in with a password when that happens.
+
+The Fedora 44 GNOME Keyring build recipe has been retired. Its saved RPMs and
+logs remain in `~/.local/state/dotfiles/gnome-keyring/`.
+
+`_scripts/load` also runs `./apps/manage install all` for the pinned Papers,
+Bazecor and OpenLogi forks and an upstream wl-screenrec build. See
+[local application builds](apps/README.md) for sources, dependencies and checks.
 
 <h2 align="center">
   <p>Dev Container</p>

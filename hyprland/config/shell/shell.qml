@@ -9,6 +9,7 @@ ShellRoot {
     property var fixtureData: ({})
     property string panel: ""
     property bool pillHidden: false
+    property bool pillSuppressed: false
     property real gestureTimestamp: -1
     property string lastGesture: ""
     property real panelOriginX: 0
@@ -66,6 +67,7 @@ ShellRoot {
         lastGesture = action;
         if (action === "hide") pillHidden = true;
         else if (action === "show") pillHidden = false;
+        else if (action === "visibility") { pillHidden = false; pillSuppressed = !pillSuppressed; }
         else if (action === "tap") { pillHidden = false; toggle("launcher"); }
         else if (["launcher", "power", "notifications"].includes(action)) { pillHidden = false; toggle(action); }
     }

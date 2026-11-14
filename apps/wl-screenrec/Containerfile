@@ -1,0 +1,3 @@
+# Fedora 45 build environment, pinned to the image used on this PC.
+FROM registry.fedoraproject.org/fedora@sha256:314a7b6afac0d47bd56a7a77f45dbe7d484a73389c4db46061d93daca3e06624
+RUN dnf install -y rpm-build cargo clang gcc libdrm-devel freeglut-devel ffmpeg-free-devel pkgconf-pkg-config && dnf clean all

@@ -71,7 +71,7 @@ key(133, 0, 400); expect("show")
 key(133, 1); hold(); expect("hide")
 hooks["config.unload"](); expect("show")
 key(133, 0); expect("show")
-for _, panel in ipairs({"launcher", "power", "notifications"}) do
+for _, panel in ipairs({"launcher", "power", "notifications", "visibility"}) do
     key(133, 1); key(27, 1); pill.open(panel); expect()
     key(27, 0); key(133, 0); settle(); expect(panel)
 end

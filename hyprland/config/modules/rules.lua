@@ -29,10 +29,13 @@ hl.layer_rule({
     no_anim = true,
 })
 
+-- Match the pill's glass blur, excluding the clear area around each banner.
 -- The banner items own their horizontal entrance/exit motion.
 hl.layer_rule({
     name = "notification-banner-motion",
     match = { namespace = "^dotfiles-notifications$" },
+    blur = true,
+    ignore_alpha = 0.2,
     no_anim = true,
 })
 

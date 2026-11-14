@@ -66,8 +66,8 @@ Scope {
                 test.docked(); test.previous = test.app.emberTarget;
                 test.check(test.previous.parent.color.a === 0, "Mixer kept a duplicate slider handle");
                 const sliders = test.descendants(test.app.pill.activePane).filter(c => c.handle !== undefined && c.visualPosition !== undefined && c.to === 1);
-                test.check(sliders.length >= 3, "Brightness sliders did not load");
-                test.app.pill.activePane.follow(sliders[sliders.length - 1]); break;
+                test.check(sliders.length === 2, "Sound must contain only output and microphone faders");
+                test.app.pill.activePane.follow(sliders.find(c => c.objectName === "fader:Input")); break;
             }
             case 4:
                 test.docked(); test.check(!test.previous.occupied && test.previous.parent.color.a > 0, "Previous slider handle was not restored");

@@ -12,6 +12,11 @@ Scope {
         if (!condition) { console.error("FEATURE FAIL:", message); Qt.exit(1); throw Error(message); }
     }
     function search() { return launcher.children.find(c => c.objectName === "pillSearch"); }
+    function named(item, name) {
+        if (item.objectName === name) return item;
+        for (const child of item.children || []) { const match = named(child, name); if (match) return match; }
+        return null;
+    }
     function entry(id) { return {id: id, app: "Fixture", summary: "Message " + id, body: "Notification in the pill", time: Date.now(), read: false, critical: false}; }
     Component.onCompleted: {
         check(!!Quickshell.env("DOTFILES_SHELL_FIXTURE"), "A fixture is required");
@@ -74,13 +79,17 @@ Scope {
                 break;
             case 8:
                 test.mixer = bar.activePane;
-                test.check(test.app.brightness.devices.length > 0, "Brightness controls did not load");
+                test.app.audio.fixtureData = Object.assign({}, test.app.audio.fixtureData, {
+                    audioOutputs: [{id: 1, description: "Speakers"}, {id: 3, description: "Headphones"}],
+                    audioInputs: [{id: 2, description: "Microphone"}, {id: 4, description: "Webcam microphone"}]
+                });
+                test.app.audio.selectDevice(1, false); test.app.audio.selectDevice(1, true);
+                test.check(test.app.audio.sink.id === 3 && test.app.audio.source.id === 4, "Audio source selection failed");
+                test.check(test.named(test.mixer, "audioOutput").currentIndex === 1 && test.named(test.mixer, "audioInput").currentIndex === 1, "Source selectors did not follow the default devices");
                 test.app.audio.setVolume(0.25, false);
                 test.check(test.app.audio.volume === 0.25, "Volume control failed");
                 test.app.audio.toggleMicMute();
                 test.check(test.app.audio.micMuted, "Microphone mute failed");
-                test.app.brightness.setLevel("DP-3", 0.4);
-                test.check(test.app.brightness.devices[0].level === 0.4, "Brightness control failed");
                 test.app.toggle("system");
                 break;
             case 9:
@@ -119,7 +128,7 @@ Scope {
                 break;
             case 15:
                 test.check(bar.pillState === "mixer" && bar.activePane === test.mixer, "Release did not restore the retained view");
-                console.warn("FEATURE PASS: fuzzy search, calculator/copy/precedence, usage ranking, retained views, media controls/seek, mixer/brightness, active-only stats, in-pill OSD, corner notification stacking/hover, and Super restoration");
+                console.warn("FEATURE PASS: fuzzy search, calculator/copy/precedence, usage ranking, retained views, media controls/seek, mixer/device selection, active-only stats, in-pill OSD, corner notification stacking/hover, and Super restoration");
                 Qt.quit();
             }
         }

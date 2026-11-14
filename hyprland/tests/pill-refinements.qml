@@ -12,7 +12,6 @@ Scope {
     property real baseHeight: 0
     property int step: 0
     property int redirects: 0
-    property bool sawGroupMotion: false
     function check(value, message) { if (!value) { console.error("REFINEMENT FAIL:", message); Qt.exit(1); throw Error(message); } }
     function all(item) { let found=[]; for(const c of item.children||[]) {found.push(c);found=found.concat(all(c));}return found; }
     function entry(i) { return {id:"refine-"+i,app:"Messages",summary:"Message "+i,body:"A message with actions",time:Date.now()-i,read:false,critical:false}; }
@@ -43,36 +42,40 @@ Scope {
             case 3:
                 test.group=test.all(test.app.pill.activePane).find(c=>c.group && c.group.entries.length===3);
                 test.check(!!test.group,"Grouped messages were not created"); test.card=test.group.firstCard;
-                test.check(test.group.implicitHeight>=test.card.implicitHeight+23,"Collapsed group layers do not protrude enough");
-                test.baseHeight=test.card.implicitHeight; test.card.actionsExpanded=true; break;
+                test.check(!test.group.expanded && test.group.stackCount===2, "Center must preserve collapsed app groups");
+                test.app.pill.activePane.toggleGroup(test.group.group.key);
+                test.baseHeight=test.card.implicitHeight; break;
             case 4: {
                 const reveal=test.all(test.card).find(c=>c.objectName==="notificationActionReveal");
-                test.check(reveal.reveal===1 && test.card.implicitHeight>=test.baseHeight+35,"Notification actions did not expand in one pass: " + JSON.stringify({base:test.baseHeight,height:test.card.implicitHeight,reveal:reveal.reveal,expanded:test.card.actionsExpanded,focus:test.card.containsFocus,actions:test.card.hasActions}));
+                test.check(reveal.reveal===1 && test.card.detailsExpanded && test.group.unfold===1,"Notification actions are not visible on opening: " + JSON.stringify({base:test.baseHeight,height:test.card.implicitHeight,reveal:reveal.reveal,expanded:test.card.actionsExpanded,focus:test.card.containsFocus,actions:test.card.hasActions}));
                 test.accept=test.all(test.card).find(c=>c.text==="Accept" && c.emberSlot);
                 test.later=test.all(test.card).find(c=>c.text==="Later" && c.emberSlot);
-                test.app.pill.activePane.notificationMode=true; test.card.hoveredAction=test.accept; break;
+                test.accept.forceActiveFocus(); break;
             }
             case 5:
                 test.check(test.app.emberTarget===test.accept.emberSlot && test.app.pill.ember.dock===test.accept.emberSlot,"Notification action did not receive the fill");
                 advance.stop(); fast.start(); break;
             case 6:
                 test.check(test.redirects===6 && test.app.pill.ember.dock===test.app.emberTarget,"Rapid retargeting did not settle on the latest action");
-                test.group.expanded=true; midway.start(); break;
+                test.card.hoveredAction=null; test.previousTarget=test.app.emberTarget; test.app.pill.contentItem.forceActiveFocus(); break;
             case 7:
-                test.check(test.sawGroupMotion && test.group.unfold===1,"Group expansion did not animate");
-                test.group.expanded=false; break;
+                test.check(test.app.emberTarget===test.previousTarget,"A gap sent the marker back to the first card");
+                test.all(test.app.pill.activePane).filter(c=>c.text==="Later" && c.emberSlot)[1].forceActiveFocus(); break;
             case 8:
-                test.check(test.group.unfold===0 && test.group.implicitHeight>=test.card.implicitHeight+23,"Group collapse lost its visible stack");
+                test.check(test.app.emberTarget!==test.previousTarget,"A new notification target did not receive the marker");
+                test.check(test.all(test.card).find(c=>c.objectName==="notificationBody").maximumLineCount===5,"Expanded body is not capped at five lines");
                 test.app.panel=""; test.app.pill.hoverExpanded=false;
                 test.app.notifications.popups=[]; test.app.notifications.queuedPopups=[];
-                test.app.notifications.showPopup(test.entry(0)); break;
+                test.app.notifications.showPopup(test.entry(0));
+                test.check(test.app.notifications.popups.length===0,"A notification already seen in the center returned as a banner");
+                test.app.notifications.showPopup(test.entry(20)); break;
             case 9:
                 test.check(test.app.pill.pillState==="compact","A notification expanded the center pill");
                 test.check(test.app.overlays.bannerWindow.visible && test.app.overlays.banners.presentationCount===1,"Corner notification surface did not present the banner");
-                test.app.notifications.showPopup(test.entry(1)); break;
+                test.app.notifications.showPopup(test.entry(21)); break;
             case 10:
                 test.check(test.app.overlays.banners.presentationCount===2 && test.app.overlays.banners.inputRegions.length===2,"Corner banners did not stack independently");
-                console.warn("REFINEMENT PASS: immediate system target, readable meters, fixed network target, action reveal/fill, continuous rapid redirects, group animation/stack, independent corner banners"); Qt.quit();
+                console.warn("REFINEMENT PASS: immediate system target, readable meters, fixed network target, action reveal/fill, continuous rapid redirects, expandable groups, five-line bodies, retained gap target, independent corner banners"); Qt.quit();
             }
         }
     }
@@ -89,6 +92,5 @@ Scope {
         }
     }
     Timer { id:settle; interval:400; onTriggered:advance.start() }
-    Timer { id:midway; interval:120; onTriggered: { test.check(test.group.unfold>0 && test.group.unfold<1,"Group changed instantly"); test.sawGroupMotion=true; } }
     Timer { interval:15000; running:true; onTriggered:test.check(false,"Refinement check timed out") }
 }

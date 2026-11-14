@@ -13,6 +13,7 @@ Rectangle {
     property bool indicator: false
     property var emberShell: null
     property alias emberSlot: emberSlot
+    property alias mouseButtons: pointer.acceptedButtons
     signal clicked(int button)
     signal scrolled(real delta)
     activeFocusOnTab: true

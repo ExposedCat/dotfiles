@@ -14,7 +14,7 @@ Scope {
         screen: root.shell.mainScreen
         visible: toastBanners.presentationCount > 0
         anchors { top: true; right: true }
-        margins { top: root.theme.panelHeight + root.theme.panelGap; right: 0 }
+        margins { top: root.theme.panelGap; right: 0 }
         implicitWidth: root.theme.notificationWidth + root.theme.panelGap
         // Card hover changes only the input region and card height. Keeping the
         // Wayland window fixed prevents configure/leave/re-enter oscillation.

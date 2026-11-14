@@ -20,7 +20,6 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         Text { text: "System"; color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: 22; Layout.fillWidth: true }
-        Text { text: "Utilization · 0–100%"; color: root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: 14 }
     }
     Repeater {
         model: [{key: "cpu", label: "CPU"}, {key: "memory", label: "Memory"}, {key: "gpu", label: "GPU"}]
@@ -39,7 +38,7 @@ ColumnLayout {
                 RowLayout {
                     Layout.fillWidth: true
                     Text { text: meter.modelData.label; color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: 18 }
-                    Text { text: root.detail(meter.modelData.key); color: root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: 14; Layout.fillWidth: true; elide: Text.ElideRight }
+                    Text { text: root.detail(meter.modelData.key); color: root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; Layout.fillWidth: true; elide: Text.ElideRight }
                     Item {
                         implicitWidth: 82; implicitHeight: 38
                         EmberSlot { id: valueSlot; shell: root.shell; anchors.fill: parent; shapeRadius: 12; shapeOpacity: 0.42 }
@@ -57,7 +56,7 @@ ColumnLayout {
         columns: 3; columnSpacing: 18; rowSpacing: 8; Layout.fillWidth: true
         Repeater {
             model: ["↓ " + root.stats.bytes(root.snapshot.down) + "/s", "↑ " + root.stats.bytes(root.snapshot.up) + "/s", "Disk  " + root.percent(root.snapshot.disk), "Swap  " + root.stats.bytes(root.snapshot.swapUsed), "VRAM  " + root.stats.bytes(root.snapshot.vramUsed), "Up  " + (root.snapshot.uptime ? Math.floor(root.snapshot.uptime / 3600) + "h " + Math.floor(root.snapshot.uptime % 3600 / 60) + "m" : "—")]
-            Text { required property string modelData; Layout.fillWidth: true; text: modelData; color: root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: 14 }
+            Text { required property string modelData; Layout.fillWidth: true; text: modelData; color: root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize }
         }
     }
     Text { text: root.stats.error; visible: text.length > 0; color: root.theme.red; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize }

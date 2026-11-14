@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Wayland
 
 // Run on an isolated nested Wayland compositor with DOTFILES_SHELL_FIXTURE,
 // DOTFILES_SHELL_SOURCE and test-only XDG_STATE_HOME / XDG_CACHE_HOME.
@@ -44,7 +45,7 @@ Scope {
             switch (test.step++) {
             case 0:
                 test.check(bar.pillState === "compact" && Math.abs(pill.width - bar.compactWidth) < 1, "Initial compact geometry");
-                test.check(bar.exclusionMode === ExclusionMode.Ignore && pill.y === 12, "Pill must float without reserving app space");
+                test.check(bar.exclusionMode === ExclusionMode.Ignore && pill.y === bar.theme.panelGap, "Pill must float without reserving app space");
                 test.clockText = test.findItem(bar.contentItem, item => item.text === Qt.formatDateTime(test.app.clock.date, "hh:mm"));
                 test.check(!!test.clockText, "Clock text is missing");
                 test.clockX = test.clockText.mapToItem(bar.contentItem, 0, 0).x;
@@ -69,7 +70,9 @@ Scope {
                 test.check(test.closingFrames >= 2, "Closing motion was not sampled");
                 test.check(bar.pillState === "compact" && Math.abs(pill.width - bar.compactWidth) < 1 && !bar.activePane, "Launcher must fully collapse and unload: state=" + bar.pillState + ", width=" + pill.width + ", compact=" + bar.compactWidth + ", shown=" + bar.shownPanel + ", pane=" + !!bar.activePane);
                 test.app.toggle("ethernet");
+                const networkPane = bar.activePane;
                 test.app.toggle("bluetooth");
+                test.check(networkPane.parent.opacity === 0, "Replaced content remained visible while taking the next view's size");
                 break;
             case 4:
                 test.check(bar.pillState === "bluetooth" && !!bar.activePane, "Immediate menu switching");
@@ -126,7 +129,35 @@ Scope {
                 break;
             case 15:
                 test.check(bar.pillState === "compact", "Notification center dismissal");
-                console.warn("PILL PASS: stationary clock, frozen closing content, fixed radius/left inset, hidden inactive indicator, hover date, launcher search/launch, menu switching, holds, and timestamp wraparound");
+                bar.hoverExpanded = true;
+                test.app.fixtureData = Object.assign({}, test.app.fixtureData, {fullscreen: true});
+                break;
+            case 16:
+                test.check(bar.pillState === "hidden" && bar.mask.regions.length === 0 && bar.WlrLayershell.keyboardFocus === WlrKeyboardFocus.None, "Fullscreen must hide and release all input");
+                test.check(test.findItem(bar.contentItem, item => item.objectName === "floatingPill").opacity === 0 && !bar.hoverExpanded, "Fullscreen must hide pill pixels and clear hover expansion");
+                test.app.gesture("show", "50");
+                test.check(bar.pillState === "hidden", "Super release must not reveal the pill over fullscreen");
+                test.app.gesture("hide", "60");
+                test.app.fixtureData = Object.assign({}, test.app.fixtureData, {fullscreen: false});
+                test.check(bar.pillState === "hidden", "Exiting fullscreen must respect a held Super");
+                test.app.gesture("show", "70");
+                break;
+            case 17:
+                test.check(bar.pillState === "compact" && bar.mask.regions.length === 1, "Exiting fullscreen and releasing Super restores the pill");
+                test.app.gesture("hide", "80");
+                test.app.gesture("visibility", "90");
+                test.app.gesture("show", "100");
+                break;
+            case 18:
+                test.check(bar.pillState === "hidden" && !test.app.pillHidden && test.app.pillSuppressed && bar.mask.regions.length === 0, "Visibility shortcut must stay hidden after releasing Super");
+                test.app.gesture("hide", "110");
+                test.app.gesture("show", "120");
+                test.check(bar.pillState === "hidden", "Super hold/release must preserve manual hiding");
+                test.app.gesture("visibility", "130");
+                break;
+            case 19:
+                test.check(bar.pillState === "compact" && bar.mask.regions.length === 1, "Second visibility shortcut must restore the pill");
+                console.warn("PILL PASS: stationary clock, frozen closing content, fixed radius/left inset, hidden inactive indicator, hover date, launcher search/launch, menu switching, holds, timestamp wraparound, and fullscreen hide/restore, and manual visibility across Super gestures without input interception");
                 Qt.quit();
             }
         }

@@ -36,7 +36,10 @@ def prepare(image=IMAGE, cache=CACHE):
                     subprocess.run([str(image), "--appimage-extract"], cwd=staging,
                                    stdout=log, stderr=subprocess.STDOUT, check=True)
                 root = staging / "squashfs-root"
-                main = root / "usr/lib/bazecor/resources/app/.webpack/main/index.js"
+                candidates = list(root.glob("**/resources/app/.webpack/main/index.js"))
+                if len(candidates) != 1:
+                    raise RuntimeError("Cannot locate Bazecor's main bundle in this AppImage.")
+                main = candidates[0]
                 source = main.read_text()
                 if source.count(HIDDEN) != 1:
                     raise RuntimeError("This Bazecor version needs its Wayland startup workaround reviewed.")

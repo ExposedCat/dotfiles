@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+(( EUID == 0 ))
+case "$(basename "$1")" in
+    60-dygma.rules|70-openlogi.rules) ;;
+    *) echo 'Unexpected device rules file.' >&2; exit 2 ;;
+esac
+install -Dm0644 "$1" "/etc/udev/rules.d/$(basename "$1")"
+restorecon "/etc/udev/rules.d/$(basename "$1")"
+if [[ $(basename "$1") == 70-openlogi.rules ]]; then
+    install -d /etc/modules-load.d
+    echo uinput > /etc/modules-load.d/openlogi.conf
+    modprobe uinput
+    systemctl mask --now logid.service
+fi
+udevadm control --reload-rules
+udevadm trigger --subsystem-match=hidraw
+udevadm trigger --subsystem-match=input
+udevadm trigger --subsystem-match=misc --sysname-match=uinput

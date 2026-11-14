@@ -48,7 +48,7 @@ Item {
     Item {
         width: root.activeWidth; height: root.dot
         EmberSlot { id: activeSlot; shell: root.shell; motionKey: root.current; anchors.fill: parent }
-        Rectangle { anchors.fill: parent; radius: height / 2; color: root.floating ? root.theme.text : "#ffffff"; visible: !activeSlot.occupied }
+        Rectangle { objectName: "workspaceActiveFallback"; anchors.fill: parent; radius: height / 2; color: root.floating && root.shell.emberEnabled ? "#cc7855" : root.theme.text; visible: !activeSlot.occupied }
         y: Math.round((root.height - height) / 2)
         x: dots.x + root.current * (root.dot + root.gap)
         Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.InOutCubic } }

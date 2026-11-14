@@ -1,11 +1,11 @@
-Bazecor 1.11.0 bundles Electron 34 and defaults to Xwayland. Its native Wayland
+Bazecor bundles Electron 34 and defaults to Xwayland. Its native Wayland
 startup can also leave the main window hidden while waiting for `ready-to-show`.
 The wrapper selects Wayland and makes the main window visible at creation.
 
-Install after integrating `~/AppImages/bazecor.appimage` into the application menu:
+Build and install the pinned fork, including its application-menu entry:
 
 ```bash
-python3 bazecor/launch.py install
+./apps/manage install bazecor
 ```
 
 This backs up the desktop entry under `~/.local/state/dotfiles/bazecor`, installs

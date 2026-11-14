@@ -56,8 +56,8 @@ Scope {
         store = component("Notifications").createObject(test, {statePath: Quickshell.env("XDG_STATE_HOME") + "/banner-test.json"});
         const theme = component("ShellTheme").createObject(test);
         banners = component("NotificationBanners").createObject(window.contentItem,
-            {theme: theme, store: store, width: 454, x: 346, y: theme.panelHeight + theme.panelGap});
-        check(banners.y === 38, "Banners do not align with the reserved panel space");
+            {theme: theme, store: store, width: 454, x: 346, y: theme.panelGap});
+        check(banners.y === theme.panelGap, "Banner top and right insets must match");
         first = message(1);
         begin.start();
     }
@@ -106,33 +106,37 @@ Scope {
                 store.receive(first); interval = 300; break;
             case 7:
                 check(card === originalBanner && Math.abs(card.offset) < 1 && banners.presentationCount === 1, "An update during exit duplicated or lost the card");
-                banners.active = false; interval = 300; break;
+                store.centerOpen = true; banners.active = false; interval = 300; break;
             case 8:
                 check(banners.presentationCount === 0, "Opening the center did not slide banners out");
-                banners.active = true; interval = 300; break;
+                store.centerOpen = false; banners.active = true; interval = 300; break;
             case 9:
-                check(banners.presentationCount === 1 && Math.abs(card.offset) < 1, "Closing the center did not restore a still-live banner");
-                store.remove(firstId); interval = 100; break;
+                check(banners.presentationCount === 0 && store.entries.some(e => e.id === firstId), "Closing the center replayed a banner or deleted its entry");
+                first = message(4); store.receive(first); firstId = store.popups[0].id;
+                interval = 300; break;
             case 10:
+                check(card && Math.abs(card.offset) < 1, "A fresh banner did not present after closing the center");
+                store.remove(firstId); interval = 100; break;
+            case 11:
                 check(card && card.offset > 0 && visual.opacity === 1 && card.height > 0, "Explicit dismissal skipped the horizontal exit");
                 interval = 250; break;
-            case 11:
-                check(banners.presentationCount === 0 && store.entries.length === 0, "Dismissal leaked a delegate or history entry");
+            case 12:
+                check(banners.presentationCount === 0 && !store.entries.some(e => e.id === firstId), "Dismissal leaked a delegate or history entry");
                 store.receive(message(2)); secondId = store.popups[0].id;
                 store.receive(message(3)); thirdId = store.popups[0].id;
                 interval = 300; break;
-            case 12:
+            case 13:
                 check(banners.presentationCount === 2 && banners.inputRegions.length === 2, "Multiple banners did not get independent input regions");
                 store.hidePopup(secondId); interval = 80; break;
-            case 13:
+            case 14:
                 check(test.findBanner(banners, secondId).offset > 0 && Math.abs(test.findBanner(banners, thirdId).offset) < 1, "Removing one banner moved the other horizontally");
                 interval = 250; break;
-            case 14:
+            case 15:
                 check(banners.presentationCount === 1 && banners.inputRegions.length === 1, "Retirement leaked an input region");
                 store.hidePopup(thirdId); interval = 300; break;
-            case 15:
+            case 16:
                 check(banners.presentationCount === 0 && banners.inputRegions.length === 0, "The last input region was not released");
-                console.warn("BANNER REGRESSION PASS: entrance, expiry, last-banner exit, reversal, center toggle, dismissal, per-card input regions, panel alignment");
+                console.warn("BANNER REGRESSION PASS: entrance, expiry, last-banner exit, reversal, center consumption/no replay, dismissal, per-card input regions, panel alignment");
                 Qt.quit(); return;
             }
             restart();

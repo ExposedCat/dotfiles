@@ -21,7 +21,7 @@ ColumnLayout {
     readonly property var matches: Fuzzy.rank(apps, search.text, indexStore.usage)
     readonly property var calculation: Calc.evaluate(search.text.slice(0, 256))
     readonly property Item emberTarget: caretSlot
-    spacing: 12
+    spacing: 8
     function launch() {
         if (calculation.ok) { copyResult(); return; }
         if (launching || list.currentIndex < 0 || list.currentIndex >= matches.length) return;
@@ -45,25 +45,27 @@ ColumnLayout {
         id: search
         objectName: "pillSearch"
         Layout.fillWidth: true
-        implicitHeight: 48
+        implicitHeight: 36
         focus: true
-        font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+        font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize
         color: root.theme.text
-        placeholderText: "Search apps or calculate…"
+        placeholderText: "Search apps"
         placeholderTextColor: root.theme.secondary
-        leftPadding: 16; rightPadding: 16
+        leftPadding: 32; rightPadding: 10
         selectByMouse: true
         cursorVisible: !root.shell.emberEnabled
+        background: Item {}
+        ShellIcon { x: 1; y: Math.round((parent.height - height) / 2); name: "search"; width: 21; height: 21; opacity: 0.8 }
         EmberSlot { id: caretSlot; shell: root.shell; x: search.cursorRectangle.x; y: search.cursorRectangle.y; width: 3; height: search.cursorRectangle.height || 19; shapeRadius: 1.5; caret: true }
-        background: Rectangle { color: root.theme.surface; radius: 24; border.width: 1; border.color: search.activeFocus ? root.theme.accent : root.theme.border }
-        onTextChanged: { list.currentIndex = list.count ? 0 : -1; root.copied = false; }
+        onTextChanged: { root.copied = false; Qt.callLater(() => list.currentIndex = list.count ? 0 : -1); }
         Keys.onDownPressed: { list.currentIndex = Math.min(list.currentIndex + 1, list.count - 1); list.positionViewAtIndex(list.currentIndex, ListView.Contain); }
         Keys.onUpPressed: { list.currentIndex = Math.max(list.currentIndex - 1, 0); list.positionViewAtIndex(list.currentIndex, ListView.Contain); }
         onAccepted: root.launch()
-        Accessible.name: "Search applications"
+        Accessible.name: "Search applications or calculate"
     }
+    Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Qt.alpha(root.theme.border, 0.35) }
     ShellButton {
-        Layout.fillWidth: true; implicitHeight: 48
+        Layout.fillWidth: true; implicitHeight: 40
         visible: root.calculation.ok
         theme: root.theme
         text: "= " + root.calculation.display + (root.copied ? "   Copied" : "   ↵ Copy")
@@ -74,35 +76,48 @@ ColumnLayout {
         id: list
         objectName: "pillApps"
         Layout.fillWidth: true; Layout.fillHeight: true
-        clip: true; spacing: 4
+        clip: true; spacing: 2
         model: root.matches
         currentIndex: count ? 0 : -1
         boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar {}
+        PillWheel { flickable: list }
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
         delegate: Rectangle {
+            id: appRow
             required property var modelData
             required property int index
-            width: list.width; height: 64; radius: 18
-            color: ListView.isCurrentItem ? root.theme.hover : mouse.containsMouse ? root.theme.surface : "transparent"
+            width: list.width; height: 44; radius: 10
+            color: ListView.isCurrentItem ? Qt.alpha(root.theme.hover, 0.58) : "transparent"
+            border.width: ListView.isCurrentItem ? 1 : 0
+            border.color: Qt.alpha(root.theme.border, 0.22)
             RowLayout {
-                anchors.fill: parent; anchors.margins: 12; spacing: 12
-                Image {
-                    Layout.preferredWidth: 30; Layout.preferredHeight: 30
-                    source: modelData.icon ? (modelData.icon.startsWith("/") ? "file://" + modelData.icon : Quickshell.iconPath(modelData.icon, true)) : ""
-                    opacity: status === Image.Ready ? 1 : 0
-                    sourceSize.width: 30; sourceSize.height: 30; fillMode: Image.PreserveAspectFit
+                anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                spacing: 10
+                Item {
+                    Layout.preferredWidth: 21; Layout.preferredHeight: 21
+                    Image {
+                        id: appIcon
+                        anchors.fill: parent
+                        source: appRow.modelData.icon ? (appRow.modelData.icon.startsWith("/") ? "file://" + appRow.modelData.icon : Quickshell.iconPath(appRow.modelData.icon, true)) : ""
+                        visible: status === Image.Ready
+                        sourceSize.width: 32; sourceSize.height: 32; fillMode: Image.PreserveAspectFit
+                    }
+                    ShellIcon { anchors.centerIn: parent; name: "grid-2x2"; width: 21; height: 21; visible: !appIcon.visible; opacity: 0.8 }
                 }
-                ColumnLayout {
-                    Layout.fillWidth: true; spacing: 2
-                    Text { Layout.fillWidth: true; text: modelData.name; textFormat: Text.PlainText; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; color: root.theme.text; elide: Text.ElideRight }
-                    Text { Layout.fillWidth: true; text: modelData.description || ""; textFormat: Text.PlainText; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; color: root.theme.secondary; elide: Text.ElideRight; visible: text.length > 0 }
+                Text { Layout.fillWidth: true; text: appRow.modelData.name; textFormat: Text.PlainText; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; color: root.theme.text; elide: Text.ElideRight }
+                Text {
+                    Layout.preferredWidth: Math.min(implicitWidth, list.width * 0.44)
+                    text: appRow.modelData.description || ""; textFormat: Text.PlainText
+                    font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; color: root.theme.secondary
+                    horizontalAlignment: Text.AlignRight; elide: Text.ElideRight
                 }
+                Text { Layout.preferredWidth: 18; text: "↵"; color: "#cc7855"; font.pixelSize: root.theme.bodySize; opacity: appRow.ListView.isCurrentItem ? 1 : 0 }
             }
-            MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { list.currentIndex = index; root.launch(); } }
+            MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: list.currentIndex = appRow.index; onClicked: { list.currentIndex = appRow.index; root.launch(); } }
             Accessible.role: Accessible.Button
             Accessible.name: modelData.name
             Accessible.onPressAction: { list.currentIndex = index; root.launch(); }
         }
-        Text { anchors.centerIn: parent; visible: list.count === 0; text: root.loading ? "Loading applications…" : root.error || "No applications found"; color: root.error ? root.theme.red : root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize }
+        Text { anchors.centerIn: parent; visible: list.count === 0 && !root.calculation.ok; text: root.loading ? "Loading applications…" : root.error || "No applications found"; color: root.error ? root.theme.red : root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize }
     }
 }

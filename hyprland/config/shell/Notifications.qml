@@ -16,6 +16,7 @@ Scope {
     property var popups: []
     property var queuedPopups: []
     property var popupTimeouts: ({})
+    property var centerOnly: ({})
     property bool centerHovered: false
     property bool centerOrderPending: false
     property real pausedAt: 0
@@ -27,7 +28,16 @@ Scope {
             entries = entries.slice().sort((a,b) => b.time - a.time);
         }
     }
-    onCenterOpenChanged: { if (!centerOpen) centerHovered = false; }
+    onCenterOpenChanged: {
+        if (!centerOpen) { centerHovered = false; return; }
+        const ids = new Set(entries.concat(popups, queuedPopups).map(e => e.id));
+        for (const id of ids) dismissBanner(id);
+        // Keep an in-progress banner reply and its draft in the center.
+        const next = Object.assign({}, replying);
+        for (const id of Object.keys(next)) if (next[id] === "banner") next[id] = "center";
+        replying = next;
+        if (centerReplyActive) Qt.callLater(() => { if (root.centerOpen && root.centerReplyActive) root.replyFocusRequested("center"); });
+    }
     onBannerFrozenChanged: {
         if (bannerFrozen) pausedAt = Date.now();
         else {
@@ -51,7 +61,7 @@ Scope {
     property bool loaded: false
     readonly property int unread: entries.filter(e => !e.read).length
     readonly property bool bannerReplyActive: popups.some(entry => replying[entry.id] === "banner")
-    readonly property bool centerReplyActive: Object.values(replying).includes("center")
+    readonly property bool centerReplyActive: centerOpen && Object.values(replying).includes("center")
     readonly property var groups: {
         const appIds = new Map();
         for (const entry of entries)
@@ -74,6 +84,7 @@ Scope {
     }
     function showPopup(entry) {
         if (removing[entry.id]) return;
+        if (centerOpen || centerOnly[entry.id]) { dismissBanner(entry.id); return; }
         if (bannerFrozen || (singlePopup && popups.length > 0 && !popups.some(p => p.id === entry.id))) {
             queuedPopups = queuedPopups.filter(p => p.id !== entry.id).concat([entry]).slice(-16);
             return;
@@ -85,7 +96,7 @@ Scope {
         popups = [entry].concat(popups.filter(p => p.id !== entry.id)).slice(0, 4);
     }
     function flushQueuedPopups() {
-        if (bannerFrozen || !queuedPopups.length) return;
+        if (centerOpen || bannerFrozen || !queuedPopups.length) return;
         if (singlePopup) {
             if (popups.length) return;
             const entry = queuedPopups[0];
@@ -103,13 +114,22 @@ Scope {
         const over = Object.assign({}, hovered); delete over[id]; hovered = over;
         // Persistent notifications retain their app actions in the center.
         const n = live[id];
-        if (n && n.transient) n.expire();
+        if (n && n.transient) Qt.callLater(() => { if (root.live[id] === n) n.expire(); });
+    }
+    function dismissBanner(id) {
+        const next = Object.assign({}, centerOnly); next[id] = true; centerOnly = next;
+        if (replying[id] === "banner") {
+            const replies = Object.assign({}, replying); replies[id] = "center"; replying = replies;
+        }
+        hidePopup(id);
     }
     function hoverPopup(id, inside) {
+        const wasHovered = !!hovered[id];
         const next = Object.assign({}, hovered);
         if (inside) next[id] = true;
         else delete next[id];
         hovered = next;
+        if (!inside && wasHovered) dismissBanner(id);
     }
     function remove(id) {
         if (removing[id]) return;
@@ -179,7 +199,8 @@ Scope {
         const duration = entry.critical ? 0 : timeout;
         const changedDuration = popupTimeouts[id] !== duration;
         durations[id] = duration; popupTimeouts = durations;
-        if (popups.some(e => e.id === id)) {
+        if (centerOpen || centerOnly[id]) dismissBanner(id);
+        else if (popups.some(e => e.id === id)) {
             popups = popups.map(e => e.id === id ? entry : e);
             if (initial || changedDuration) {
                 const next = Object.assign({}, deadlines);
@@ -209,6 +230,7 @@ Scope {
                 delete current[id]; root.live = current; root.closePopup(id);
                 const times = Object.assign({}, root.deadlines); delete times[id]; root.deadlines = times;
                 const durations = Object.assign({}, root.popupTimeouts); delete durations[id]; root.popupTimeouts = durations;
+                const seen = Object.assign({}, root.centerOnly); delete seen[id]; root.centerOnly = seen;
                 root.cancelReply(id);
                 const over = Object.assign({}, root.hovered); delete over[id]; root.hovered = over;
                 root.entries = root.entries.filter(entry => entry.id !== id);

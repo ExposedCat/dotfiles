@@ -58,5 +58,4 @@ Scope {
         }
         onExited: (code, status) => { if (code !== 0) root.error = "Could not set monitor brightness."; Qt.callLater(root.applyNext); }
     }
-    Connections { target: root.shell; function onPanelChanged() { if (root.shell.panel === "mixer") root.refresh(); } }
 }
