@@ -56,6 +56,7 @@ hl.window_rule({
 -- BEGIN dotfiles-steam-notifications
 -- Steam uses its own Xwayland windows for desktop toasts. Place them using
 -- monitor-local dimensions so stacked/mixed-resolution displays do not offset them.
+-- Silent placement keeps the active monitor and pointer where they are.
 hl.window_rule({
     name = "steam-desktop-notifications",
     match = {
@@ -63,7 +64,7 @@ hl.window_rule({
         title = "^notificationtoasts_[0-9]+_desktop$",
     },
     float = true,
-    monitor = "desc:HP Inc. OMEN 27i IPS 6CM1290P75",
+    monitor = "desc:HP Inc. OMEN 27i IPS 6CM1290P75 silent",
     move = { "monitor_w - window_w - 12", "monitor_h - window_h - 12" },
     pin = true,
     no_initial_focus = true,
