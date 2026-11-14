@@ -9,7 +9,8 @@ Scope {
     required property string surface
     required property var targetWindow
     property var grab: null
-    readonly property bool editing: surface === "banner" ? store.bannerReplyActive : store.centerReplyActive
+    property bool available: true
+    readonly property bool editing: available && (surface === "banner" ? store.bannerReplyActive : store.centerReplyActive)
     readonly property int keyboardMode: editing ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     // Ordinary banners/popovers never request focus. Only an explicit Reply
     // click activates this Hyprland focus request. Clicking another app clears

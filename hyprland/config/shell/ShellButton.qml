@@ -11,6 +11,8 @@ Rectangle {
     property bool selected: false
     property bool danger: false
     property bool indicator: false
+    property var emberShell: null
+    property alias emberSlot: emberSlot
     signal clicked(int button)
     signal scrolled(real delta)
     activeFocusOnTab: true
@@ -28,11 +30,12 @@ Rectangle {
     implicitWidth: content.implicitWidth + 22
     implicitHeight: 36
     radius: 8
-    readonly property bool hovered: pointer.containsMouse
-    color: selected ? theme.surface : "transparent"
+    readonly property bool hovered: buttonHover.hovered
+    color: emberSlot.occupied ? "transparent" : selected ? theme.surface : "transparent"
     border.width: activeFocus ? 1 : 0
     border.color: danger ? theme.red : theme.accent
     opacity: enabled || pending ? 1 : 0.45
+    EmberSlot { id: emberSlot; shell: root.emberShell; anchors.fill: parent; shapeRadius: root.radius; shapeOpacity: 0.42 }
     RowLayout {
         id: content
         anchors.centerIn: parent
@@ -42,6 +45,7 @@ Rectangle {
         Text { font.family: root.textFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.textSize; Layout.maximumWidth: root.elideText ? Math.max(0, root.width - 22 - (root.icon.length > 0 || root.pending ? root.iconSize + 7 : 0) - (root.indicator ? 13 : 0)) : Infinity; elide: Text.ElideRight; visible: root.text.length > 0; text: root.text; textFormat: Text.PlainText; color: root.danger ? root.theme.red : root.selected ? root.theme.accent : root.theme.text }
         Rectangle { visible: root.indicator; Layout.preferredWidth: 6; Layout.preferredHeight: 6; radius: 3; color: root.theme.accent }
     }
+    HoverHandler { id: buttonHover }
     MouseArea {
         id: pointer
         anchors.fill: parent

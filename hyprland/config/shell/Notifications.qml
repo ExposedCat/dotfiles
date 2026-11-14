@@ -8,6 +8,8 @@ Scope {
     property string statePath
     property bool dnd: false
     property bool centerOpen: false
+    property bool singlePopup: false
+    property bool presentationPaused: false
     property var entries: []
     property var removing: ({})
     property var removals: ({})
@@ -17,7 +19,7 @@ Scope {
     property bool centerHovered: false
     property bool centerOrderPending: false
     property real pausedAt: 0
-    readonly property bool bannerFrozen: popups.some(e => !!hovered[e.id] || replying[e.id] === "banner")
+    readonly property bool bannerFrozen: presentationPaused || popups.some(e => !!hovered[e.id] || replying[e.id] === "banner")
     readonly property bool centerFrozen: centerHovered || centerReplyActive
     onCenterFrozenChanged: {
         if (!centerFrozen && centerOrderPending) {
@@ -68,10 +70,11 @@ Scope {
         queuedPopups = queuedPopups.filter(p => p.id !== id);
         popups = popups.filter(p => p.id !== id);
         const over = Object.assign({}, hovered); delete over[id]; hovered = over;
+        if (singlePopup) Qt.callLater(root.flushQueuedPopups);
     }
     function showPopup(entry) {
         if (removing[entry.id]) return;
-        if (bannerFrozen) {
+        if (bannerFrozen || (singlePopup && popups.length > 0 && !popups.some(p => p.id === entry.id))) {
             queuedPopups = queuedPopups.filter(p => p.id !== entry.id).concat([entry]).slice(-16);
             return;
         }
@@ -83,6 +86,13 @@ Scope {
     }
     function flushQueuedPopups() {
         if (bannerFrozen || !queuedPopups.length) return;
+        if (singlePopup) {
+            if (popups.length) return;
+            const entry = queuedPopups[0];
+            queuedPopups = queuedPopups.slice(1);
+            showPopup(entry);
+            return;
+        }
         const pending = queuedPopups;
         queuedPopups = [];
         for (const entry of pending) showPopup(entry);

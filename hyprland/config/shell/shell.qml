@@ -8,6 +8,9 @@ ShellRoot {
     readonly property bool fixture: !!Quickshell.env("DOTFILES_SHELL_FIXTURE")
     property var fixtureData: ({})
     property string panel: ""
+    property bool pillHidden: false
+    property real gestureTimestamp: -1
+    property string lastGesture: ""
     property real panelOriginX: 0
     property real panelOriginWidth: 56
     property alias bluetooth: bluetoothController
@@ -21,12 +24,22 @@ ShellRoot {
     property alias notifications: notifications
     property alias clock: clock
     property alias agenda: agenda
+    property alias pill: bar
+    property alias overlays: overlays
+    property alias applications: appIndex
+    property alias media: players
+    property alias brightness: monitorBrightness
+    property alias stats: systemStats
+    property bool emberEnabled: true
+    readonly property var emberTarget: bar.emberTarget
     // HP OMEN is the main display. Fall back gracefully if it is disconnected.
     readonly property string mainOutput: fixture ? (fixtureData.mainOutput || "X11-1") : "DP-3"
     readonly property var mainScreen: Quickshell.screens.find(s => s.name === mainOutput) || Quickshell.screens[0]
     readonly property real desktopTop: Math.min(...Quickshell.screens.map(s => s.y))
     readonly property real desktopBottom: Math.max(...Quickshell.screens.map(s => s.y + s.height))
-    readonly property string helper: decodeURIComponent(Qt.resolvedUrl("../tools/desktop.py").toString().replace(/^file:\/\//, ""))
+    // Resolving a URL above Quickshell's config root returns qs-blackhole.
+    // Resolve this component's directory, then construct a filesystem path.
+    readonly property string helper: decodeURIComponent(Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "")) + "/../tools/desktop.py"
     readonly property string backend: decodeURIComponent(Qt.resolvedUrl("shell.py").toString().replace(/^file:\/\//, ""))
     readonly property var focusedScreen: fixture ? Quickshell.screens[0] : Quickshell.screens.find(s => Hyprland.focusedMonitor && s.name === Hyprland.focusedMonitor.name) || Quickshell.screens[0]
     readonly property string layoutLabel: layout.toLowerCase().includes("russian") ? "RU" : "EN"
@@ -39,6 +52,22 @@ ShellRoot {
         actionError = "";
         panel = panel === name ? "" : name;
         if (panel === "notifications") notifications.markRead();
+    }
+    function gesture(action, timestamp) {
+        // Separate shortcut processes can finish out of order. Ignore stale
+        // input, including a late hide after release. Timestamps wrap at 2^32.
+        if (timestamp) {
+            const value = Number(timestamp);
+            if (!Number.isFinite(value)) return;
+            if (gestureTimestamp >= 0 && (value - gestureTimestamp + 4294967296) % 4294967296 > 2147483648) return;
+            if (value === gestureTimestamp && action === "hide" && !pillHidden) return;
+            gestureTimestamp = value;
+        }
+        lastGesture = action;
+        if (action === "hide") pillHidden = true;
+        else if (action === "show") pillHidden = false;
+        else if (action === "tap") { pillHidden = false; toggle("launcher"); }
+        else if (["launcher", "power", "notifications"].includes(action)) { pillHidden = false; toggle(action); }
     }
     function fixtureEvent(name, data) { console.warn("FIXTURE", JSON.stringify({event: name, data: data})); }
     function desktop(action) {
@@ -64,9 +93,14 @@ ShellRoot {
     OsdState { id: osd }
     Audio {
         id: sound; fixture: root.fixture; fixtureData: root.fixtureData
+        mixerOpen: root.panel === "mixer"
         onOsdRequested: microphone => osd.showAudio(microphone, microphone ? micVolume : volume, microphone ? micMuted : muted)
     }
-    Notifications { id: notifications; centerOpen: root.panel === "notifications"; statePath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/dotfiles/hyprland/notifications.json" }
+    Applications { id: appIndex; shell: root }
+    Media { id: players; shell: root }
+    Brightness { id: monitorBrightness; shell: root }
+    SystemStats { id: systemStats; shell: root }
+    Notifications { id: notifications; singlePopup: false; presentationPaused: root.panel === "notifications"; centerOpen: root.panel === "notifications"; statePath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/dotfiles/hyprland/notifications.json" }
     BluetoothController { id: bluetoothController; shell: root }
     Agenda { id: agenda; shell: root }
     Variants {
@@ -79,20 +113,39 @@ ShellRoot {
             radius: palette.screenCornerRadius
         }
     }
-    Bar { screen: root.mainScreen; shell: root; theme: palette }
-    Overlays { shell: root; theme: palette }
+    Bar { id: bar; screen: root.mainScreen; shell: root; theme: palette }
+    PillTheme { id: overlayColors }
+    Overlays { id: overlays; shell: root; theme: overlayColors; showOsd: false }
     Authentication { id: authentication; shell: root; theme: palette }
     IpcHandler {
         target: "shell"
-        function toggle(panel: string): void { if (["notifications", "power", "connections", "ethernet", "bluetooth"].includes(panel)) root.toggle(panel); }
+        function toggle(panel: string): void { if (["launcher", "notifications", "power", "connections", "ethernet", "bluetooth", "media", "mixer", "system"].includes(panel)) root.toggle(panel); }
+        function gesture(action: string, timestamp: string): void { root.gesture(action, timestamp); }
+        function applications(): string {
+            const pane = root.panel === "launcher" ? bar.activePane : null;
+            return JSON.stringify({helper: root.helper, open: !!pane, count: pane ? pane.apps.length : 0, loading: pane ? pane.loading : false, error: pane ? pane.error : ""});
+        }
+        function services(): string {
+            return JSON.stringify({applications: appIndex.apps.length, players: players.players.length, outputs: sound.outputs.length, inputs: sound.inputs.length, retained: Object.keys(bar.retained), statistics: systemStats.sample, brightness: monitorBrightness.devices});
+        }
         function brightness(output: string, current: int, maximum: int): void { osd.showBrightness(output, current, maximum); }
-        function status(): string { return JSON.stringify({panel: root.panel, unread: notifications.unread, dnd: notifications.dnd, popups: notifications.popups.length, notifications: notifications.entries.length, volume: sound.volume, muted: sound.muted, osd: osd.visible, osdKind: osd.kind, osdLevel: osd.level, osdOutput: osd.output, layout: root.layout, recording: root.recording, fixture: root.fixture, polkit: !!(authentication.agent && authentication.agent.isRegistered)}); }
+        function status(): string { return JSON.stringify({pill: bar.pillState, lastGesture: root.lastGesture, pillHidden: root.pillHidden, panel: root.panel, unread: notifications.unread, dnd: notifications.dnd, popups: notifications.popups.length, notifications: notifications.entries.length, volume: sound.volume, muted: sound.muted, osd: osd.visible, osdKind: osd.kind, osdLevel: osd.level, osdOutput: osd.output, layout: root.layout, recording: root.recording, fixture: root.fixture, polkit: !!(authentication.agent && authentication.agent.isRegistered)}); }
     }
     FileView { id: fixtureFile; path: Quickshell.env("DOTFILES_SHELL_FIXTURE") || ""; blockLoading: true; watchChanges: root.fixture; printErrors: false; onFileChanged: reload(); onLoaded: root.loadFixture() }
-    Component.onCompleted: loadFixture()
+    Component.onCompleted: { loadFixture(); if (!fixture) appIndex.refresh(); }
     Connections {
         target: Hyprland
         function onRawEvent(event) {
+            if (event.name === "custom" && event.data.startsWith("dotfiles-pill,")) {
+                const parts = event.data.split(",");
+                root.gesture(parts[1], parts[2] || "");
+                return;
+            }
+            if (event.name === "workspacev2" && !root.panel && !root.pill.expanded) {
+                const comma = event.data.indexOf(",");
+                osd.showWorkspace(comma >= 0 ? event.data.slice(comma + 1) : event.data);
+                return;
+            }
             if (event.name !== "activelayout") return;
             const comma = event.data.indexOf(",");
             if (comma >= 0 && (!root.keyboard || event.data.slice(0, comma) === root.keyboard)) root.layout = event.data.slice(comma + 1);

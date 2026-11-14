@@ -6,6 +6,9 @@ Scope {
     id: root
     required property var shell
     required property var theme
+    property bool showOsd: true
+    property alias bannerWindow: toasts
+    property alias banners: toastBanners
     PanelWindow {
         id: toasts
         screen: root.shell.mainScreen
@@ -31,7 +34,7 @@ Scope {
     }
     PanelWindow {
         screen: Quickshell.screens.find(s => s.name === root.shell.osd.output) || root.shell.focusedScreen
-        visible: root.shell.osd.visible
+        visible: root.showOsd && root.shell.osd.visible
         anchors { bottom: true }
         margins.bottom: 90
         implicitWidth: 350; implicitHeight: 88; exclusiveZone: -1; color: "transparent"

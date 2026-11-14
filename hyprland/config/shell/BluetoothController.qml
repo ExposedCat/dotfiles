@@ -11,7 +11,7 @@ Scope {
     readonly property bool searching: enabled && shell.panel === "bluetooth" && (shell.fixture || !!(adapter && adapter.discovering))
     readonly property var devices: {
         const all = shell.fixture ? fixtureDevices : adapter ? adapter.devices.values : [];
-        return all.slice().sort((a, b) => Number(b.connected) - Number(a.connected) || (a.name || a.deviceName || a.address).localeCompare(b.name || b.deviceName || b.address));
+        return all.filter(d => d !== null).sort((a, b) => Number(b.connected) - Number(a.connected) || (a.name || a.deviceName || a.address).localeCompare(b.name || b.deviceName || b.address));
     }
     property var fixtureDevices: []
     property var pending: ({})
@@ -26,9 +26,9 @@ Scope {
         if (shell.fixture) { fixtureEnabled = !fixtureEnabled; shell.fixtureEvent("bluetooth-power", {enabled: fixtureEnabled}); return; }
         if (adapter) adapter.enabled = !adapter.enabled;
     }
-    function busy(device) { return !!pending[device.address] || !!device.pairing || device.state === BluetoothDeviceState.Connecting || device.state === BluetoothDeviceState.Disconnecting; }
+    function busy(device) { return !!device && (!!pending[device.address] || !!device.pairing || device.state === BluetoothDeviceState.Connecting || device.state === BluetoothDeviceState.Disconnecting); }
     function toggle(device) {
-        if (busy(device)) return;
+        if (!device || busy(device)) return;
         const next = Object.assign({}, pending);
         next[device.address] = {connect: !device.connected, pairing: !device.connected && !device.paired, started: Date.now()};
         pending = next;

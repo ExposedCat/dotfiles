@@ -8,6 +8,14 @@ hl.window_rule({
     no_anim = true,
 })
 -- END dotfiles-portals
+-- Blur only the pill's painted pixels; the surrounding native surface is clear.
+hl.layer_rule({
+    name = "floating-pill-glass",
+    match = { namespace = "^dotfiles-bar$" },
+    blur = true,
+    ignore_alpha = 0.2,
+    no_anim = true,
+})
 hl.layer_rule({
     name = "static-screen-corners",
     match = { namespace = "^dotfiles-screen-corners$" },
@@ -41,6 +49,25 @@ hl.window_rule({
     float = true,
     center = true,
 })
+
+-- BEGIN dotfiles-steam-notifications
+-- Steam uses its own Xwayland windows for desktop toasts. Place them using
+-- monitor-local dimensions so stacked/mixed-resolution displays do not offset them.
+hl.window_rule({
+    name = "steam-desktop-notifications",
+    match = {
+        class = "^(steam|Steam)$",
+        title = "^notificationtoasts_[0-9]+_desktop$",
+    },
+    float = true,
+    monitor = "desc:HP Inc. OMEN 27i IPS 6CM1290P75",
+    move = { "monitor_w - window_w - 12", "monitor_h - window_h - 12" },
+    pin = true,
+    no_initial_focus = true,
+    focus_on_activate = false,
+    no_anim = true,
+})
+-- END dotfiles-steam-notifications
 
 local telegramClass = "^(org\\.telegram\\.desktop|telegram-desktop|TelegramDesktop)$"
 local telegramViewer = "^(Media viewer|Просмотр медиа)$"

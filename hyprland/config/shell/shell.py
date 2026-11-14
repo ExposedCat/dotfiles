@@ -92,10 +92,24 @@ def main():
     actions.add_parser("watch")
     actions.add_parser("ethernet")
     actions.add_parser("speed-test")
+    actions.add_parser("stats-watch")
+    actions.add_parser("brightness-list")
+    brightness = actions.add_parser("brightness-set")
+    brightness.add_argument("output")
+    brightness.add_argument("level", type=float)
     actions.add_parser("power").add_argument("choice", choices=tuple(POWER_COMMANDS))
     args = parser.parse_args()
     if args.action == "watch":
         watch()
+    elif args.action == "stats-watch":
+        from system_stats import watch as watch_stats
+        watch_stats()
+    elif args.action == "brightness-list":
+        from brightness import listing
+        print(json.dumps(listing()))
+    elif args.action == "brightness-set":
+        from brightness import set_level
+        print(json.dumps(set_level(args.output, args.level)))
     elif args.action == "speed-test":
         from internet_speed import run_cli
         raise SystemExit(run_cli())

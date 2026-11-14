@@ -17,6 +17,22 @@ spec.loader.exec_module(desktop)
 
 
 class DesktopTests(unittest.TestCase):
+    def test_copy_text_preserves_a_negative_scientific_result(self):
+        with patch.object(desktop.sys, "argv", ["desktop.py", "copy-text", "--", "-1e+20"]), patch.object(desktop, "run") as run:
+            desktop.main()
+        self.assertEqual(run.call_args.args, ("wl-copy",))
+        self.assertEqual(run.call_args.kwargs["input"], b"-1e+20")
+
+    def test_launcher_routes_to_the_persistent_pill(self):
+        with patch.object(desktop.sys, "argv", ["desktop.py", "launcher"]), patch.object(desktop, "run") as run:
+            desktop.main()
+        self.assertEqual(run.call_args.args[-4:], ("call", "shell", "toggle", "launcher"))
+
+    def test_pill_forwards_input_ordering_timestamp(self):
+        with patch.object(desktop.sys, "argv", ["desktop.py", "pill", "hide", "12345"]), patch.object(desktop, "run") as run:
+            desktop.main()
+        self.assertEqual(run.call_args.args[-5:], ("call", "shell", "gesture", "hide", "12345"))
+
     def brightness(self, reading="VCP 10 C 85 200\n", direction="up", failure=None):
         monitors = [{"name": "DP-1", "serial": "OTHER", "focused": False},
                     {"name": "DP-3", "serial": "FOCUSED", "focused": True}]

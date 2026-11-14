@@ -6,6 +6,21 @@ RowLayout {
     id: root
     required property var shell
     required property var theme
+    property bool notificationMode: false
+    readonly property Item emberTarget: {
+        const count = notificationList.count;
+        let first = null, unread = null;
+        for (let i = 0; i < count; i++) {
+            const group = notificationList.itemAtIndex(i);
+            if (!group) continue;
+            const card = group.hoveredCard;
+            if (card && (notificationMode || card.containsFocus)) return card.emberTarget;
+            if (!first) first = group.firstCard;
+            if (!unread) unread = group.firstUnreadCard;
+        }
+        if (notificationMode && (unread || first)) return (unread || first).emberTarget;
+        return calendar.emberTarget;
+    }
     property var expandedGroups: ({})
     property var groupsByKey: ({})
     function syncGroups() {
@@ -39,13 +54,12 @@ RowLayout {
             model: groupModel
             add: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120 } }
             remove: Transition { NumberAnimation { property: "opacity"; to: 0; duration: 100 } }
-            displaced: Transition { NumberAnimation { properties: "x,y"; duration: 120; easing.type: Easing.OutCubic } }
-            HoverHandler { onHoveredChanged: root.shell.notifications.centerHovered = hovered }
+            HoverHandler { onHoveredChanged: { root.shell.notifications.centerHovered = hovered; if (hovered) root.notificationMode = true; } }
             boundsBehavior: Flickable.StopAtBounds
             ScrollBar.vertical: ScrollBar {}
             delegate: NotificationGroup {
                 required property string groupKey
-                width: notificationList.width; theme: root.theme; store: root.shell.notifications; group: root.groupsByKey[groupKey]
+                width: notificationList.width; emberShell: root.shell; theme: root.theme; store: root.shell.notifications; group: root.groupsByKey[groupKey]
                 expanded: !!root.expandedGroups[groupKey]
                 onToggleExpanded: root.toggleGroup(groupKey)
             }
@@ -65,6 +79,7 @@ RowLayout {
         clip: true
         contentWidth: availableWidth
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-        CalendarPane { width: 350; shell: root.shell; theme: root.theme }
+        HoverHandler { onHoveredChanged: { if (hovered) root.notificationMode = false; } }
+        CalendarPane { id: calendar; width: 350; shell: root.shell; theme: root.theme }
     }
 }

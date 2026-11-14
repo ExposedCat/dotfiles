@@ -7,6 +7,14 @@ ColumnLayout {
     required property var shell
     required property var theme
     property date month: new Date(shell.clock.date.getFullYear(), shell.clock.date.getMonth(), 1)
+    readonly property Item emberTarget: {
+        const date = selectedDate, days = monthDays, count = dayCells.count;
+        for (let i = 0; i < count; i++) {
+            const cell = dayCells.itemAt(i);
+            if (cell && sameDate(cell.modelData, date)) return cell.emberSlot;
+        }
+        return null;
+    }
     readonly property date selectedDate: shell.agenda.selectedDate
     readonly property var monthDays: {
         const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -37,9 +45,11 @@ ColumnLayout {
                 Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; required property string modelData; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: modelData; color: root.theme.secondary; Layout.preferredHeight: calendarGrid.cellSize; verticalAlignment: Text.AlignVCenter }
             }
             Repeater {
+                id: dayCells
                 model: root.monthDays
                 Item {
                     id: day
+                    property alias emberSlot: dateSlot
                     required property var modelData
                     Layout.fillWidth: true; Layout.preferredHeight: calendarGrid.cellSize
                     Layout.minimumHeight: calendarGrid.cellSize; Layout.maximumHeight: calendarGrid.cellSize
@@ -48,11 +58,12 @@ ColumnLayout {
                     Rectangle {
                         anchors.centerIn: parent
                         width: Math.min(42, parent.width); height: width; radius: width / 2
-                        color: day.today ? root.theme.accent : "transparent"
-                    border.width: day.selected && !day.today ? 1 : 0; border.color: root.theme.accent
+                        color: day.selected && !dateSlot.occupied ? root.theme.accent : "transparent"
+                    border.width: day.today && !day.selected ? 1 : 0; border.color: root.theme.accent
                     }
+                    EmberSlot { id: dateSlot; shell: root.shell; anchors.centerIn: parent; width: Math.min(42, parent.width); height: width }
                     opacity: modelData.getMonth() === root.month.getMonth() ? 1 : 0.35
-                    Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; anchors.centerIn: parent; text: day.modelData.getDate(); color: day.today ? root.theme.background : root.theme.text }
+                    Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; anchors.centerIn: parent; text: day.modelData.getDate(); color: day.selected && (!dateSlot.occupied || dateSlot.landed) ? root.theme.background : root.theme.text }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: root.shell.agenda.selectDate(day.modelData) }
                 }

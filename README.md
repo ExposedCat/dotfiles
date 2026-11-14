@@ -128,7 +128,7 @@ them; Shift+Caps Lock toggles normal Caps Lock.
 | Play/pause and previous/next keys | Control an MPRIS player, preferring one already playing |
 | Brightness keys | Adjust the focused monitor through DDC/CI in 5-point steps; show its actual brightness in an OSD |
 
-The brightness OSD appears on the adjusted monitor with its output name, percentage,
+The brightness feedback appears inside the main pill with the adjusted output name, percentage,
 and level bar, then hides after 1.6 seconds. It shares the volume/microphone OSD,
 so the latest control replaces the previous one. Levels are read back from the
 monitor; DDC/CI must be enabled on the display.
@@ -140,14 +140,18 @@ ends of the list. Workspace IDs remain stable while windows are open; number
 shortcuts refer to positions within the focused monitor's list.
 
 The Quickshell launcher indexes installed desktop entries, including Flatpaks,
-and ranks application-name prefixes before other matches. For example, type
-`Tele` and Enter to launch Telegram. UWSM launches the chosen desktop entry.
-The launcher contains only search and results. Choosing an app closes it
+with fuzzy subsequence matching and frequently used apps ranked ahead of equally
+relevant matches. Name prefixes still rank first. For example, type `Tele` and
+Enter to launch Telegram, or `trm` to match Terminal. UWSM launches the chosen desktop entry.
+Arithmetic such as `12 * (3 + 4)` shows a calculator result; Enter copies it.
+The evaluator parses arithmetic without executing JavaScript. Launcher usage
+counts are stored in `$XDG_STATE_HOME/dotfiles/hyprland/launcher-usage.json`.
+The application index is shared across openings and refreshes after a minute. Choosing an app closes it
 immediately while the app starts independently.
 
 The capture overlay freezes each monitor and keeps selection and annotation in
-the same interface. It covers the panel instead of respecting its reserved
-space. The icon toolbar appears only after an area is selected and hides while
+the same interface. It covers the floating pill. The icon toolbar appears only
+after an area is selected and hides while
 the area is being adjusted; there is no top hint. Its tooltips identify Select,
 Pen, Arrow, Box, Text, Redact, Undo, cursor toggle, copy/save, and cancel. Choose an ink
 color and use Undo or Ctrl+Z. Select lets you reframe the area without leaving
@@ -184,31 +188,69 @@ manual locking. Startup stops the legacy idle service even if an old lock
 verification marker remains.
 
 The persistent Quickshell desktop lives in `hyprland/config/shell/`. The main HP
-OMEN (DP-3) has the only bar; notification banners stay in its top-right corner.
-The bar hides for fullscreen windows. Its right side is ordered as app tray
-icons, sound-off indicator (only muted or zero volume), EN/RU layout,
-connectivity, and power. Panel buttons have no hover highlights. No Quickshell
-component shows tooltips, including capture controls; icon-button hints are only
-used for accessibility. Tray menus use the shell's dark colors and typography,
-with checks, disabled actions, separators, and navigable submenus. Clickable
-controls use a pointer cursor. Panel popups share the bar's fixed native surface,
-so opening or closing one never transfers the pointer to a newly mapped window.
-The centered clock opens the notification center, with a solid white circular bubble to its right whenever
-active notifications remain. The indicator slides straight right in 120 ms,
-with half the former visible gap from the clock's curved edge, and slides fully
-behind the clock when the last notification is dismissed. Panel widgets hang from the top edge as individual borderless notches on a transparent bar.
-The black panel drops are 30 pixels tall, with 8 pixels of reserved space below.
-Popups attach directly to the bottom of the original drop, with one continuous
-outline and no neck or gap. Its upper edge and control stay fixed while the lower
-base extends 8 pixels below neighboring buttons before rounding outward into the
-popup. Outermost popups align with their button's visible outer edge and continue
-straight down that side, without an outward flare or upper corner. The popup
-expands in both dimensions. Tray menus also clear the panel by 8 pixels. Opening takes
-140 ms and closing takes 140 ms, both using the same easing. Switching panel
-buttons immediately morphs the current popup's position and size while its
-contents crossfade. Rapid switches and interrupted closes retarget the current
-animation without waiting for a collapse.
-Bluetooth uses a fixed-height scrolling viewport.
+OMEN (DP-3) has one floating pill, centered 12 pixels below the top edge.
+It overlaps applications and reserves no tiling space. The compact pill shows
+only the time and EN/RU keyboard layout, with a lit notification dot only while
+active notifications remain. There is no separator or inactive dot. Click the time or dot for the calendar and notification
+center. Notification popups, volume/microphone/brightness feedback, and workspace
+changes temporarily use the pill itself; there are no separate corner banners
+or bottom-screen OSD windows.
+
+Hover widens the pill to reveal workspaces fixed to its left inset, app tray
+icons, media, sound/brightness, system statistics, network, Bluetooth, and power
+controls. Month, date, and weekday appear
+immediately to the left of the stationary clock. A recording indicator appears
+while recording, and the sound icon reflects mute state. Leaving collapses it after 240 ms; an open menu or tray menu keeps it
+expanded. Media, mixer, system, network, Bluetooth, power, and notifications grow from the
+same floating surface, with a constant 20-pixel corner radius and a single
+220 ms geometry animation. Popup content retains its size and screen position
+through the closing fade; header coordinates stay on whole pixels during morphs.
+The pill has a translucent brown gradient without a border, sheen, or outer
+shadow. Compositor background blur is restricted to its painted body. Its
+background adapts [Ricelin’s PillBody](https://github.com/Gakuseei/Ricelin/blob/main/configs/quickshell/pill/PillBody.qml);
+the MIT attribution is retained in `shell/RICELIN-LICENSE.txt`.
+The native surface stays fixed while its input region follows the pill, keeping
+hover stable and allowing clicks through empty space. Opening a view lets an
+outside click dismiss it. The launcher also closes with Escape or a second tap.
+Destructive power actions require a second click to confirm.
+
+The media view shows album artwork, title/artist/album, player selection, playback
+controls, and a seek bar through MPRIS. The mixer controls PipeWire output/input
+selection, output and microphone levels/mute, and each monitor's DDC brightness.
+Brightness writes are serialized and the most recent requested setting is kept.
+The system view samples CPU, GPU, memory, temperatures, VRAM, storage, swap,
+network rates, and uptime, with separate labelled 0–100% utilization meters. Its worker runs only
+while that view is visible; unavailable sensor readings show a dash. Storage
+usage refers to the home filesystem, avoiding Fedora's immutable root image.
+
+Common views preload on first hover and remain cached; other views unload after
+two idle minutes. Search text and loaded results survive ordinary close/reopen.
+The small terracotta marker adapts the idea of [Ricelin's Ame](https://github.com/Gakuseei/Ricelin/blob/main/configs/quickshell/pill/Ame.qml):
+one shape pulls out into a dot, jumps in an arc, then unfolds on landing into
+the active workspace indicator, notification action background,
+launcher caret, slider handle, selected calendar date, notification accent strip,
+selected metric value, connection status, Bluetooth thumb/device selection,
+and focused power action. It docks beneath each control’s text and replaces its
+normal highlight or handle, without an outer glow. Fuzzy matching and calculator helpers also retain Ricelin's MIT
+attribution. Clipboard history remains in its existing standalone picker; there
+is no wallpaper view in the pill.
+
+Tap either Super key alone to expand the pill into the application launcher.
+Holding Super for 200 ms hides the pill; releasing it immediately restores the
+current view. A tap opens the launcher without briefly hiding the pill.
+Using another key with Super cancels the tap and hides the pill while the
+modifier stays held, preserving existing Super shortcuts. Workspace scrolling,
+window dragging, and resizing also cancel the tap. Super+R and Super+Space open
+the same integrated launcher when Super is released. Super+M and Super+N likewise
+open power and notifications on release. The gesture observer uses Hyprland's Lua
+`input.keyboard.key` event, so it does not consume keys or depend on EN/RU layout.
+Input timestamps reject late IPC messages so a delayed hide cannot strand the
+pill after release. The pill stays available over fullscreen applications.
+
+Panel buttons have no hover highlights or tooltips; icon-button hints are used
+for accessibility. Tray menus use the shell's dark colors and typography, with
+checks, disabled actions, separators, and navigable submenus. Clickable controls
+use a pointer cursor. Bluetooth uses a fixed-height scrolling viewport.
 All Quickshell text uses Adwaita Sans Regular at 18px, matching the calendar numbers,
 including the panel, popups, notifications, prompts, launcher, clipboard,
 capture UI, and portal dialogs. Typography is defined in `shell/ShellTheme.qml`;
@@ -216,8 +258,8 @@ capture UI, and portal dialogs. Typography is defined in `shell/ShellTheme.qml`;
 Workspaces appear as dim dots with a white active
 indicator that stretches to fill a minimum-width block when there are few workspaces.
 Click a dot or scroll over the block to switch; the indicator animates between them.
-The panel is flush with the screen edges, and
-tiling gaps are zero. Windows have no compositor borders or shadows; tiled and maximized
+The pill floats above the application, and tiling gaps are zero. Windows have no
+compositor borders or shadows; tiled and maximized
 windows have square corners, while ordinary floating windows keep rounded
 corners. Keyboard focus changes on click; hover and scrolling work on inactive
 windows under the pointer. Telegram's media viewer opens directly
@@ -273,41 +315,31 @@ center. DND preferences alone are saved in
 `$XDG_STATE_HOME/dotfiles/hyprland/notifications.json` (normally under
 `~/.local/state`); notification contents are not saved or restored as history.
 Critical notifications bypass Do not disturb.
-Cards show the notification image on the left, a tiny app icon before the title,
-body text on the right, action buttons underneath, and a dismiss cross. Card
-actions and dismiss controls appear on hover, remaining available while a reply
-is being composed. Hidden action rows occupy no space; cards expand on hover
-only when actions are available, with animated height changes. Center cards fade
-in; banners slide in from beyond the right screen edge and slide back out in
-220 ms, without fading or collapsing. The last banner stays mapped until its
-exit finishes. Their top edge aligns with application windows at 38px, directly
-below the panel's reserved space. Their right inset matches the panel's 8px
-bottom gap. All clickable buttons show the pointer cursor. There are
-no app-name or time labels inside cards. Clicking a live card invokes the app's
-default action and removes the entry; this action is omitted from the button row to avoid a redundant
-Open button. Inline Reply appears only when supplied by the app, with a reply
-field, Send, and Cancel. Enter sends; Escape cancels. Reply drafts stay in memory
-and are never saved. A reply being composed stays visible while the pointer
-moves away. Banners are black without shadows. Hover expands only the
-card height, keeping the Wayland window stable; it does not replay appearance
-animation. Hover pauses expiry for the entire banner stack and queues arrivals
-until the pointer leaves. Leaving resumes the remaining lifetime with a short
-grace period. Content updates keep a banner in place and cannot resurrect hidden
-banners. Center notifications also retain their order during pointer interaction.
+Cards show the notification image, summary, body, app actions, and dismiss
+control. Titles are one line with ellipsis; bodies are one line at rest and
+expand in full on hover. Actions and inline Reply appear on hover when provided
+by the app.
+Clicking a live card invokes its default action and removes the entry. Inline
+Reply supports Send/Cancel, Enter to send, and Escape to cancel; drafts remain
+in memory only. Banners slide in at the top-right, independently of the pill.
+Arrivals queue during banner hover/reply and while the notification center is open.
+Actions reveal in one height animation; groups slide down into individual cards
+and back into brighter, protruding stacked layers.
+Center notifications retain their order during pointer interaction.
 
-Banners never request keyboard focus on arrival. Panel popups dismiss only on
-outside clicks on the main display; scrolling and focus changes keep them open.
-Secondary displays have no input shield, and using their apps keeps the popup
-open. Only an explicitly opened reply editor requests keyboard input.
-Cancelling a reply, including Escape in its input, keeps the center open. Reply drafts survive dismissal; only an explicit Reply click requests
-reply focus.
+Notification arrivals never request keyboard focus. A reply editor requests it
+only after an explicit Reply click. Mixer and media controls accept keyboard
+navigation after interaction; the launcher requests focus when opened. Outside
+clicks dismiss views on the main display. Secondary displays have no input shield.
 
-The volume OSD watches PipeWire directly, including changes made by keyboard
+Volume feedback watches PipeWire directly, including changes made by keyboard
 keys, Logitech mouse gestures, and other applications. Speaker/microphone mute
-changes also show an OSD. It appears on the focused monitor and clears after
-1.6 seconds. The Quickshell Polkit agent presents system authorization requests
-with masked password entry, retry feedback, and Escape to cancel. Passwords are
-cleared on submission and when the authentication request changes.
+changes stretch the same pill to the right with a compact, thick progress bar,
+clearing after 1.6 seconds. Brightness uses the same progress bar; workspace
+switches stretch the pill to the left with the animated workspace indicator.
+The clock stays visible and stationary. The Quickshell Polkit agent presents system authorization
+requests with masked password entry, retry feedback, and Escape to cancel.
+Passwords are cleared on submission and when the authentication request changes.
 
 The power menu has two rows of icon buttons (lock/suspend, then logout/restart/shutdown),
 with no title or close cross. Click its panel icon again to close it.
@@ -343,8 +375,20 @@ presentation, monitor changes, repeated updates, and automatic hiding.
 Run them with Quickshell through the `isolated-gui` helper on a separate
 private D-Bus session, setting `DOTFILES_SHELL_SOURCE` to the absolute
 `hyprland/config/shell` directory and `XDG_STATE_HOME` to a test-only directory.
-`hyprland/tests/panel-pointer.qml` checks native pointer continuity and the
-white indicator; click its fixture button using the isolated helper.
+`hyprland/tests/panel-pointer.qml` checks the legacy drop components in isolation.
+`hyprland/tests/launcher.js` checks fuzzy ranking and safe calculator precedence.
+`hyprland/tests/pill-features.qml` exercises the integrated views, notification
+queue/expiry pause, media/mixer controls, retained state, and Super restoration.
+`hyprland/tests/pill.lua` exercises Super tap/hold/chord handling with a fake
+compositor as part of the Python suite. `hyprland/tests/pill-behavior.qml` checks
+the real shell's pill geometry, launcher, menu switching, collapse, hidden input
+region, stale IPC events, and timestamp wraparound. Run that fixture in a nested
+Wayland compositor inside the isolated helper (for example, Sway with
+`WLR_BACKENDS=x11` and `WLR_RENDERER=pixman`). Set `DOTFILES_SHELL_FIXTURE` to a JSON
+file, `DOTFILES_SHELL_SOURCE` to the absolute shell directory, and both
+`XDG_STATE_HOME` and `XDG_CACHE_HOME` to test-only directories. The nested
+compositor must start Quickshell with `QT_QPA_PLATFORM=wayland`; the outer
+helper's X11 display and private bus remain isolated from the user's desktop.
 
 
 <h2 align="center">

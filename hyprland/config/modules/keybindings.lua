@@ -2,10 +2,10 @@
 local programs = require("modules.programs")
 local terminal = programs.terminal
 local fileManager = programs.fileManager
-local menu = programs.menu
 local helper = programs.helper
 local capture = programs.capture
 local workspaces = require("modules.workspaces")
+local pill = require("modules.pill")
 
 local mainMod = "SUPER" -- Sets "Windows" key as main modifier
 
@@ -13,12 +13,12 @@ local mainMod = "SUPER" -- Sets "Windows" key as main modifier
 hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())
 hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen({ action = "toggle", mode = "fullscreen" }))
-hl.bind(mainMod .. " + M", hl.dsp.exec_cmd(helper .. " shell power"))
-hl.bind(mainMod .. " + N", hl.dsp.exec_cmd(helper .. " shell notifications"))
+hl.bind(mainMod .. " + M", function() pill.open("power") end)
+hl.bind(mainMod .. " + N", function() pill.open("notifications") end)
 hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + V", hl.dsp.window.float({ action = "toggle" }))
-hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(menu))
-hl.bind(mainMod .. " + space", hl.dsp.exec_cmd(menu))
+hl.bind(mainMod .. " + R", function() pill.open("launcher") end)
+hl.bind(mainMod .. " + space", function() pill.open("launcher") end)
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd(helper .. " lock"))
 hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd(helper .. " clipboard"))
 hl.bind("Print", hl.dsp.exec_cmd(capture .. " select region"))
@@ -57,12 +57,22 @@ hl.bind(mainMod .. " + S",         hl.dsp.workspace.toggle_special("magic"))
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
 
 -- Scroll through existing workspaces with mainMod + scroll
-hl.bind(mainMod .. " + mouse_down", function() workspaces.step(1) end)
-hl.bind(mainMod .. " + mouse_up", function() workspaces.step(-1) end)
+hl.bind(mainMod .. " + mouse_down", function() pill.cancel(); workspaces.step(1) end)
+hl.bind(mainMod .. " + mouse_up", function() pill.cancel(); workspaces.step(-1) end)
 
 -- Move/resize windows with mainMod + LMB/RMB and dragging
-hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
-hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
+hl.bind(mainMod .. " + mouse:272", function() pill.cancel(); hl.dispatch(hl.dsp.window.drag()) end, { mouse = true })
+hl.bind(mainMod .. " + mouse:273", function() pill.cancel(); hl.dispatch(hl.dsp.window.resize()) end, { mouse = true })
+-- A release within drag_threshold is an ordinary app click, without Super.
+-- Send both states here: click binds run after the physical button is released.
+for _, button in ipairs({ "mouse:272", "mouse:273" }) do
+    local press = hl.dsp.send_key_state({ mods = "", key = button, state = "down" })
+    local release = hl.dsp.send_key_state({ mods = "", key = button, state = "up" })
+    hl.bind(mainMod .. " + " .. button, function()
+        hl.dispatch(press)
+        hl.dispatch(release)
+    end, { click = true })
+end
 
 -- Audio and external-monitor brightness (DDC/CI on the focused display).
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })

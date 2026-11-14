@@ -106,7 +106,7 @@ def apply(staged):
 
 def source_files():
     return [path for path in sorted(SOURCE.rglob("*"))
-            if path.is_file() and path.suffix in (".lua", ".conf", ".py", ".qml", ".svg", ".txt")
+            if path.is_file() and path.suffix in (".lua", ".conf", ".py", ".qml", ".js", ".svg", ".txt")
             and "__pycache__" not in path.parts]
 
 

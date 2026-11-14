@@ -1,5 +1,11 @@
 -- Keyboard, mouse, and touchpad settings.
 hl.config({
+    binds = {
+        -- Keep the grab point and wait for movement before starting a drag.
+        drag_center_window = false,
+        drag_threshold = 5,
+    },
+
     input = {
         kb_layout  = "us,ru",
         kb_variant = "",

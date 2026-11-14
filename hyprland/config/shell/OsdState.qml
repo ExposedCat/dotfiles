@@ -8,9 +8,14 @@ Scope {
     property string output: ""
     property real level: 0
     property bool muted: false
-    readonly property string title: kind === "brightness" ? "Brightness · " + output : kind === "microphone" ? "Microphone" : "Volume"
-    readonly property string icon: kind === "brightness" ? "sun" : kind === "microphone" ? (muted ? "mic-off" : "mic") : (muted ? "volume-x" : "volume-2")
-    readonly property string valueText: muted ? "Muted" : Math.round(level * 100) + "%"
+    property string workspaceLabel: ""
+    readonly property string title: kind === "workspace" ? "Workspace" : kind === "brightness" ? "Brightness · " + output : kind === "microphone" ? "Microphone" : "Volume"
+    readonly property string icon: kind === "workspace" ? "grid-2x2" : kind === "brightness" ? "sun" : kind === "microphone" ? (muted ? "mic-off" : "mic") : (muted ? "volume-x" : "volume-2")
+    readonly property string valueText: kind === "workspace" ? workspaceLabel : muted ? "Muted" : Math.round(level * 100) + "%"
+    function showWorkspace(label) {
+        kind = "workspace"; output = ""; workspaceLabel = label; muted = false;
+        visible = true; hide.restart();
+    }
     function showAudio(microphone, value, mute) {
         kind = microphone ? "microphone" : "volume";
         output = "";

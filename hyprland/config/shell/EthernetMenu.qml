@@ -8,6 +8,11 @@ ColumnLayout {
     required property var shell
     required property var theme
     property var devices: []
+    readonly property Item emberTarget: {
+        const count = connections.count;
+        for (let i = 0; i < count; i++) if (devices[i].connected) return connections.itemAt(i)?.statusSlot || null;
+        return null;
+    }
     property bool unavailable: false
     property var result: null
     property string phase: ""
@@ -44,14 +49,22 @@ ColumnLayout {
     }
     spacing: 16
     Repeater {
+        id: connections
         model: root.devices
         ColumnLayout {
             required property var modelData
+            property alias statusSlot: statusSlot
             Layout.fillWidth: true; spacing: 12
             RowLayout {
                 Layout.fillWidth: true; spacing: 12
                 ShellIcon { name: "ethernet-port"; Layout.preferredWidth: 24; Layout.preferredHeight: 24 }
-                Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; Layout.fillWidth: true; text: modelData.state; color: root.theme.text; wrapMode: Text.Wrap }
+                Item {
+                    implicitWidth: statusLabel.implicitWidth + 20; implicitHeight: 32
+                    Rectangle { anchors.fill: parent; radius: 16; color: root.theme.surface; visible: !statusSlot.occupied }
+                    EmberSlot { id: statusSlot; shell: root.shell; anchors.fill: parent; shapeOpacity: 0.45 }
+                    Text { id: statusLabel; anchors.centerIn: parent; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; text: modelData.state; color: root.theme.text }
+                }
+                Item { Layout.fillWidth: true }
                 Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; visible: root.devices.length > 1; text: modelData.name; color: root.theme.secondary }
             }
             Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; text: "Ethernet link  " + (modelData.speed > 0 ? root.speed(modelData.speed) : "—"); color: root.theme.secondary }
@@ -62,7 +75,20 @@ ColumnLayout {
         Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; text: "Internet speed"; color: root.theme.secondary }
         RowLayout {
             Layout.fillWidth: true; spacing: 8
-            Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; Layout.fillWidth: true; text: "↓ " + root.speed(root.result ? root.result.download : null) + "    ↑ " + root.speed(root.result ? root.result.upload : null); color: root.theme.text; elide: Text.ElideRight }
+            Repeater {
+                model: [{label: "↓", key: "download"}, {label: "↑", key: "upload"}]
+                Item {
+                    id: rate
+                    objectName: "network-" + modelData.key
+                    property alias emberSlot: rateSlot
+                    required property var modelData
+                    Layout.preferredWidth: rateLabel.implicitWidth + 20; implicitHeight: 32
+                    activeFocusOnTab: true
+                    EmberSlot { id: rateSlot; shell: root.shell; anchors.fill: parent; shapeOpacity: 0.35 }
+                    Text { id: rateLabel; anchors.centerIn: parent; text: rate.modelData.label + " " + root.speed(root.result ? root.result[rate.modelData.key] : null); color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize }
+                }
+            }
+            Item { Layout.fillWidth: true }
             ShellButton { theme: root.theme; icon: "rotate-cw"; pending: root.testing; enabled: !pending; hint: "Measure internet speed"; onClicked: root.testSpeed() }
         }
         Text {
@@ -75,7 +101,7 @@ ColumnLayout {
     }
     Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; visible: root.unavailable || root.devices.length === 0; text: root.unavailable ? "Connection status unavailable" : reader.running ? "Checking…" : "Ethernet disconnected"; color: root.theme.secondary; wrapMode: Text.Wrap; Layout.fillWidth: true }
     FileView { id: saved; path: root.shell.fixture ? "" : root.resultPath; blockLoading: true; printErrors: false }
-    Component.onCompleted: loadResult()
+    Component.onCompleted: { loadResult(); if (shell.panel === "ethernet") refreshStatus(); }
     Process {
         id: reader
         command: ["/usr/bin/python3", root.shell.backend, "ethernet"]

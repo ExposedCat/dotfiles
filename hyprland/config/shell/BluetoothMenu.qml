@@ -7,6 +7,9 @@ ColumnLayout {
     required property var shell
     required property var theme
     readonly property var bluetooth: shell.bluetooth
+    property Item hoveredDevice: null
+    property Item focusedDevice: null
+    readonly property Item emberTarget: (hoveredDevice || focusedDevice)?.emberSlot || powerSlot
     property var deviceData: ({})
     function syncDevices() {
         const devices = bluetooth.enabled ? bluetooth.devices : [];
@@ -30,7 +33,24 @@ ColumnLayout {
         Layout.fillWidth: true
         Spinner { running: root.bluetooth.searching; visible: running; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
         Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; Layout.fillWidth: true; text: root.bluetooth.searching ? "Searching…" : root.bluetooth.enabled ? "" : "Bluetooth off"; color: root.theme.secondary }
-        ShellButton { theme: root.theme; icon: "power"; selected: root.bluetooth.enabled; hint: root.bluetooth.enabled ? "Turn Bluetooth off" : "Turn Bluetooth on"; enabled: root.shell.fixture || !!root.bluetooth.adapter; onClicked: root.bluetooth.togglePower() }
+        Switch {
+            id: powerSwitch
+            checked: root.bluetooth.enabled
+            enabled: root.shell.fixture || !!root.bluetooth.adapter
+            Accessible.name: "Bluetooth power"
+            onToggled: { if (checked !== root.bluetooth.enabled) root.bluetooth.togglePower(); }
+            indicator: Rectangle {
+                implicitWidth: 46; implicitHeight: 26; radius: 13; color: root.theme.surface
+                x: powerSwitch.leftPadding; y: Math.round((powerSwitch.height - height) / 2)
+                Item {
+                    x: powerSwitch.checked ? 23 : 3; y: 3; width: 20; height: 20
+                    Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.InOutCubic } }
+                    Rectangle { anchors.fill: parent; radius: 10; color: root.theme.secondary; visible: !powerSlot.occupied }
+                    EmberSlot { id: powerSlot; shell: root.shell; anchors.fill: parent }
+                }
+            }
+            contentItem: Text { text: "Bluetooth"; leftPadding: powerSwitch.indicator.width + powerSwitch.spacing; color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; verticalAlignment: Text.AlignVCenter }
+        }
     }
     ListView {
         id: list
@@ -44,7 +64,7 @@ ColumnLayout {
         delegate: ColumnLayout {
             id: deviceRow
             required property string address
-            readonly property var modelData: root.deviceData[address]
+            readonly property var modelData: root.deviceData[address] || ({address: address, name: address, connected: false})
             required property int index
             width: list.width
             spacing: 6
@@ -54,6 +74,9 @@ ColumnLayout {
                 color: root.theme.surface
             }
             ShellButton {
+                emberShell: root.shell
+                onHoveredChanged: { if (hovered) root.hoveredDevice = this; else if (root.hoveredDevice === this) root.hoveredDevice = null; }
+                onActiveFocusChanged: { if (activeFocus) root.focusedDevice = this; else if (root.focusedDevice === this) root.focusedDevice = null; }
                 theme: root.theme
                 Layout.fillWidth: true; implicitHeight: 54
                 icon: deviceRow.modelData.connected ? "check" : "bluetooth"
@@ -62,7 +85,7 @@ ColumnLayout {
                 hint: (deviceRow.modelData.connected ? "Disconnect " : "Connect to ") + text
                 selected: !!deviceRow.modelData.connected
                 pending: root.bluetooth.busy(deviceRow.modelData)
-                enabled: !pending
+                enabled: !pending && !!root.deviceData[deviceRow.address]
                 onClicked: root.bluetooth.toggle(deviceRow.modelData)
             }
             Text {

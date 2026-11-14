@@ -200,8 +200,12 @@ def main():
     actions = parser.add_subparsers(dest="action", required=True)
     for name in ("clipboard", "clipboard-list", "launcher", "apps-list", "record", "lock", "session-stop"):
         actions.add_parser(name)
-    actions.add_parser("shell").add_argument("panel", choices=("notifications", "power", "connections", "ethernet", "bluetooth"))
+    actions.add_parser("shell").add_argument("panel", choices=("notifications", "power", "connections", "ethernet", "bluetooth", "media", "mixer", "system"))
+    pill = actions.add_parser("pill")
+    pill.add_argument("gesture", choices=("tap", "hide", "show", "launcher", "power", "notifications"))
+    pill.add_argument("timestamp", nargs="?", default="")
     actions.add_parser("clipboard-copy").add_argument("id")
+    actions.add_parser("copy-text").add_argument("text")
     actions.add_parser("screenshot").add_argument("mode", choices=("region", "window"))
     actions.add_parser("app-launch").add_argument("id")
     actions.add_parser("media").add_argument("method", choices=("PlayPause", "Next", "Previous"))
@@ -215,8 +219,10 @@ def main():
         clipboard_list()
     elif args.action == "clipboard-copy":
         clipboard_copy(args.id)
+    elif args.action == "copy-text":
+        run("wl-copy", input=args.text.encode())
     elif args.action == "launcher":
-        os.execvp("quickshell", ["quickshell", "--no-duplicate", "--path", str(ROOT / "tools/launcher.qml")])
+        run("quickshell", "ipc", "--path", str(ROOT / "shell/shell.qml"), "call", "shell", "toggle", "launcher")
     elif args.action == "apps-list":
         applications()
     elif args.action == "app-launch":
@@ -233,6 +239,8 @@ def main():
         service("lock", ["/usr/bin/hyprlock", "--no-fade-in"], restart=False)
     elif args.action == "shell":
         run("quickshell", "ipc", "--path", str(ROOT / "shell/shell.qml"), "call", "shell", "toggle", args.panel)
+    elif args.action == "pill":
+        run("quickshell", "ipc", "--path", str(ROOT / "shell/shell.qml"), "call", "shell", "gesture", args.gesture, args.timestamp)
     elif args.action == "session-start":
         session_start(args.refresh)
     elif args.action == "session-stop":
