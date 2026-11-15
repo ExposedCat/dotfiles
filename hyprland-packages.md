@@ -10,6 +10,9 @@
 - ptyxis
 - nautilus
 - python3-gobject (Gio/D-Bus media controls and custom portal backend)
+- qalculate (launcher currencies, units, and advanced calculations)
+- python3-dateutil (launcher date parsing and calendar arithmetic)
+- ibus (installed emoji/Unicode catalogs and IBus introspection for launcher characters)
 - xdg-user-dirs (screenshot directory)
 - ddcutil (external-monitor brightness)
 - qt6-qtwayland

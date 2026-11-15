@@ -50,5 +50,5 @@ gsettings set org.gnome.desktop.default-applications.terminal exec-arg '--'
 terminal_list=${XDG_CONFIG_HOME:-$HOME/.config}/xdg-terminals.list
 if [[ -f "$terminal_list" ]]; then cp -a "$terminal_list" "$backup/"; fi
 install -m 644 "$source_dir/xdg-terminals.list" "$terminal_list"
-echo "Ptyxis configured: dev / Fish, dark interface, Adwaita Mono 13px with Nerd symbols."
+echo "Ptyxis configured: dev / Fish, dark interface, Adwaita Mono 14.04pt with Nerd symbols."
 echo "Previous preferences: $backup/ptyxis.dconf"

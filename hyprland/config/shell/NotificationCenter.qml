@@ -55,13 +55,26 @@ RowLayout {
         for (const group of groups) data[group.key] = group;
         groupsByKey = data;
         const keys = groups.map(g => g.key);
-        for (let i = groupModel.count - 1; i >= 0; --i) if (!keys.includes(groupModel.get(i).groupKey)) groupModel.remove(i);
-        for (let i = 0; i < keys.length; ++i) {
+        for (let i = 0; i < groupModel.count; ++i) groupModel.setProperty(i, "wanted", keys.includes(groupModel.get(i).groupKey));
+        let position = 0;
+        for (const key of keys) {
+            while (position < groupModel.count && !groupModel.get(position).wanted) position++;
             let at = -1;
-            for (let j = i; j < groupModel.count; ++j) if (groupModel.get(j).groupKey === keys[i]) { at = j; break }
-            if (at < 0) groupModel.insert(i, {groupKey: keys[i]});
-            else if (at !== i) groupModel.move(at, i, 1);
+            for (let j = 0; j < groupModel.count; ++j) if (groupModel.get(j).groupKey === key) { at = j; break; }
+            if (at < 0) groupModel.insert(position, {groupKey: key, wanted: true});
+            else if (at !== position) groupModel.move(at, position, 1);
+            position++;
         }
+    }
+
+    function retireGroup(key) {
+        for (let i = 0; i < groupModel.count; ++i) {
+            if (groupModel.get(i).groupKey !== key) continue;
+            if (groupModel.get(i).wanted) return;
+            groupModel.remove(i);
+            break;
+        }
+        const data = Object.assign({}, groupsByKey); delete data[key]; groupsByKey = data;
     }
     ListModel { id: groupModel }
     Connections { target: root.shell.notifications; function onGroupsChanged() { root.syncGroups() } }
@@ -77,13 +90,15 @@ RowLayout {
             clip: true; spacing: 14
             model: groupModel
             add: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120 } }
-            remove: Transition { NumberAnimation { property: "opacity"; to: 0; duration: 100 } }
             HoverHandler { onHoveredChanged: { root.shell.notifications.centerHovered = hovered; if (hovered) root.notificationMode = true; } }
             boundsBehavior: Flickable.StopAtBounds
             ScrollBar.vertical: ScrollBar {}
             PillWheel { flickable: notificationList }
             delegate: NotificationGroup {
                 required property string groupKey
+                required property bool wanted
+                presented: wanted
+                onRetired: root.retireGroup(groupKey)
                 width: notificationList.width; emberShell: root.shell; theme: root.theme; store: root.shell.notifications; group: root.groupsByKey[groupKey]
                 expanded: !!root.expandedGroups[groupKey]
                 onToggleExpanded: root.toggleGroup(groupKey)

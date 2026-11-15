@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
@@ -17,6 +18,7 @@ PanelWindow {
     readonly property string pillState: hidden ? "hidden" : shell.panel || feedbackKind || (expanded ? "expanded" : "compact")
     readonly property bool hasNotifications: shell.notifications.entries.length > 0
     property bool hoverExpanded: false
+    property bool suppressHover: false
     property string shownPanel: ""
     readonly property var paneNames: ["launcher", "notifications", "bluetooth", "ethernet", "power", "media", "mixer", "system"]
     property var retained: ({})
@@ -36,6 +38,55 @@ PanelWindow {
     Timer { id: unload; interval: 120000; onTriggered: { const keep = {}; for (const name of ["launcher", "media", "mixer"]) if (bar.retained[name]) keep[name] = true; bar.retained = keep; } }
     property real paneWidth: 620
     property real paneHeight: 480
+    property real mediaHeight: 240
+    property bool launcherDragged: false
+    property point launcherPosition: Qt.point(0, 0)
+    property point dragStart: Qt.point(0, 0)
+    property point dragOrigin: Qt.point(0, 0)
+    property bool dragPressed: false
+    property var focusGrab: null
+    readonly property bool pinnedLauncher: shell.panel === "launcher" && launcherDragged
+    readonly property bool wantsFocusGrab: !!shell.panel && !hidden && (!pinnedLauncher || dragPressed) && !centerFocus.editing
+    readonly property bool nativeActive: !!bar.contentItem.Window.window && bar.contentItem.Window.window.active
+    function beginLauncherDrag(x, y) {
+        if (shell.panel !== "launcher") return;
+        dragStart = Qt.point(x, y); dragOrigin = Qt.point(pill.x, pill.y); dragPressed = true;
+    }
+    function moveLauncherDrag(x, y) {
+        if (!dragPressed || shell.panel !== "launcher") return;
+        const dx = x - dragStart.x, dy = y - dragStart.y;
+        if (!launcherDragged && Math.hypot(dx, dy) < 5) return;
+        launcherPosition = Qt.point(Math.round(Math.max(12, Math.min(width - paneWidth - 12, dragOrigin.x + dx))),
+                                  Math.round(Math.max(8, Math.min(height - paneHeight - 12, dragOrigin.y + dy))));
+        launcherDragged = true;
+    }
+    function endLauncherDrag() { dragPressed = false; }
+    function lostFocus() {
+        if (shell.panel && !pinnedLauncher && !dragPressed && !hidden) {
+            suppressHover = true; hoverRelease.restart();
+            dismiss(); hoverExpanded = false;
+        }
+    }
+    function applicationFocused() { focusLoss.restart(); }
+    Component { id: panelFocusGrab; HyprlandFocusGrab {} }
+    Component.onCompleted: {
+        if (Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")) {
+            focusGrab = panelFocusGrab.createObject(bar, {windows: [bar, trayMenu]});
+            focusGrab.cleared.connect(() => { if (bar.wantsFocusGrab) bar.lostFocus(); });
+            if (wantsFocusGrab) armFocus.restart();
+        }
+    }
+    onWantsFocusGrabChanged: {
+        if (focusGrab) {
+            if (wantsFocusGrab) armFocus.restart();
+            else { armFocus.stop(); focusGrab.active = false; }
+        }
+    }
+    Timer { id: armFocus; interval: 0; onTriggered: { if (bar.focusGrab && bar.wantsFocusGrab) bar.focusGrab.active = true; } }
+    Timer { id: focusLoss; interval: 50; onTriggered: { if (!bar.nativeActive && !trayMenu.visible) bar.lostFocus(); } }
+    Timer { id: hoverRelease; interval: 300; onTriggered: bar.suppressHover = false }
+    onNativeActiveChanged: { if (!nativeActive && shell.panel) focusLoss.restart(); }
+    onMediaHeightChanged: { if (shell.panel === "media") selectPanel("media"); }
     readonly property int headerHeight: 40
     readonly property int pillRadius: 20
     readonly property int sideInset: 20
@@ -46,10 +97,17 @@ PanelWindow {
     readonly property real controlsWidth: Math.ceil(Math.max(600, 2 * Math.max(leftNeed, rightNeed)) / 2) * 2
     readonly property real targetWidth: Math.min(width - 24, shell.panel ? paneWidth : expanded ? controlsWidth : compactWidth + feedbackLeft + feedbackRight)
     readonly property real targetHeight: shell.panel ? paneHeight : headerHeight
-    // A single interpolated rectangle keeps width and height on the same frame.
+    // Animate position and size together, including the return from a drag.
+    // Only an active pointer gesture bypasses the animation.
     // Snap all painted coordinates to whole pixels to avoid text shimmer.
-    property rect animatedGeometry: Qt.rect((feedbackRight - feedbackLeft) / 2, 0, targetWidth, targetHeight)
-    Behavior on animatedGeometry { PropertyAnimation { duration: 220; easing.type: Easing.InOutCubic } }
+    readonly property rect targetGeometry: Qt.rect(
+        pinnedLauncher ? launcherPosition.x : (width - targetWidth) / 2 + (feedbackRight - feedbackLeft) / 2,
+        pinnedLauncher ? launcherPosition.y : theme.panelGap, targetWidth, targetHeight)
+    property rect animatedGeometry: targetGeometry
+    Behavior on animatedGeometry {
+        enabled: !bar.dragPressed
+        PropertyAnimation { duration: 220; easing.type: Easing.InOutCubic }
+    }
     readonly property rect pillGeometry: Qt.rect(pill.x, pill.y, pill.width, pill.height)
     readonly property rect paneGeometry: Qt.rect(pill.x + panelLoader.x, pill.y + panelLoader.y, panelLoader.width, panelLoader.height)
     readonly property var activePane: panelLoader.item
@@ -65,25 +123,27 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "dotfiles-bar"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: hidden ? WlrKeyboardFocus.None : shell.panel === "launcher" ? WlrKeyboardFocus.Exclusive : ["media", "mixer", "system", "power", "ethernet", "bluetooth"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: hidden ? WlrKeyboardFocus.None : ["launcher", "media", "mixer", "system", "power", "ethernet", "bluetooth"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
     Region { id: pillInput; item: pill }
     Region { id: outsideInput; item: bar.contentItem }
-    mask: Region { regions: bar.hidden ? [] : bar.shell.panel ? [outsideInput] : [pillInput] }
+    // Keep the native input region and focus grab intact until release. A fast
+    // pointer can get ahead of the painted surface between rendering frames.
+    mask: Region { regions: bar.hidden ? [] : bar.shell.panel && (!bar.pinnedLauncher || bar.dragPressed) ? [outsideInput] : [pillInput] }
     ReplyFocus { id: centerFocus; available: bar.shell.panel === "notifications" && !bar.hidden; store: bar.shell.notifications; surface: "center"; targetWindow: bar }
     MouseArea {
         anchors.fill: parent
-        enabled: bar.shell.panel.length > 0
+        enabled: bar.shell.panel.length > 0 && !bar.pinnedLauncher && !bar.dragPressed
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
         onPressed: bar.dismiss()
         onWheel: event => event.accepted = false
     }
-    function dismiss() { shell.panel = ""; }
+    function dismiss() { endLauncherDrag(); shell.panel = ""; }
     function openPanel(name) { trayMenu.visible = false; shell.toggle(name); }
     function selectPanel(name) {
         // Retain this geometry until the closing fade has finished. The popup's
         // layout must not be resized to the compact pill while still visible.
         paneWidth = Math.min(width - 24, name === "launcher" ? 560 : name === "mixer" ? 520 : name === "notifications" ? 1080 : 620);
-        paneHeight = Math.min(height - 24, name === "launcher" ? 428 : name === "mixer" ? 240 : name === "notifications" ? 680 : name === "bluetooth" ? 500 : name === "ethernet" ? 270 : name === "media" ? 340 : name === "system" ? 440 : 220);
+        paneHeight = Math.min(height - 24, name === "launcher" ? 428 : name === "mixer" ? 240 : name === "notifications" ? 680 : name === "bluetooth" ? 500 : name === "ethernet" ? 270 : name === "media" ? mediaHeight : name === "system" ? 440 : 220);
         retain(name); shownPanel = name;
     }
     onWidthChanged: { if (shell.panel) selectPanel(shell.panel); }
@@ -92,6 +152,9 @@ PanelWindow {
     Connections {
         target: bar.shell
         function onPanelChanged() {
+            focusLoss.stop();
+            bar.dragPressed = false;
+            if (bar.shell.panel) bar.launcherDragged = false;
             if (bar.shell.panel) {
                 unload.stop();
                 bar.selectPanel(bar.shell.panel);
@@ -99,13 +162,18 @@ PanelWindow {
                 if (bar.shell.panel === "launcher") { if (panelLoader.item) panelLoader.item.activate(); focusDelay.restart(); }
             } else {
                 unload.restart();
-                bar.hoverExpanded = hover.hovered;
+                if (bar.launcherDragged) { bar.suppressHover = true; hoverRelease.restart(); }
+                bar.hoverExpanded = !bar.suppressHover && hover.hovered;
                 if (pill.height === bar.headerHeight) bar.shownPanel = "";
             }
         }
     }
+    Connections {
+        target: centerFocus.grab
+        function onCleared() { if (centerFocus.editing) bar.lostFocus(); }
+    }
     onHiddenChanged: {
-        if (hidden) { trayMenu.visible = false; collapse.stop(); }
+        if (hidden) { trayMenu.visible = false; collapse.stop(); focusLoss.stop(); }
         else if (shell.panel === "launcher" && panelLoader.item) panelLoader.item.focusSearch();
     }
     onFullscreenChanged: { if (fullscreen) hoverExpanded = false; }
@@ -117,9 +185,10 @@ PanelWindow {
         objectName: "floatingPill"
         width: Math.round(bar.animatedGeometry.width / 2) * 2
         height: Math.round(bar.animatedGeometry.height)
-        x: Math.round((bar.width - width) / 2 + bar.animatedGeometry.x); y: bar.theme.panelGap
+        x: Math.round(bar.animatedGeometry.x)
+        y: Math.round(bar.animatedGeometry.y)
         opacity: bar.hidden ? 0 : 1
-        onHeightChanged: { if (height === bar.headerHeight && !bar.shell.panel) bar.shownPanel = ""; }
+        onHeightChanged: { if (height === bar.headerHeight && !bar.shell.panel) { bar.shownPanel = ""; bar.launcherDragged = false; } }
         PillBackground { anchors.fill: parent; theme: colors; radius: bar.pillRadius }
         Item {
             anchors.fill: parent
@@ -135,7 +204,7 @@ PanelWindow {
                 HoverHandler {
                     id: hover
                     onHoveredChanged: {
-                        if (hovered && !bar.hidden && !bar.feedbackVisible) { collapse.stop(); bar.hoverExpanded = true; }
+                        if (hovered && !bar.hidden && !bar.feedbackVisible && !bar.suppressHover) { collapse.stop(); bar.hoverExpanded = true; }
                         else collapse.restart();
                     }
                 }
@@ -225,7 +294,7 @@ PanelWindow {
                             }
                         }
                     }
-                    ShellButton { emberShell: bar.shell; theme: colors; icon: "music"; hint: "Now playing"; selected: bar.shell.panel === "media"; onClicked: bar.openPanel("media") }
+                    ShellButton { objectName: "pillMusicButton"; visible: !!bar.shell.media.player; emberShell: bar.shell; theme: colors; icon: "music"; hint: "Now playing"; selected: bar.shell.panel === "media"; onClicked: bar.openPanel("media") }
                     ShellButton { emberShell: bar.shell; theme: colors; icon: bar.shell.audio.muted ? "volume-x" : "volume-2"; hint: "Sound"; selected: bar.shell.panel === "mixer"; onClicked: bar.openPanel("mixer"); onScrolled: delta => bar.shell.audio.adjust(delta > 0 ? 0.05 : -0.05) }
                     ShellButton { emberShell: bar.shell; theme: colors; icon: "activity"; hint: "System statistics"; selected: bar.shell.panel === "system"; onClicked: bar.openPanel("system") }
                     ShellButton { emberShell: bar.shell; theme: colors; icon: "ethernet-port"; hint: "Network"; selected: bar.shell.panel === "ethernet"; onClicked: bar.openPanel("ethernet") }
@@ -235,7 +304,7 @@ PanelWindow {
             }
             Item {
                 id: panelLoader
-                x: Math.round((bar.width - bar.paneWidth) / 2) - pill.x + 24
+                x: bar.launcherDragged ? 24 : Math.round((bar.width - bar.paneWidth) / 2) - pill.x + 24
                 y: 16
                 width: bar.paneWidth - 48; height: bar.paneHeight - y - 24
                 readonly property var item: bar.shownPanel ? paneSlots.itemAt(bar.paneNames.indexOf(bar.shownPanel))?.item || null : null
@@ -281,12 +350,27 @@ PanelWindow {
         showing: bar.feedbackVisible && bar.shell.osd.kind !== "workspace" && !bar.hidden
         x: Math.round((bar.width + bar.compactWidth) / 2) - pill.x - 4; y: 0
     }
-    Component { id: launcherComponent; LauncherPane { shell: bar.shell; theme: colors } }
+    Component {
+        id: launcherComponent
+        LauncherPane {
+            shell: bar.shell; theme: colors
+            onDragStarted: (x, y) => bar.beginLauncherDrag(x, y)
+            onDragMoved: (x, y) => bar.moveLauncherDrag(x, y)
+            onDragFinished: bar.endLauncherDrag()
+        }
+    }
     Component { id: notificationsComponent; NotificationCenter { shell: bar.shell; theme: colors } }
     Component { id: bluetoothComponent; BluetoothMenu { shell: bar.shell; theme: colors } }
     Component { id: networkComponent; EthernetMenu { shell: bar.shell; theme: colors } }
     Component { id: powerComponent; PowerPane { shell: bar.shell; theme: colors } }
-    Component { id: mediaComponent; MediaPane { shell: bar.shell; theme: colors } }
+    Component {
+        id: mediaComponent
+        MediaPane {
+            shell: bar.shell; theme: colors
+            onImplicitHeightChanged: bar.mediaHeight = implicitHeight + 40
+            Component.onCompleted: bar.mediaHeight = implicitHeight + 40
+        }
+    }
     Component { id: mixerComponent; MixerPane { shell: bar.shell; theme: colors } }
     Component { id: statsComponent; StatsPane { shell: bar.shell; theme: colors } }
     readonly property Item emberTarget: {

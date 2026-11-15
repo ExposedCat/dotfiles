@@ -31,15 +31,31 @@ function subsequenceCost(needle, hay) {
     return best;
 }
 
-function score(e, q) {
-    var name = (e.name || "").toLowerCase();
+function nameScore(name, q) {
+    name = (name || "").toLowerCase();
     if (name.indexOf(q) === 0) return 0;
+    if (name.indexOf(q) !== -1) return 1;
+    if (subsequence(q, name)) return 2 + subsequenceCost(q, name);
+    return 99;
+}
+
+function titleScore(e, query) {
+    var q = (query || "").trim().toLowerCase();
+    if (!q) return 99;
+    var queries = layoutQueries(q), best = 99;
+    for (var i = 0; i < queries.length; i++)
+        best = Math.min(best, nameScore(e.name, queries[i]) + (i ? 0.1 : 0));
+    return best;
+}
+
+function score(e, q) {
     var fields = haystacks(e);
-    var best = 99;
+    var best = nameScore(e.name, q);
+    // Title matches always precede matches found only in descriptions/keywords.
     for (var i = 0; i < fields.length; i++) {
         var f = fields[i].toLowerCase();
-        if (f.indexOf(q) !== -1) { best = Math.min(best, 1); continue; }
-        if (subsequence(q, f)) best = Math.min(best, 2 + subsequenceCost(q, f));
+        if (f.indexOf(q) !== -1) { best = Math.min(best, 4); continue; }
+        if (subsequence(q, f)) best = Math.min(best, 5 + subsequenceCost(q, f));
     }
     return best;
 }
@@ -66,8 +82,11 @@ function rank(entries, query, usage) {
         });
 
     var scored = [];
+    var queries = layoutQueries(q);
     for (var k = 0; k < visible.length; k++) {
-        var s = score(visible[k], q);
+        var s = 99;
+        for (var v = 0; v < queries.length; v++)
+            s = Math.min(s, score(visible[k], queries[v]) + (v ? 0.1 : 0));
         if (s < 99) scored.push({ e: visible[k], s: s });
     }
     scored.sort(function (a, b) {
@@ -80,6 +99,19 @@ function rank(entries, query, usage) {
     return scored.map(function (x) { return x.e; });
 }
 
+function layoutQueries(query) {
+    var en = "`qwertyuiop[]asdfghjkl;'zxcvbnm,.";
+    var ru = "ёйцукенгшщзхъфывапролджэячсмитьбю";
+    var q = String(query || "").toLowerCase();
+    var from = /[а-яё]/.test(q) ? ru : en, to = from === ru ? en : ru;
+    var corrected = "";
+    for (var i = 0; i < q.length; i++) {
+        var at = from.indexOf(q[i]);
+        corrected += at < 0 ? q[i] : to[at];
+    }
+    return corrected === q ? [q] : [q, corrected];
+}
+
 if (typeof module !== "undefined" && module.exports) {
-    module.exports = { rank, score, subsequence };
+    module.exports = { rank, score, titleScore, subsequence, layoutQueries };
 }

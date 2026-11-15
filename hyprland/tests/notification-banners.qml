@@ -29,6 +29,14 @@ Scope {
         }
         return null;
     }
+    function findCard(item) {
+        if (item.objectName === "notification-banner-card") return item;
+        for (const child of (item.children || [])) {
+            const result = findCard(child);
+            if (result) return result;
+        }
+        return null;
+    }
     function message(id) {
         const callbacks = {};
         const n = {id: id, appName: "Test", desktopEntry: "test", appIcon: "", image: "", summary: "Notification " + id,
@@ -68,7 +76,7 @@ Scope {
             Qt.callLater(() => {
                 originalBanner = test.findBanner(banners, firstId);
                 check(!!originalBanner, "Banner was not created");
-                check(originalBanner.offset >= originalBanner.travel - 1, "Entrance did not start beyond the right screen edge");
+                check(originalBanner.arrival === 0 && originalBanner.dropOffset < 0 && originalBanner.tilt < 0 && originalBanner.opacity === 0, "Entrance did not start above the pile with tilt and zero opacity");
                 tick.interval = 80; tick.start();
             });
         }
@@ -77,14 +85,14 @@ Scope {
         id: tick; interval: 80
         onTriggered: {
             const card = test.findBanner(banners, firstId);
-            const visual = card ? card.children.find(child => child.objectName === "notification-banner-card") : null;
+            const visual = card ? test.findCard(card) : null;
             switch (phase++) {
             case 0:
-                check(card.offset > 0 && card.offset < card.travel, "Entrance did not slide left");
-                check(visual.opacity === 1 && card.height > 0, "Entrance faded or collapsed");
-                interval = 250; break;
+                check(card.arrival > 0 && card.arrival < 1 && card.dropOffset < 0 && card.tilt < 0 && card.opacity > 0 && card.opacity < 1, "Entrance did not fade and fall toward its resting position");
+                check(visual.opacity === 1 && card.height > 0, "Entrance collapsed its layout");
+                interval = 300; break;
             case 1:
-                check(Math.abs(card.offset) < 1, "Entrance did not settle at its resting position");
+                check(Math.abs(card.offset) < 1 && card.arrival === 1 && card.dropOffset === 0 && card.tilt === 0, "Entrance did not settle upright at its resting position");
                 check(window.width - banners.x - card.width === banners.theme.panelGap, "Right inset does not match the panel's bottom gap");
                 first.update("Updated in place"); interval = 40; break;
             case 2:

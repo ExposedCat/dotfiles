@@ -4,120 +4,209 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import "lib/fuzzy.js" as Fuzzy
-import "lib/calc.js" as Calc
 
 ColumnLayout {
     id: root
     required property var shell
     required property var theme
     Applications { id: localIndex; shell: root.shell }
+    LauncherProviders {
+        id: providers; shell: root.shell
+        onActionFinished: (message, close) => { root.copied = message === "Copied"; if (close && !root.shell.pill?.launcherDragged) root.shell.panel = ""; }
+    }
     readonly property var indexStore: shell.applications || localIndex
     readonly property var installedApps: indexStore.apps
     readonly property var apps: indexStore.apps
     readonly property string error: indexStore.error
     property bool launching: false
     property bool copied: false
-    readonly property bool loading: indexStore.loading
+    readonly property bool loading: indexStore.loading || providers.loading
     readonly property var matches: Fuzzy.rank(apps, search.text, indexStore.usage)
-    readonly property var calculation: Calc.evaluate(search.text.slice(0, 256))
+    readonly property bool filtered: /^(files?|f|chars?|characters?|emoji|symbols?|bookmarks?|bm|web)\s/i.test(search.text) || /^(\/|~\/|file:\/\/)/.test(search.text)
+    readonly property var results: combine()
+    readonly property var selected: list.currentIndex >= 0 && list.currentIndex < results.length ? results[list.currentIndex] : null
+    property string selectedId: ""
+    property bool selectionExplicit: false
+    property point pointerPosition: Qt.point(-1, -1)
+    signal dragStarted(real x, real y)
+    signal dragMoved(real x, real y)
+    signal dragFinished()
     readonly property Item emberTarget: caretSlot
-    spacing: 8
-    function launch() {
-        if (calculation.ok) { copyResult(); return; }
-        if (launching || list.currentIndex < 0 || list.currentIndex >= matches.length) return;
-        launching = true;
-        const app = matches[list.currentIndex];
-        indexStore.record(app.id);
-        if (shell.fixture) shell.fixtureEvent("app-launch", {id: app.id});
-        else Quickshell.execDetached(["/usr/bin/python3", shell.helper, "app-launch", app.id]);
-        shell.panel = "";
+    spacing: 6
+    function combine() {
+        const rows = [], seen = {};
+        function append(row) { if (!seen[row.id]) { rows.push(row); seen[row.id] = true; } }
+        const appRows = filtered ? [] : matches.map(app => {
+            const saved = providers.quick.find(row => row.kind === "app" && row.appId === app.id);
+            return Object.assign({}, saved || {}, app, {id: "app:" + app.id, appId: app.id, kind: "app"});
+        });
+        for (const app of appRows) if (Fuzzy.titleScore(app, search.text) < 99) append(app);
+        for (const row of providers.quick) {
+            const app = row.kind === "app" ? apps.find(a => a.id === row.appId) : null;
+            if (row.kind !== "app" || app) append(app ? Object.assign({}, app, row, {icon: app.icon}) : row);
+        }
+        if (!filtered)
+            for (const app of appRows) append(app);
+        for (const row of providers.files) append(row);
+        return rows;
     }
-    function copyResult() {
-        if (!calculation.ok) return;
-        if (shell.fixture) shell.fixtureEvent("calculator-copy", {value: calculation.display});
-        else Quickshell.execDetached(["/usr/bin/python3", shell.helper, "copy-text", "--", calculation.display]);
-        copied = true;
+    function maintainSelection() {
+        const found = selectionExplicit ? results.findIndex(row => row.id === selectedId) : -1;
+        list.currentIndex = found >= 0 ? found : results.length ? 0 : -1;
+        if (selected) selectedId = selected.id;
+        if (!selectionExplicit) list.positionViewAtBeginning();
+    }
+    function choose(index) {
+        selectionExplicit = true;
+        list.currentIndex = index;
+        selectedId = selected ? selected.id : "";
+        copied = false; providers.actionMessage = "";
+    }
+    onResultsChanged: Qt.callLater(maintainSelection)
+    function selectFilter(prefix) { search.text = prefix; search.forceActiveFocus(); search.cursorPosition = search.text.length; }
+    function defaultAction(row) { return ["app", "file", "bookmark", "web"].includes(row.kind) ? "open" : "copy"; }
+    function launch() { if (selected) act(defaultAction(selected)); }
+    function act(action) {
+        if (!selected) return;
+        if (action === "browse" && selected.directory) { selectFilter(selected.path + "/"); return; }
+        if (selected.kind === "app" && action === "open") indexStore.record(selected.appId);
+        providers.act(selected, action);
     }
     function focusSearch() { search.forceActiveFocus(); }
-    function activate() { launching = false; indexStore.refresh(); Qt.callLater(focusSearch); }
+    function activate() {
+        launching = false; copied = false; selectedId = ""; selectionExplicit = false;
+        pointerPosition = Qt.point(-1, -1);
+        indexStore.refresh();
+        if (search.text) search.clear();
+        else providers.search("");
+        Qt.callLater(focusSearch);
+    }
+    function moveSelection(delta) {
+        choose(Math.max(0, Math.min(list.currentIndex + delta, list.count - 1)));
+        list.positionViewAtIndex(list.currentIndex, ListView.Contain);
+    }
     Component.onCompleted: activate()
     TextField {
-        id: search
-        objectName: "pillSearch"
-        Layout.fillWidth: true
-        implicitHeight: 36
-        focus: true
-        font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize
+        id: search; objectName: "pillSearch"
+        Layout.fillWidth: true; implicitHeight: 36; focus: true
+        font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
         color: root.theme.text
-        placeholderText: "Search apps"
-        placeholderTextColor: root.theme.secondary
-        leftPadding: 32; rightPadding: 10
-        selectByMouse: true
+        placeholderText: "Search"; placeholderTextColor: root.theme.secondary
+        leftPadding: 32; rightPadding: 64; selectByMouse: true
         cursorVisible: !root.shell.emberEnabled
         background: Item {}
         ShellIcon { x: 1; y: Math.round((parent.height - height) / 2); name: "search"; width: 21; height: 21; opacity: 0.8 }
         EmberSlot { id: caretSlot; shell: root.shell; x: search.cursorRectangle.x; y: search.cursorRectangle.y; width: 3; height: search.cursorRectangle.height || 19; shapeRadius: 1.5; caret: true }
-        onTextChanged: { root.copied = false; Qt.callLater(() => list.currentIndex = list.count ? 0 : -1); }
-        Keys.onDownPressed: { list.currentIndex = Math.min(list.currentIndex + 1, list.count - 1); list.positionViewAtIndex(list.currentIndex, ListView.Contain); }
-        Keys.onUpPressed: { list.currentIndex = Math.max(list.currentIndex - 1, 0); list.positionViewAtIndex(list.currentIndex, ListView.Contain); }
+        onTextChanged: {
+            root.copied = false; root.selectedId = ""; root.selectionExplicit = false;
+            providers.search(text); Qt.callLater(root.maintainSelection);
+        }
+        Keys.onDownPressed: root.moveSelection(1)
+        Keys.onUpPressed: root.moveSelection(-1)
+        Keys.onPressed: event => {
+            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_C && !search.selectedText) {
+                root.act("copy"); event.accepted = true;
+            } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_D) {
+                root.act("favorite"); event.accepted = true;
+            } else if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.selected?.kind === "file") {
+                root.act("reveal"); event.accepted = true;
+            } else if (event.key === Qt.Key_Tab && root.selected?.directory) {
+                root.act("browse"); event.accepted = true;
+            }
+        }
         onAccepted: root.launch()
-        Accessible.name: "Search applications or calculate"
+        Accessible.name: "Search"
+        Spinner {
+            anchors { right: dragHandle.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+            visible: root.loading; running: visible; width: 16; height: 16
+        }
+        Item {
+            id: dragHandle; objectName: "launcherDragHandle"
+            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+            width: 26; height: 36; z: 2
+            ShellIcon { anchors.centerIn: parent; name: "grip-vertical"; width: 20; height: 20; opacity: grip.containsMouse ? 1 : 0.6 }
+            MouseArea {
+                id: grip; anchors.fill: parent; hoverEnabled: true
+                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                preventStealing: true
+                onPressed: mouse => { mouse.accepted = true; const p = mapToGlobal(mouse.x, mouse.y); root.dragStarted(p.x, p.y); }
+                onPositionChanged: mouse => { if (pressed) { const p = mapToGlobal(mouse.x, mouse.y); root.dragMoved(p.x, p.y); } }
+                onReleased: { root.dragFinished(); root.focusSearch(); }
+                onCanceled: root.dragFinished()
+            }
+            Accessible.role: Accessible.Grip
+            Accessible.name: "Move launcher"
+        }
     }
     Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Qt.alpha(root.theme.border, 0.35) }
-    ShellButton {
-        Layout.fillWidth: true; implicitHeight: 40
-        visible: root.calculation.ok
-        theme: root.theme
-        text: "= " + root.calculation.display + (root.copied ? "   Copied" : "   ↵ Copy")
-        hint: "Copy calculation result"
-        onClicked: root.copyResult()
-    }
     ListView {
-        id: list
-        objectName: "pillApps"
-        Layout.fillWidth: true; Layout.fillHeight: true
-        clip: true; spacing: 2
-        model: root.matches
-        currentIndex: count ? 0 : -1
+        id: list; objectName: "pillApps"
+        Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 2
+        model: root.results; currentIndex: count ? 0 : -1
         boundsBehavior: Flickable.StopAtBounds
         PillWheel { flickable: list }
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
         delegate: Rectangle {
-            id: appRow
+            id: resultRow
             required property var modelData
             required property int index
             width: list.width; height: 44; radius: 10
             color: ListView.isCurrentItem ? Qt.alpha(root.theme.hover, 0.58) : "transparent"
-            border.width: ListView.isCurrentItem ? 1 : 0
-            border.color: Qt.alpha(root.theme.border, 0.22)
+            border.width: ListView.isCurrentItem ? 1 : 0; border.color: Qt.alpha(root.theme.border, 0.22)
             RowLayout {
                 anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
                 spacing: 10
                 Item {
-                    Layout.preferredWidth: 21; Layout.preferredHeight: 21
+                    Layout.preferredWidth: 26; Layout.preferredHeight: 28
                     Image {
-                        id: appIcon
-                        anchors.fill: parent
-                        source: appRow.modelData.icon ? (appRow.modelData.icon.startsWith("/") ? "file://" + appRow.modelData.icon : Quickshell.iconPath(appRow.modelData.icon, true)) : ""
+                        id: resultIcon; anchors.centerIn: parent; width: 24; height: 24
+                        source: resultRow.modelData.icon ? (resultRow.modelData.icon.startsWith("/") ? "file://" + resultRow.modelData.icon : Quickshell.iconPath(resultRow.modelData.icon, true)) : ""
                         visible: status === Image.Ready
                         sourceSize.width: 32; sourceSize.height: 32; fillMode: Image.PreserveAspectFit
                     }
-                    ShellIcon { anchors.centerIn: parent; name: "grid-2x2"; width: 21; height: 21; visible: !appIcon.visible; opacity: 0.8 }
+                    Text {
+                        anchors.centerIn: parent; visible: !resultIcon.visible
+                        text: resultRow.modelData.glyph || ({app: "◇", file: "▤", bookmark: "↗", web: "⌕", currency: "⇄", date: "◷", calculation: "="})[resultRow.modelData.kind] || "·"
+                        width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight
+                        font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; color: root.theme.text; textFormat: Text.PlainText
+                    }
                 }
-                Text { Layout.fillWidth: true; text: appRow.modelData.name; textFormat: Text.PlainText; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; color: root.theme.text; elide: Text.ElideRight }
+                Text { Layout.fillWidth: true; text: resultRow.modelData.name; textFormat: Text.PlainText; font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; color: root.theme.text; elide: Text.ElideRight }
                 Text {
                     Layout.preferredWidth: Math.min(implicitWidth, list.width * 0.44)
-                    text: appRow.modelData.description || ""; textFormat: Text.PlainText
-                    font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; color: root.theme.secondary
-                    horizontalAlignment: Text.AlignRight; elide: Text.ElideRight
+                    text: resultRow.modelData.kind === "currency" ? (resultRow.modelData.rateDate || "") : resultRow.modelData.description || ""
+                    textFormat: Text.PlainText; horizontalAlignment: Text.AlignRight
+                    font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+                    color: root.theme.secondary; elide: Text.ElideRight
                 }
-                Text { Layout.preferredWidth: 18; text: "↵"; color: "#cc7855"; font.pixelSize: root.theme.bodySize; opacity: appRow.ListView.isCurrentItem ? 1 : 0 }
+                Text { text: "★"; visible: providers.isFavorite(resultRow.modelData); color: "#cc7855"; font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize }
             }
-            MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: list.currentIndex = appRow.index; onClicked: { list.currentIndex = appRow.index; root.launch(); } }
+            MouseArea {
+                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                onPositionChanged: mouse => {
+                    const p = mapToItem(root, mouse.x, mouse.y);
+                    if (root.pointerPosition.x >= 0 && (Math.abs(p.x - root.pointerPosition.x) > 0.5 || Math.abs(p.y - root.pointerPosition.y) > 0.5))
+                        root.choose(resultRow.index);
+                    root.pointerPosition = p;
+                }
+                onClicked: { root.choose(resultRow.index); root.launch(); }
+            }
             Accessible.role: Accessible.Button
-            Accessible.name: modelData.name
-            Accessible.onPressAction: { list.currentIndex = index; root.launch(); }
+            Accessible.name: modelData.name + ". " + (modelData.description || "")
+            Accessible.onPressAction: { root.choose(index); root.launch(); }
         }
-        Text { anchors.centerIn: parent; visible: list.count === 0 && !root.calculation.ok; text: root.loading ? "Loading applications…" : root.error || "No applications found"; color: root.error ? root.theme.red : root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize }
+        Text {
+            anchors.centerIn: parent; width: parent.width - 20; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter
+            visible: list.count === 0
+            text: root.loading ? "" : providers.notice || providers.fileNotice || root.error || "No matches"
+            color: root.theme.secondary; font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+        }
+    }
+    Text {
+        Layout.fillWidth: true
+        visible: !!providers.actionError
+        text: providers.actionError; textFormat: Text.PlainText; wrapMode: Text.WordWrap
+        font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+        color: root.theme.red
     }
 }

@@ -17,96 +17,130 @@ Item {
     readonly property var hoveredCard: findCard(c => c.hovered)
     readonly property var focusedCard: findCard(c => c.containsFocus)
     readonly property var firstUnreadCard: findCard(c => !c.entry.read)
-    readonly property var firstCard: { const revision = cardRevision; return cardViews.itemAt(0); }
-    readonly property int stackCount: Math.min(2, Math.max(0, cardModel.count - 1))
-    readonly property real firstBottom: firstCard ? firstCard.y + firstCard.height : 0
-    readonly property real collapsedHeight: firstBottom + stackCount * 12
+    property bool presented: true
+    property bool geometryReady: false
+    signal retired()
+    readonly property int frontIndex: {
+        const revision = cardRevision;
+        for (let i = 0; i < cardModel.count; ++i) if (cardModel.get(i).wanted) return i;
+        return -1;
+    }
+    readonly property int activeCount: {
+        const revision = cardRevision;
+        let count = 0;
+        for (let i = 0; i < cardModel.count; ++i) if (cardModel.get(i).wanted) count++;
+        return count;
+    }
+    readonly property var firstCard: { const revision = cardRevision; return cardViews.itemAt(Math.max(0, frontIndex)); }
+    readonly property int stackCount: Math.min(2, Math.max(0, activeCount - 1))
+    readonly property real firstBottom: firstCard ? firstCard.height : 0
+    property real collapsedHeight: firstBottom + stack.height
+    Behavior on collapsedHeight { enabled: root.geometryReady && root.frontIndex >= 0; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
     implicitHeight: cardModel.count ? collapsedHeight * (1 - unfold) + content.implicitHeight * unfold : 0
-    clip: true
+    Connections {
+        target: root.Window.window
+        enabled: !root.geometryReady
+        function onFrameSwapped() { root.geometryReady = true; }
+    }
     function findCard(predicate) {
         const revision = cardRevision, count = cardViews.count;
         for (let i = 0; i < count; i++) {
             const card = cardViews.itemAt(i);
-            if (card && card.visible && card.enabled && (i === 0 || unfold > 0.95) && predicate(card)) return card;
+            if (card && card.visible && card.enabled && (i === frontIndex || unfold > 0.95) && predicate(card)) return card;
         }
         return null;
     }
     function syncCards() {
+        if (!group || !store) return;
         const data = Object.assign({}, cardData);
         for (const entry of group.entries) data[entry.id] = entry;
         cardData = data;
-        const wanted = group.entries.map(e => e.id);
-        for (let i = cardModel.count - 1; i >= 0; --i) if (!wanted.includes(cardModel.get(i).entryId)) cardModel.remove(i);
-        for (let i = 0; i < wanted.length; ++i) {
+        const wanted = presented ? group.entries.filter(entry => !store.removing[entry.id]).map(entry => entry.id) : [];
+        for (let i = 0; i < cardModel.count; ++i) {
+            const row = cardModel.get(i), keep = wanted.includes(row.entryId);
+            const card = cardViews.itemAt(i);
+            if (!keep && row.wanted && card) card.beginDismissal();
+            if (keep && !row.wanted && card) card.cancelDismissal();
+            cardModel.setProperty(i, "wanted", keep);
+        }
+        let position = 0;
+        for (const id of wanted) {
+            // Leave retiring rows in place until their pixels and space have
+            // animated out; only reorder the surviving rows around those slots.
+            while (position < cardModel.count && !cardModel.get(position).wanted) position++;
             let at = -1;
-            for (let j = i; j < cardModel.count; ++j) if (cardModel.get(j).entryId === wanted[i]) { at = j; break; }
-            if (at < 0) cardModel.insert(i, {entryId: wanted[i]});
-            else if (at !== i) cardModel.move(at, i, 1);
+            for (let j = 0; j < cardModel.count; ++j) if (cardModel.get(j).entryId === id) { at = j; break; }
+            if (at < 0) cardModel.insert(position, {entryId: id, wanted: true});
+            else if (at !== position) cardModel.move(at, position, 1);
+            position++;
         }
         cardRevision++;
+        if (!cardModel.count && !presented) retired();
     }
+    function retireCard(id) {
+        for (let i = 0; i < cardModel.count; ++i) {
+            if (cardModel.get(i).entryId !== id) continue;
+            if (cardModel.get(i).wanted) return;
+            cardModel.remove(i);
+            break;
+        }
+        const data = Object.assign({}, cardData); delete data[id]; cardData = data;
+        cardRevision++;
+        if (!cardModel.count && !presented) retired();
+    }
+    onPresentedChanged: syncCards()
+    onStoreChanged: syncCards()
+    Connections { target: root.store; function onRemovingChanged() { root.syncCards(); } }
     onGroupChanged: syncCards()
     Component.onCompleted: syncCards()
     ListModel { id: cardModel }
-    Column {
-        id: content
-        width: root.width; spacing: 10
-        RowLayout {
-            width: root.width; height: 32; spacing: 9
-            Image {
-                Layout.preferredWidth: 21; Layout.preferredHeight: 21
-                source: root.group.icon ? (/^(file:|image:|\/)/.test(root.group.icon) ? root.group.icon : Quickshell.iconPath(root.group.icon, true)) : Quickshell.iconPath("application-x-executable", true)
-                sourceSize.width: 42; sourceSize.height: 42
-                fillMode: Image.PreserveAspectFit
-                visible: source.toString().length > 0 && status !== Image.Error
-            }
-            Text {
-                Layout.fillWidth: true; text: root.group.app; textFormat: Text.PlainText
-                color: root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize
-                elide: Text.ElideRight
-            }
-            ShellButton { objectName: "notificationGroupToggle"; visible: root.group.entries.length > 1; theme: root.theme; icon: root.expanded ? "chevron-up" : "chevron-down"; implicitWidth: 30; implicitHeight: 30; hint: root.expanded ? "Collapse notifications" : "Expand notifications"; onClicked: root.toggleExpanded() }
-            ShellButton { theme: root.theme; icon: "x"; implicitWidth: 30; implicitHeight: 30; hint: "Dismiss " + root.group.app + " notifications"; onClicked: root.store.removeGroup(root.group.key) }
-        }
-        Repeater {
-            id: cardViews
-            onItemAdded: root.cardRevision++
-            onItemRemoved: root.cardRevision++
-            model: cardModel
-            NotificationCard {
-                required property string entryId
-                required property int index
-                width: root.width; height: implicitHeight
-                enabled: index === 0 || root.unfold > 0.95
-                groupReveal: index === 0 ? 1 : root.unfold
-                theme: root.theme; store: root.store; entry: root.cardData[entryId]
-                inCenter: true; emberShell: root.emberShell
-            }
-        }
-        RowLayout {
-            width: root.width; height: 32
-            opacity: root.unfold; enabled: root.unfold > 0.95
-            Item { Layout.fillWidth: true }
-            ShellButton { theme: root.theme; icon: "chevron-up"; hint: "Collapse notifications"; onClicked: root.toggleExpanded() }
-        }
-    }
-    // The real cards keep their natural Column positions. The stack only paints
-    // the bottom edge, so it cannot bleed through a translucent front card.
     Item {
-        width: root.width; height: root.stackCount * 12
-        y: Math.max(root.firstBottom, root.height - height)
-        clip: true; z: 2
-        opacity: 1 - root.unfold; visible: root.stackCount > 0 && opacity > 0
-        Repeater {
-            model: root.stackCount
-            Rectangle {
-                required property int index
-                readonly property int depth: index + 1
-                x: depth * 9; y: depth * 12 - height
-                width: root.width - depth * 18; height: 80
-                radius: 12; z: 10 - depth
-                color: depth === 1 ? "#756b64" : "#5d5651"
+        x: 0; y: -28; width: root.width; height: root.height + 28
+        clip: true
+        Column {
+            id: content
+            y: 28
+            width: root.width; spacing: 10
+            Repeater {
+                id: cardViews
+                onItemAdded: root.cardRevision++
+                onItemRemoved: root.cardRevision++
+                model: cardModel
+                NotificationCard {
+                    required property string entryId
+                    required property int index
+                    required property bool wanted
+                    width: root.width; height: implicitHeight
+                    enabled: wanted && (index === root.frontIndex || root.unfold > 0.95)
+                    z: cardModel.count - index
+                    groupReveal: index === root.frontIndex ? 1 : root.unfold
+                    groupOffset: index === root.frontIndex ? -y * (1 - root.unfold) : 0
+                    onRetired: root.retireCard(entryId)
+                    theme: root.theme; store: root.store; entry: root.cardData[entryId]
+                    inCenter: true; emberShell: root.emberShell
+                    groupControls: index === root.frontIndex && root.activeCount > 1
+                    groupCount: root.activeCount
+                    groupExpanded: root.expanded
+                    onToggleGroup: root.toggleExpanded()
+                    onDismissGroup: root.store.removeGroup(root.group.key)
+                }
             }
+            RowLayout {
+                objectName: "notificationGroupCollapse"
+                width: root.width; height: 32
+                visible: cardModel.count > 1 && root.unfold > 0
+                opacity: root.unfold; enabled: root.unfold > 0.95
+                Item { Layout.fillWidth: true }
+                ShellButton { theme: root.theme; icon: "chevron-up"; hint: "Collapse notifications"; onClicked: root.toggleExpanded() }
+            }
+        }
+        NotificationStack {
+            id: stack
+            width: root.width
+            y: 28 + Math.max(root.firstBottom, root.height - height)
+            theme: root.theme; count: root.stackCount; inset: true
+            opacity: 1 - root.unfold
+            visible: count > 0 && opacity > 0
         }
     }
 }

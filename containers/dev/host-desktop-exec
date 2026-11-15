@@ -13,7 +13,17 @@ fi
 export XDG_RUNTIME_DIR="/run/host/run/user/$(id -u)"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
 
-# Distrobox's default forwarding only passes TERM, losing Wayland focus tokens.
+# The host-spawn service can retain a different desktop's environment. Forward
+# the calling terminal's display as well as tokens for browser activation.
+forward_env=TERM,XDG_ACTIVATION_TOKEN,DESKTOP_STARTUP_ID
+for name in DISPLAY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE; do
+    if [[ -n "${!name:-}" ]]; then
+        forward_env+=",$name"
+    fi
+done
+
 exec /usr/bin/host-spawn --no-pty \
-    --env=TERM,XDG_ACTIVATION_TOKEN,DESKTOP_STARTUP_ID \
+    --env="$forward_env" \
+    /usr/bin/env "XDG_RUNTIME_DIR=/run/user/$(id -u)" \
+    "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" \
     "$host_command" "$@"

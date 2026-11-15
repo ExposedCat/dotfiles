@@ -62,14 +62,39 @@ Scope {
     readonly property int unread: entries.filter(e => !e.read).length
     readonly property bool bannerReplyActive: popups.some(entry => replying[entry.id] === "banner")
     readonly property bool centerReplyActive: centerOpen && Object.values(replying).includes("center")
+    // Both surfaces group by app identity and exact title.
+    function popupKey(entry) {
+        return JSON.stringify([entry.desktopEntry || (entry.app || "Notification").toLowerCase(), entry.summary || ""]);
+    }
+    readonly property var popupGroups: {
+        const grouped = new Map();
+        for (const entry of popups) {
+            if (removing[entry.id]) continue;
+            const key = popupKey(entry);
+            if (!grouped.has(key)) grouped.set(key, {key: key, entries: []});
+            grouped.get(key).entries.push(entry);
+        }
+        return Array.from(grouped.values());
+    }
+    function removePopupGroup(key) {
+        for (const entry of popups.concat(queuedPopups))
+            if (popupKey(entry) === key) remove(entry.id);
+    }
+    function hoverPopupGroup(key, inside) {
+        const members = popups.filter(entry => popupKey(entry) === key);
+        if (inside) {
+            const next = Object.assign({}, hovered);
+            for (const entry of members) next[entry.id] = true;
+            hovered = next;
+        } else {
+            for (const entry of members) dismissBanner(entry.id);
+        }
+    }
     readonly property var groups: {
-        const appIds = new Map();
-        for (const entry of entries)
-            if (entry.desktopEntry) appIds.set((entry.app || "Notification").toLowerCase(), entry.desktopEntry);
         const grouped = new Map();
         for (const entry of entries) {
             const name = entry.app || "Notification";
-            const key = entry.desktopEntry || appIds.get(name.toLowerCase()) || name.toLowerCase();
+            const key = popupKey(entry);
             if (!grouped.has(key)) grouped.set(key, {key: key, app: name, icon: entry.icon || "", entries: []});
             grouped.get(key).entries.push(entry);
         }
@@ -85,23 +110,31 @@ Scope {
     function showPopup(entry) {
         if (removing[entry.id]) return;
         if (centerOpen || centerOnly[entry.id]) { dismissBanner(entry.id); return; }
-        if (bannerFrozen || (singlePopup && popups.length > 0 && !popups.some(p => p.id === entry.id))) {
+        if (bannerFrozen || (singlePopup && popups.length > 0 && !popups.some(p => popupKey(p) === popupKey(entry)))) {
             queuedPopups = queuedPopups.filter(p => p.id !== entry.id).concat([entry]).slice(-16);
             return;
         }
         const next = Object.assign({}, deadlines);
-        const timeout = popupTimeouts[entry.id] ?? 6000;
-        next[entry.id] = timeout === 0 ? 0 : Date.now() + timeout;
+        const key = popupKey(entry);
+        // A fresh member gives the whole stack time to be read.
+        for (const member of [entry].concat(popups.filter(p => popupKey(p) === key))) {
+            const timeout = popupTimeouts[member.id] ?? 6000;
+            next[member.id] = timeout === 0 ? 0 : Date.now() + timeout;
+        }
         deadlines = next;
-        popups = [entry].concat(popups.filter(p => p.id !== entry.id)).slice(0, 4);
+        const candidates = [entry].concat(popups.filter(p => p.id !== entry.id));
+        const keys = Array.from(new Set(candidates.map(p => popupKey(p)))).slice(0, singlePopup ? 1 : 4);
+        const visible = candidates.filter(p => keys.includes(popupKey(p))).slice(0, 100);
+        for (const previous of popups) if (!visible.some(p => p.id === previous.id)) hidePopup(previous.id);
+        popups = visible;
     }
     function flushQueuedPopups() {
         if (centerOpen || bannerFrozen || !queuedPopups.length) return;
         if (singlePopup) {
-            if (popups.length) return;
-            const entry = queuedPopups[0];
-            queuedPopups = queuedPopups.slice(1);
-            showPopup(entry);
+            const key = popupKey(popups.length ? popups[0] : queuedPopups[0]);
+            const pending = queuedPopups.filter(entry => popupKey(entry) === key);
+            queuedPopups = queuedPopups.filter(entry => popupKey(entry) !== key);
+            for (const entry of pending) showPopup(entry);
             return;
         }
         const pending = queuedPopups;

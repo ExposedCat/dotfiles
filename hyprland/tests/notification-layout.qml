@@ -6,6 +6,7 @@ Scope {
     id: test
     property var app: null
     property int step: 0
+    property string groupKey: ""
     property var originals: ({})
     function check(v,m) { if(!v) { console.error("LAYOUT FAIL:",m);Qt.exit(1);throw Error(m); } }
     function all(item) { let a=[];for(const c of item.children||[]) {a.push(c);a=a.concat(all(c));}return a; }
@@ -18,8 +19,8 @@ Scope {
     Component.onCompleted: {
         check(!!Quickshell.env("DOTFILES_SHELL_FIXTURE"),"Private fixture required");
         const c=Qt.createComponent("file:"+Quickshell.env("DOTFILES_SHELL_SOURCE")+"/shell.qml");check(c.status===Component.Ready,c.errorString());app=c.createObject(test);
-        app.notifications.entries=[{id:"short",app:"Messages",summary:"Short",body:"One line",time:Date.now(),read:false},{id:"long",app:"Messages",summary:"Long",body:"A message long enough to wrap over several lines. ".repeat(8),time:Date.now()-1,read:false}];
-        const live={};for(const e of app.notifications.entries) live[e.id]={actions:[{identifier:"read",text:"Mark as read",invoke:()=>{}}],hasInlineReply:true,expire:()=>{},dismiss:()=>{}};app.notifications.live=live;app.toggle("notifications");app.pill.activePane.toggleGroup("messages");
+        app.notifications.entries=[{id:"short",app:"Messages",summary:"Conversation",body:"One line",time:Date.now(),read:false},{id:"long",app:"Messages",summary:"Conversation",body:"A message long enough to wrap over several lines. ".repeat(8),time:Date.now()-1,read:false}];
+        const live={};for(const e of app.notifications.entries) live[e.id]={actions:[{identifier:"read",text:"Mark as read",invoke:()=>{}}],hasInlineReply:true,expire:()=>{},dismiss:()=>{}};app.notifications.live=live;app.toggle("notifications");groupKey=app.notifications.groups[0].key;app.pill.activePane.toggleGroup(groupKey);
     }
     Timer {
         interval:350;repeat:true;running:!!test.app
@@ -39,12 +40,12 @@ Scope {
             case 5:
                 test.separated();test.app.pill.paneWidth=1080;break;
             case 6:
-                test.separated();test.app.pill.activePane.toggleGroup("messages");break;
+                test.separated();test.app.pill.activePane.toggleGroup(test.groupKey);break;
             case 7: {
                 const group=test.all(test.app.pill.activePane).find(c=>c.group&&c.group.entries);
                 test.check(!group.expanded && group.unfold===0 && Math.abs(group.height-group.collapsedHeight)<1,"Group did not collapse to its stack preview");
                 test.check(group.firstCard.detailsExpanded,"Collapsing the group collapsed the visible message body");
-                test.app.pill.activePane.toggleGroup("messages");break;
+                test.app.pill.activePane.toggleGroup(test.groupKey);break;
             }
             case 8:
                 test.separated();test.check(test.cards().every(c=>c.opacity===1&&c.enabled),"Opening the group did not restore its messages");

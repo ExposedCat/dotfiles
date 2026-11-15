@@ -28,8 +28,10 @@ Item {
     property bool embedded: false
     property bool groupControls: false
     property bool groupExpanded: false
-    property string groupKey: ""
+    property int groupCount: 1
+    property bool manageHover: true
     signal toggleGroup()
+    signal dismissGroup()
     property bool geometryReady: false
     property bool actionsExpanded: false
     readonly property bool detailsExpanded: inCenter || actionsExpanded || composing || containsFocus
@@ -44,17 +46,42 @@ Item {
     readonly property bool removing: !!(store.removing && store.removing[entry.id])
     property real appearance: 0
     property real groupReveal: 1
+    property real groupOffset: 0
+    property bool retiring: false
+    property real dismissProgress: 0
+    property real heldHeight: 0
+    property real layoutHeight: 0
+    property real exitReveal: 1
+    property real exitOffset: 0
+    signal retired()
+    function beginDismissal() {
+        if (retiring) return;
+        heldHeight = Math.max(1, height);
+        layoutHeight = heldHeight;
+        exitReveal = groupReveal;
+        exitOffset = groupOffset;
+        retiring = true;
+        dismissal.restart();
+    }
+    function cancelDismissal() {
+        dismissal.stop();
+        retiring = false; dismissProgress = 0; heldHeight = 0;
+    }
     Component.onCompleted: appearance = 1
-    opacity: inCenter ? (removing ? 0 : appearance * groupReveal) : 1
-    Behavior on opacity { enabled: root.inCenter && root.removing; NumberAnimation { duration: 120 } }
-    implicitHeight: inCenter && removing ? 0 : content.implicitHeight + 24
+    opacity: inCenter ? appearance * (retiring ? exitReveal * (1 - dismissProgress) : groupReveal) : 1
+    transform: Translate { y: (root.retiring ? root.exitOffset : root.groupOffset) - 24 * root.dismissProgress }
+    implicitHeight: retiring ? layoutHeight : content.implicitHeight + 24
     Behavior on implicitHeight { enabled: root.geometryReady && !root.inCenter; NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
-    Rectangle {
+    SequentialAnimation {
+        id: dismissal
+        NumberAnimation { target: root; property: "dismissProgress"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic }
+        NumberAnimation { target: root; property: "layoutHeight"; to: 0; duration: 160; easing.type: Easing.InOutCubic }
+        onFinished: root.retired()
+    }
+    NotificationSurface {
         visible: !root.embedded
         anchors.fill: parent; z: -1
-        radius: 12; color: root.inCenter ? Qt.alpha(root.theme.text, 0.055) : root.theme.surface
-        border.width: root.inCenter || root.entry.critical ? 1 : 0
-        border.color: root.entry.critical ? root.theme.red : Qt.alpha(root.theme.text, 0.07)
+        theme: root.theme; inset: root.inCenter; critical: !!root.entry.critical
     }
     Connections {
         enabled: !root.geometryReady
@@ -73,7 +100,7 @@ Item {
             if (hovered) {
                 hoverExit.stop();
                 if (!root.inCenter && root.hoverExpansionAllowed) root.actionsExpanded = true;
-                if (!root.inCenter) root.store.hoverPopup(root.entry.id, true);
+                if (!root.inCenter && root.manageHover) root.store.hoverPopup(root.entry.id, true);
             } else hoverExit.restart();
         }
     }
@@ -82,7 +109,7 @@ Item {
         onTriggered: {
             if (cardHover.hovered || !root.hoverExpansionAllowed) return;
             // Retain the expanded pixels while a hovered banner slides away.
-            if (!root.inCenter) root.store.hoverPopup(root.entry.id, false);
+            if (!root.inCenter && root.manageHover) root.store.hoverPopup(root.entry.id, false);
         }
     }
     onComposingChanged: {
@@ -113,14 +140,25 @@ Item {
                     Layout.fillWidth: true; spacing: 7
                     Image {
                         source: root.entry.icon ? (/^(file:|image:|\/)/.test(root.entry.icon) ? root.entry.icon : Quickshell.iconPath(root.entry.icon, true)) : Quickshell.iconPath("application-x-executable", true)
-                        visible: !root.inCenter && source.toString().length > 0 && status !== Image.Error
+                        visible: source.toString().length > 0 && status !== Image.Error
                         Layout.preferredWidth: 21; Layout.preferredHeight: 21
                         Layout.alignment: Qt.AlignVCenter
                         sourceSize.width: 42; sourceSize.height: 42
                     }
                     Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; Layout.fillWidth: true; text: root.entry.summary; textFormat: Text.PlainText; color: root.theme.text; wrapMode: Text.NoWrap; maximumLineCount: 1; elide: Text.ElideRight }
-                    ShellButton { visible: root.groupControls; theme: root.theme; icon: root.groupExpanded ? "chevron-up" : "chevron-down"; hint: root.groupExpanded ? "Collapse notifications" : "Expand notifications"; implicitWidth: 30; implicitHeight: 30; Layout.alignment: Qt.AlignTop; onClicked: root.toggleGroup() }
-                    ShellButton { theme: root.theme; icon: "x"; hint: root.groupControls ? "Dismiss group" : "Dismiss notification"; opacity: root.inCenter || root.groupControls || root.actionsExpanded || root.composing || activeFocus ? 1 : 0; enabled: opacity > 0; implicitWidth: 30; implicitHeight: 30; Layout.alignment: Qt.AlignTop; onClicked: root.groupControls ? root.store.removeGroup(root.groupKey) : root.store.remove(root.entry.id) }
+                    NotificationCount { visible: root.groupControls && !root.inCenter; theme: root.theme; count: root.groupCount }
+                    ShellButton { objectName: "notificationGroupToggle"; visible: root.groupControls; theme: root.theme; icon: root.groupExpanded ? "chevron-up" : "chevron-down"; hint: root.groupExpanded ? "Collapse notifications" : "Expand notifications"; implicitWidth: 30; implicitHeight: 30; Layout.alignment: Qt.AlignTop; onClicked: root.toggleGroup() }
+                    NotificationDismiss {
+                        objectName: "notificationDismiss"
+                        theme: root.theme
+                        hint: root.groupControls && !root.inCenter ? "Dismiss group" : "Dismiss notification"
+                        grouped: root.inCenter && root.groupCount > 1
+                        opacity: root.inCenter || root.groupControls || root.actionsExpanded || root.composing || activeFocus ? 1 : 0
+                        enabled: opacity > 0 && !root.removing
+                        Layout.alignment: Qt.AlignTop
+                        onClicked: root.groupControls && !root.inCenter ? root.dismissGroup() : root.store.remove(root.entry.id)
+                        onGroupDismissed: root.dismissGroup()
+                    }
                 }
                 Text { objectName: "notificationBody"; font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; visible: text.length > 0; Layout.fillWidth: true; text: root.entry.body; textFormat: Text.PlainText; color: root.theme.secondary; wrapMode: Text.Wrap; maximumLineCount: root.detailsExpanded ? 5 : 1; elide: Text.ElideRight }
             }
@@ -148,7 +186,7 @@ Item {
                         onHoveredChanged: root.followAction(this, hovered, false)
                         onActiveFocusChanged: root.followAction(this, activeFocus, true)
                         theme: root.theme; text: modelData.text; selected: true
-                        color: emberSlot.occupied ? "transparent" : Qt.alpha(root.theme.text, 0.085)
+                        color: emberSlot.occupied ? "transparent" : Qt.alpha(root.theme.hover, 0.36)
                         onClicked: root.store.invoke(root.entry.id, modelData.identifier)
                     }
                 }
@@ -157,7 +195,7 @@ Item {
                     onHoveredChanged: root.followAction(this, hovered, false)
                     onActiveFocusChanged: root.followAction(this, activeFocus, true)
                     theme: root.theme; text: "Reply"; selected: true
-                    color: emberSlot.occupied ? "transparent" : Qt.alpha(root.theme.text, 0.085)
+                    color: emberSlot.occupied ? "transparent" : Qt.alpha(root.theme.hover, 0.36)
                     visible: root.canReply && !root.composing
                     onClicked: { root.store.startReply(root.entry.id, root.inCenter ? "center" : "banner"); Qt.callLater(() => replyText.forceActiveFocus()) }
                 }
@@ -175,7 +213,7 @@ Item {
                 placeholderTextColor: root.theme.secondary
                 text: root.store.drafts[root.entry.id] || ""
                 selectByMouse: true
-                background: Rectangle { color: root.theme.background; radius: 8; border.width: 1; border.color: replyText.activeFocus ? root.theme.accent : root.theme.border }
+                background: Rectangle { color: Qt.alpha(root.theme.background, 0.65); radius: 8; border.width: 1; border.color: replyText.activeFocus ? root.theme.accent : Qt.alpha(root.theme.border, 0.3) }
                 onTextEdited: root.store.setDraft(root.entry.id, text)
                 onAccepted: root.sendReply()
                 TapHandler { onTapped: root.store.startReply(root.entry.id, root.inCenter ? "center" : "banner") }

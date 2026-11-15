@@ -1,4 +1,4 @@
-"""Verify the calculator and app ranking helpers used by the actual QML view."""
+"""Verify the app ranking helper used by the actual QML view."""
 from pathlib import Path
 import shutil
 import subprocess

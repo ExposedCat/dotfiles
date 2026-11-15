@@ -2,7 +2,7 @@
 cursor-shape='ibeam'
 default-profile-uuid='5938f894c8013231d9bc7ad06995aa54'
 enable-a11y=true
-font-name='Adwaita Mono 9.75'
+font-name='Adwaita Mono 14.04'
 interface-style='dark'
 profile-uuids=['5938f894c8013231d9bc7ad06995aa54', 'eea812f67f91c101abb23e7d69a81edd']
 restore-session=false

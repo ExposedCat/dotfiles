@@ -6,18 +6,36 @@ Item {
     id: root
     required property var theme
     required property var store
-    required property var entry
+    required property var group
+    readonly property var entry: group.entries[0]
+    property bool expanded: false
+    property real unfold: expanded && cardModel.count > 1 ? 1 : 0
+    Behavior on unfold { NumberAnimation { duration: 220; easing.type: Easing.InOutCubic } }
+    property var cardData: ({})
+    property int cardRevision: 0
+    readonly property var firstCard: { const revision = cardRevision; return cards.itemAt(0); }
+    readonly property int stackCount: Math.min(2, Math.max(0, cardModel.count - 1))
+    readonly property real collapsedHeight: (firstCard ? firstCard.height : 0) + stack.height
+    readonly property real contentHeight: collapsedHeight * (1 - unfold) + content.implicitHeight * unfold
     property bool presented: true
     property real travel: width + theme.panelGap
-    property real offset: travel
+    property real offset: 0
+    property real arrival: 0
+    readonly property real dropOffset: -28 * (1 - arrival)
+    readonly property real tilt: -3 * (1 - arrival)
     property real heldHeight: 0
     property bool ready: false
     property bool retiredSent: false
     readonly property alias inputRegion: input
     signal retired()
     x: offset
-    implicitHeight: !presented && heldHeight > 0 ? heldHeight : card.implicitHeight
-    enabled: presented && ready
+    opacity: Math.min(1, arrival)
+    transform: [
+        Translate { y: root.dropOffset },
+        Rotation { origin.x: root.width * 0.7; origin.y: 0; angle: root.tilt }
+    ]
+    implicitHeight: !presented && heldHeight > 0 ? heldHeight : contentHeight
+    enabled: presented && ready && arrival === 1
 
     function animate() {
         if (!ready) return;
@@ -26,11 +44,16 @@ Item {
         motion.restart();
     }
     onPresentedChanged: {
-        heldHeight = presented ? 0 : Math.max(1, card.height);
+        heldHeight = presented ? 0 : Math.max(1, height);
         if (presented) retiredSent = false;
         animate();
     }
-    onTravelChanged: { if (!ready) offset = travel; else if (!presented) animate(); }
+    onTravelChanged: { if (ready && !presented) animate(); }
+    NumberAnimation {
+        id: entrance
+        target: root; property: "arrival"; from: 0; to: 1
+        duration: 300; easing.type: Easing.OutCubic
+    }
     NumberAnimation {
         id: motion
         target: root; property: "offset"
@@ -45,17 +68,96 @@ Item {
     Connections {
         target: root.Window.window
         enabled: !root.ready
-        function onFrameSwapped() { root.ready = true; root.animate(); }
+        function onFrameSwapped() { root.ready = true; entrance.start(); root.animate(); }
     }
     // Follow the visible card all the way out; retire the region with its item.
     Region { id: input; item: root }
+    function syncCards() {
+        if (!group) return;
+        const data = Object.assign({}, cardData);
+        for (const member of group.entries) data[member.id] = member;
+        cardData = data;
+        const ids = group.entries.map(member => member.id);
+        for (let i = cardModel.count - 1; i >= 0; --i)
+            if (!ids.includes(cardModel.get(i).entryId)) cardModel.remove(i);
+        for (let i = 0; i < ids.length; ++i) {
+            let at = -1;
+            for (let j = i; j < cardModel.count; ++j)
+                if (cardModel.get(j).entryId === ids[i]) { at = j; break; }
+            if (at < 0) cardModel.insert(i, {entryId: ids[i]});
+            else if (at !== i) cardModel.move(at, i, 1);
+        }
+        cardRevision++;
+    }
+    onGroupChanged: syncCards()
+    Component.onCompleted: syncCards()
+    ListModel { id: cardModel }
+    HoverHandler {
+        id: groupHover
+        onHoveredChanged: {
+            if (hovered) { hoverExit.stop(); root.store.hoverPopupGroup(root.group.key, true); }
+            else hoverExit.restart();
+        }
+    }
+    Timer {
+        id: hoverExit; interval: 80
+        onTriggered: {
+            if (!groupHover.hovered && root.presented) root.store.hoverPopupGroup(root.group.key, false);
+        }
+    }
     PillTheme { id: colors }
-    PillBackground { anchors.fill: parent; theme: colors; radius: 16 }
-    Rectangle { anchors.fill: parent; radius: 16; color: "transparent"; border.width: root.entry.critical ? 1 : 0; border.color: colors.red }
-    NotificationCard {
-        id: card
-        objectName: "notification-banner-card"
-        width: root.width; height: root.height
-        theme: colors; store: root.store; entry: root.entry; embedded: true
+    Item {
+        // Leave headroom for a new member to fall onto an existing stack,
+        // while clipping hidden cards below the group's animated height.
+        x: 0; y: -32; width: root.width; height: root.height + 32
+        clip: true
+        Column {
+            id: content
+            y: 32
+            width: root.width; spacing: 10
+            Repeater {
+                id: cards
+                model: cardModel
+                onItemAdded: root.cardRevision++
+                onItemRemoved: root.cardRevision++
+                NotificationCard {
+                    id: bannerCard
+                    required property string entryId
+                    required property int index
+                    objectName: "notification-banner-card"
+                    width: root.width; height: implicitHeight
+                    property real landing: 1
+                    opacity: (index === 0 ? 1 : root.unfold) * landing
+                    enabled: (index === 0 || root.unfold > 0.95) && landing === 1
+                    transform: [
+                        Translate { y: -24 * (1 - landing) },
+                        Rotation { origin.x: bannerCard.width * 0.7; origin.y: 0; angle: -3 * (1 - landing) }
+                    ]
+                    Component.onCompleted: {
+                        if (root.ready) { landing = 0; memberEntrance.start(); }
+                    }
+                    NumberAnimation {
+                        id: memberEntrance
+                        target: bannerCard; property: "landing"; from: 0; to: 1
+                        duration: 300; easing.type: Easing.OutCubic
+                    }
+                    theme: colors; store: root.store; entry: root.cardData[entryId]
+                    manageHover: false
+                    groupControls: index === 0 && cardModel.count > 1
+                    groupCount: cardModel.count
+                    groupExpanded: root.expanded
+                    onToggleGroup: root.expanded = !root.expanded
+                    onDismissGroup: root.store.removePopupGroup(root.group.key)
+                }
+            }
+        }
+        NotificationStack {
+            id: stack
+            width: root.width
+            y: 32 + (root.firstCard ? root.firstCard.height : 0)
+            theme: colors; count: root.stackCount
+            opacity: 1 - root.unfold
+            visible: count > 0 && opacity > 0
+        }
     }
 }

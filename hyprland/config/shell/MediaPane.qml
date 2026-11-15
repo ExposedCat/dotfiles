@@ -8,7 +8,7 @@ ColumnLayout {
     required property var theme
     readonly property var media: shell.media
     readonly property Item emberTarget: media.player && media.player.canSeek && media.length > 0 ? seek.emberSlot : null
-    spacing: 16
+    spacing: 12
     RowLayout {
         Layout.fillWidth: true; spacing: 20
         Rectangle {
@@ -33,9 +33,11 @@ ColumnLayout {
         font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize
         Accessible.name: "Media player"
     }
-    PillSlider {
+    MediaSeekSlider {
         id: seek
         emberShell: root.shell
+        playing: root.media.playing
+        animating: root.shell.panel === "media" && !root.shell.pill.hidden
         Layout.fillWidth: true; theme: root.theme
         to: Math.max(1, root.media.length); backendValue: root.media.position
         enabled: !!(root.media.player && root.media.player.canSeek && root.media.length > 0)
@@ -52,5 +54,4 @@ ColumnLayout {
         Item { Layout.fillWidth: true }
         Text { text: root.media.time(root.media.length); color: root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize }
     }
-    Item { Layout.fillHeight: true }
 }

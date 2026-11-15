@@ -14,7 +14,7 @@ Scope {
     property int redirects: 0
     function check(value, message) { if (!value) { console.error("REFINEMENT FAIL:", message); Qt.exit(1); throw Error(message); } }
     function all(item) { let found=[]; for(const c of item.children||[]) {found.push(c);found=found.concat(all(c));}return found; }
-    function entry(i) { return {id:"refine-"+i,app:"Messages",summary:"Message "+i,body:"A message with actions",time:Date.now()-i,read:false,critical:false}; }
+    function entry(i) { return {id:"refine-"+i,app:"Messages",summary:i<3?"Conversation":"Message "+i,body:"A message with actions",time:Date.now()-i,read:false,critical:false}; }
     Component.onCompleted: {
         check(!!Quickshell.env("DOTFILES_SHELL_FIXTURE"),"Private fixture required");
         const c=Qt.createComponent("file:"+Quickshell.env("DOTFILES_SHELL_SOURCE")+"/shell.qml");
@@ -42,7 +42,7 @@ Scope {
             case 3:
                 test.group=test.all(test.app.pill.activePane).find(c=>c.group && c.group.entries.length===3);
                 test.check(!!test.group,"Grouped messages were not created"); test.card=test.group.firstCard;
-                test.check(!test.group.expanded && test.group.stackCount===2, "Center must preserve collapsed app groups");
+                test.check(!test.group.expanded && test.group.stackCount===2, "Center must preserve collapsed app/title groups");
                 test.app.pill.activePane.toggleGroup(test.group.group.key);
                 test.baseHeight=test.card.implicitHeight; break;
             case 4: {

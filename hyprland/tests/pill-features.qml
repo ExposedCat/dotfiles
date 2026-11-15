@@ -26,7 +26,10 @@ Scope {
         app.fixtureData = Object.assign({}, app.fixtureData, {apps: [
             {id: "terminal.desktop", name: "Terminal", description: "Command line", keywords: []},
             {id: "telegram.desktop", name: "Telegram", description: "Messaging", keywords: []}
-        ]});
+        ], launcherResults: {
+            "12 * (3 + 4)": [{id: "calculation:12 * (3 + 4)", kind: "calculation", name: "84", value: "84"}],
+            "-2^2": [{id: "calculation:-2^2", kind: "calculation", name: "−4", value: "−4"}]
+        }});
         app.toggle("launcher");
         advance.start();
     }
@@ -46,13 +49,13 @@ Scope {
                 test.search().text = "12 * (3 + 4)";
                 break;
             case 2:
-                test.check(test.launcher.calculation.ok && test.launcher.calculation.value === 84, "Calculator result is incorrect");
-                test.launcher.copyResult();
+                test.check(test.launcher.selected.value === "84", "Calculator result is incorrect");
+                test.launcher.act("copy");
                 test.check(test.launcher.copied, "Calculator copy action failed");
                 test.search().text = "-2^2";
                 break;
             case 3:
-                test.check(test.launcher.calculation.value === -4, "Exponent precedence is incorrect");
+                test.check(test.launcher.selected.value === "−4", "Engine result is incorrect");
                 test.search().text = "trm";
                 test.app.applications.record("telegram.desktop");
                 test.app.panel = "";
@@ -62,7 +65,7 @@ Scope {
                 test.app.toggle("launcher");
                 break;
             case 5:
-                test.check(bar.activePane === test.launcher && test.search().text === "trm", "Reopening lost the launcher or its search");
+                test.check(bar.activePane === test.launcher && test.search().text === "", "Reopening must retain the view and clear its search");
                 test.search().text = "";
                 break;
             case 6:

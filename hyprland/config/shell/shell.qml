@@ -45,6 +45,7 @@ ShellRoot {
     readonly property var focusedScreen: fixture ? Quickshell.screens[0] : Quickshell.screens.find(s => Hyprland.focusedMonitor && s.name === Hyprland.focusedMonitor.name) || Quickshell.screens[0]
     readonly property string layoutLabel: layout.toLowerCase().includes("russian") ? "RU" : "EN"
     function toggle(name, screen, originX, originWidth) {
+        if (name === "media" && !players.player) return;
         // Keep the legacy keyboard shortcut pointed at the Ethernet drop.
         if (name === "connections") name = "ethernet";
         panelScreen = mainScreen;
@@ -138,6 +139,9 @@ ShellRoot {
     Connections {
         target: Hyprland
         function onRawEvent(event) {
+            if (event.name === "activewindowv2" && event.data && root.panel) {
+                bar.applicationFocused();
+            }
             if (event.name === "custom" && event.data.startsWith("dotfiles-pill,")) {
                 const parts = event.data.split(",");
                 root.gesture(parts[1], parts[2] || "");

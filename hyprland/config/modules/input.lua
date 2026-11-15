@@ -1,5 +1,10 @@
 -- Keyboard, mouse, and touchpad settings.
 hl.config({
+    misc = {
+        -- Follow an existing app to its workspace when it requests activation.
+        focus_on_activate = true,
+    },
+
     binds = {
         -- Keep the grab point and wait for movement before starting a drag.
         drag_center_window = false,

@@ -141,13 +141,76 @@ shortcuts refer to positions within the focused monitor's list.
 
 The Quickshell launcher indexes installed desktop entries, including Flatpaks,
 with fuzzy subsequence matching and frequently used apps ranked ahead of equally
-relevant matches. Name prefixes still rank first. For example, type `Tele` and
+relevant matches. App-title matches precede provider results, with name prefixes
+ranked first; description-only matches follow the other providers. For example, type `Tele` and
 Enter to launch Telegram, or `trm` to match Terminal. UWSM launches the chosen desktop entry.
-Arithmetic such as `12 * (3 + 4)` shows a calculator result; Enter copies it.
-The evaluator parses arithmetic without executing JavaScript. Launcher usage
+Arithmetic such as `12 * (3 + 4)` shows a Qalculate result; Enter copies it.
+Qalculate handles arithmetic, functions, units, currencies, and incomplete
+parentheses without launching a calculator window. The same pill
+also searches characters, Zen bookmarks, and indexed files. Ordinary text
+searches across providers; optional prefixes narrow the search. Launcher usage
 counts are stored in `$XDG_STATE_HOME/dotfiles/hyprland/launcher-usage.json`.
 The application index is shared across openings and refreshes after a minute. Choosing an app closes it
 immediately while the app starts independently.
+
+Launcher examples:
+
+| Input | Result |
+| --- | --- |
+| `100 usd eur` or `100 usd to eur` | Currency conversion through Qalculate |
+| `100 usd` | CZK and EUR suggestions; other source currencies offer CZK, USD, and EUR |
+| `25 * 2 eur`, `25 eur / 4` | €50 or €6.25, followed by CZK/USD/EUR equivalents |
+| `2 + 15 eur)` | €17; unlabelled additive amounts inherit the closest currency on their left, then on their right |
+| `2 + 2) * 3` | 12; Qalculate supplies the missing opening parenthesis |
+| `5 ft to cm`, `350 fahrenheit to celsius` | Unit conversion |
+| `sqrt(2)`, `sin(pi/2)` | Qalculate functions; `=` explicitly selects other expressions |
+| `char em dash`, `char greek small letter alpha`, `emoji smile`, `U+2192` | Unicode characters, emoji, and code points |
+| `files invoice` | Nautilus search results, including indexed document contents |
+| `~/Downloads/` | Browse or complete a folder path without recursively crawling home |
+| `bm example`, `web search terms` | Zen bookmarks or a search using that profile's search engine |
+| `days between 2026-01-01 and 2026-02-01` | Calendar-day difference, excluding the end date |
+| `time between 09:00 and 17:30` | Elapsed hours and minutes |
+| `time between 23:00 and 01:00` | Clock-only intervals cross midnight when the end is earlier |
+| `time between 09:00 Europe/Prague and 17:00 Asia/Tokyo` | Elapsed time with named time zones |
+| `today + 90 days`, `2024-01-31 + 1 month` | Calendar arithmetic |
+| `time Tokyo`, `time Europe/Prague`, `unix 1735689600` | World clocks and timestamp conversion |
+
+Enter opens an app, file, bookmark, or web search, or copies a computed result.
+Results use the same typography as the rest of the shell, without filter tabs
+or an action footer. Ctrl+C copies the result when no input text is selected,
+Ctrl+D toggles a favorite, Ctrl+Enter reveals a file in Nautilus, and Tab browses
+the selected folder. Clear the query to see favorites and recent items. Favorites
+and up to 100 recent entries persist in
+`$XDG_STATE_HOME/dotfiles/hyprland/launcher.json`. Date and currency entries refresh when shown again. English/Russian
+keyboard-position correction supplements app, character, bookmark, and file
+matching without changing the typed query or keyboard layout.
+Ordinary character search combines text/emoji presentation variants into one
+row; explicit character searches and code-point lookups retain exact variants.
+
+The provider worker starts on demand, keeps local catalogs in memory, debounces
+queries, discards obsolete results, and exits after two minutes with the
+launcher closed. Application matching stays inside QML; all calculation uses
+the native Qalculate engine through its bounded `qalc` command. A small input
+adapter supplies currency units for unlabelled additive amounts, leaving
+multipliers, divisors, percentages, and physical unit algebra to Qalculate. File
+search reuses Nautilus's `org.gnome.Shell.SearchProvider2` interface and the
+existing GNOME LocalSearch index, respecting its indexed folders and exclusions.
+It does not build another file index. Directory completion reads only the
+specified directory. Emoji and Unicode names reuse installed IBus catalogs;
+their derived cache lives in `$XDG_CACHE_HOME/dotfiles/hyprland/`.
+
+Zen bookmarks are read from a private snapshot of the active installation's
+default profile, including its SQLite WAL, without changing browser data.
+Bookmarks open as new tabs in that profile. Web searches pass the query to Zen
+so its own configured engine handles it; browser tab search is not enabled.
+Qalculate refreshes cached exchange rates at most daily in the background and
+shows their date with every conversion. Offline use keeps the dated cached
+rates. ECB reference rates are published on working days, so weekends retain
+the latest working day’s date. The native `qalc` executable is preferred. On this Silverblue install,
+the package is staged and an unmodified user-local RPM payload under
+`~/.local/lib/dotfiles/qalculate/` supplies it until the system executable is
+available. Bubblewrap gives that fallback its packaged data directory without
+changing the running system's packages.
 
 The capture overlay freezes each monitor and keeps selection and annotation in
 the same interface. It covers the floating pill. The icon toolbar appears only
@@ -213,17 +276,26 @@ background adapts [Ricelin’s PillBody](https://github.com/Gakuseei/Ricelin/blo
 the MIT attribution is retained in `shell/RICELIN-LICENSE.txt`.
 The native surface stays fixed while its input region follows the pill, keeping
 hover stable and allowing clicks through empty space. Opening a view lets an
-outside click dismiss it. The launcher also closes with Escape or a second tap.
+outside click dismiss it. The launcher also closes with Escape or a second tap. Losing focus closes
+ordinary pill views, including when an application on another monitor gains
+focus. The grip at the right of the launcher search field moves it within its
+display, keeping the pointer captured until release even during fast movement.
+After a real drag, outside clicks and focus loss leave it open; Escape animates
+its position and size back into the pill. Every reopening starts with an empty
+query and the normal pill placement.
 Escape dismisses open views. Every section replaces the entire pill header with
 its view, with no close cross in the expanded bar. Header controls hold their
 screen positions while fading out, and the workspace highlight stays terracotta
 through collapse. Scrollable pill content uses twice the standard wheel step.
 Destructive power actions require a second click to confirm.
 
-The media view shows album artwork, title/artist/album, player selection, playback
-controls, and a seek bar through MPRIS. The mixer controls PipeWire output/input
+The media view fits its artwork, title/artist/album, playback controls, and seek
+wave without empty space below. The wave moves during playback and rests when
+paused. Player selection appears when multiple MPRIS players are available;
+the music button disappears and its open view closes when the last player exits.
+The mixer controls PipeWire output/input
 selection and output and microphone levels/mute.
-Search uses compact single-line app rows with icons and descriptions.
+Search uses compact result rows with icons, names, and secondary descriptions.
 All sections use the full surface without the clock header.
 Sound has two vertical faders for the output and microphone.
 Left-click each bottom icon to toggle mute; right-click it to
@@ -240,14 +312,15 @@ while that view is visible; unavailable sensor readings show a dash. Storage
 usage refers to the home filesystem, avoiding Fedora's immutable root image.
 
 Common views preload on first hover and remain cached; other views unload after
-two idle minutes. Search text and loaded results survive ordinary close/reopen.
+two idle minutes. The launcher clears its query on every opening while keeping
+its application index and provider caches warm.
 The small terracotta marker adapts the idea of [Ricelin's Ame](https://github.com/Gakuseei/Ricelin/blob/main/configs/quickshell/pill/Ame.qml):
 one shape pulls out into a dot, jumps in an arc, then unfolds on landing into
 the active workspace indicator, notification action background,
 launcher caret, slider handle, selected calendar date, notification accent strip,
 selected metric value, connection status, Bluetooth thumb/device selection,
 and focused power action. It docks beneath each control’s text and replaces its
-normal highlight or handle, without an outer glow. Fuzzy matching and calculator helpers also retain Ricelin's MIT
+normal highlight or handle, without an outer glow. Fuzzy matching retains Ricelin's MIT
 attribution. Clipboard history remains in its existing standalone picker; there
 is no wallpaper view in the pill.
 
@@ -307,9 +380,11 @@ Bluetooth can be enabled or disabled with the menu’s power icon.
 
 The notification center follows the GNOME layout: notifications on the left,
 calendar on the right, then events for the selected day and world clocks below it.
-Notifications are grouped under app headings with expand/collapse controls and
-stacked previews. Visible messages show their expanded bodies, available actions,
-and reply button, with individual and group dismiss controls.
+Notifications group by app and exact title with stacked previews. The first
+card's chevron expands the group; a separate bottom row collapses it. Clicking a
+card's cross dismisses that message. Holding the cross for half a second fills a
+circle and dismisses its group; leaving the control cancels the hold. Visible
+messages show their expanded bodies, available actions, and reply button.
 The clear-all icon sits at the bottom right beside Do not disturb.
 The calendar uses evenly sized rows and larger navigation arrows, with no Today button
 or day-of-week heading. Day highlights are circles inside equally spaced square cells.
@@ -323,7 +398,9 @@ omitted when not configured. No calendar accounts or clock locations are added.
 
 The center lists active notifications, with a limit of 100 non-transient entries.
 App withdrawals, activation, replies, and dismissal remove active entries;
-explicit dismissal and clearing fade and collapse the cards.
+explicit dismissal and clearing slide cards upward while fading them out, then
+close their space smoothly. Surviving cards and their group keep their identity
+and expanded state; a collapsed stack reveals its next card beneath the exit.
 Banner timeouts hide the banner while retaining the active
 entry and its app callbacks in the center. Hovering a banner and then leaving it
 consumes that banner too. Transient notifications skip the
@@ -338,7 +415,13 @@ when provided by the app. Center bodies are always expanded to at most five line
 Clicking a live card invokes its default action and removes the entry. Inline
 Reply supports Send/Cancel, Enter to send, and Escape to cancel; drafts remain
 in memory only, and follow the message into the center when its banner is consumed.
-Banners slide in at the top-right, independently of the pill.
+Banners fade and drop in at the top-right with a slight tilt, independently of
+the pill. Fresh messages joining a stack fall onto its top card too. Notifications with
+the same app and exact title share a stack, showing the newest message and a
+count. The arrow expands or collapses its messages; the top dismiss button
+closes that banner group. Up to four groups can appear at once.
+Banner and center cards use the pill's translucent brown gradient, with lighter
+inset surfaces in the center, slim glass stack edges, and banner count badges.
 Arrivals queue during banner hover/reply. Opening the center consumes visible and
 queued banners; arrivals while it is open go directly into the center. Those
 messages, including later updates, do not replay as banners after it closes.
@@ -349,7 +432,9 @@ when the pointer moves through gaps between messages.
 Notification arrivals never request keyboard focus. A reply editor requests it
 only after an explicit Reply click. Mixer and media controls accept keyboard
 navigation after interaction; the launcher requests focus when opened. Outside
-clicks dismiss views on the main display. Secondary displays have no input shield.
+clicks and focus loss dismiss ordinary views on either display. A dragged
+launcher stays open until dismissed explicitly and does not intercept outside
+clicks. Secondary displays have no input shield.
 
 Volume feedback watches PipeWire directly, including changes made by keyboard
 keys, Logitech mouse gestures, and other applications. Speaker/microphone mute
@@ -385,8 +470,14 @@ python3 -m unittest discover -s hyprland/tests
 
 The notification regression fixture `hyprland/tests/notification-behavior.qml`
 checks hover-paused expiry, queued arrivals, replacement updates, and stable
-ordering. `hyprland/tests/notification-banners.qml` checks slide geometry,
+ordering. `hyprland/tests/notification-banners.qml` checks tilted drop/fade entrances,
 last-banner retirement, exit reversal, center toggling, and input-region cleanup.
+`hyprland/tests/notification-grouping.qml` checks app/title matching, stack expansion,
+member replies, title changes, group limits, hover consumption, dismissal, and expiry.
+`hyprland/tests/notification-center-controls.qml` checks first-card controls,
+single-message dismissal, circular hold progress, cancellation, and group dismissal.
+`hyprland/tests/notification-dismissal.qml` checks upward exits, retained card and
+group delegates, collapsed-stack handoff, and last-member retirement.
 `hyprland/tests/popup-behavior.qml` checks matched popup timing, geometry morphs,
 rapid switching, and switching during a close.
 `hyprland/tests/osd-behavior.qml` checks brightness levels, shared audio/microphone
@@ -395,7 +486,18 @@ Run them with Quickshell through the `isolated-gui` helper on a separate
 private D-Bus session, setting `DOTFILES_SHELL_SOURCE` to the absolute
 `hyprland/config/shell` directory and `XDG_STATE_HOME` to a test-only directory.
 `hyprland/tests/panel-pointer.qml` checks the legacy drop components in isolation.
-`hyprland/tests/launcher.js` checks fuzzy ranking and safe calculator precedence.
+`hyprland/tests/launcher.js` checks fuzzy ranking and keyboard layout recovery.
+`hyprland/tests/test_launcher_providers.py` covers real Qalculate arithmetic,
+functions, repaired parentheses, currency arithmetic, units, dates,
+Unicode, layout recovery, file-provider metadata, Zen snapshots, and history.
+`hyprland/tests/launcher-providers.qml` checks selectable results and contextual
+actions; `launcher-backend.qml` exercises the real QML/JSON worker connection.
+`launcher-refinements.qml` checks the minimal layout, asynchronous first-result
+selection, deliberate navigation, drag threshold/placement, and focus dismissal.
+`hyprland/tests/launcher-provider-bus.py` runs the actual worker against a fake
+Nautilus on the isolated desktop's private D-Bus session, checking file results,
+copying, favorites, and recents. Run all GUI and D-Bus fixtures through the
+isolated helper; do not run them on the working desktop.
 `hyprland/tests/notification-layout.qml` checks card separation and stable delegates
 through reordering, variable body heights, width changes, and inline reply/cancel.
 `hyprland/tests/pill-features.qml` exercises the integrated views, notification
@@ -427,8 +529,12 @@ Super+Return opens a new Ptyxis window. Its native graphical header provides
 upper tabs and the container/profile menu, without a separate popup process.
 The Dev profile starts Fish inside `dev`; ordinary new tabs use that default
 container. The interface is dark, with the existing Catppuccin Mocha terminal
-palette. Terminal text uses Adwaita Mono at 13px (9.75pt at 96 DPI), with a
+palette. Terminal text uses Adwaita Mono at 18.72px (14.04pt at 96 DPI, equivalent
+to 144% of the previous 13px default), with a
 standalone Nerd symbol font as fallback. Header text uses the system UI font.
+Ptyxis zoom is temporary tab state and fresh windows start at 100%. For a text
+size that survives restarts, change the custom font size in Preferences →
+Appearance and capture it with `./ptyxis/manage dump`.
 
 ```bash
 ./ptyxis/manage install
@@ -817,7 +923,9 @@ To apply host command forwarding to an existing `dev` container, run inside it:
 This forwards `xdg-open` from both `/usr/local/bin` and `/usr/bin`, so Electron
 apps still use the host browser when Vite+ puts `/usr/bin` first in PATH. The
 launcher explicitly uses the host session bus and `/usr/bin/xdg-open`, forwarding
-Wayland activation tokens so the browser can come to the foreground. The original
+the terminal's display and desktop environment as well as Wayland activation
+tokens so the browser can come to the foreground. Hyprland follows application
+activation requests to their workspace. The original
 container opener is saved at `/usr/local/libexec/dev-container/xdg-open`.
 Reapply the script after reinstalling or updating the container's `xdg-utils` package.
 
