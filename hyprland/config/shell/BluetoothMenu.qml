@@ -32,9 +32,10 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         Spinner { running: root.bluetooth.searching; visible: running; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
-        Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; Layout.fillWidth: true; text: root.bluetooth.searching ? "Searching…" : root.bluetooth.enabled ? "" : "Bluetooth off"; color: root.theme.secondary }
+        Text { font: root.theme.textFont; Layout.fillWidth: true; text: root.bluetooth.searching ? "Searching…" : root.bluetooth.enabled ? "" : "Bluetooth off"; color: root.theme.secondary }
         Switch {
             id: powerSwitch
+            font: root.theme.textFont
             checked: root.bluetooth.enabled
             enabled: root.shell.fixture || !!root.bluetooth.adapter
             Accessible.name: "Bluetooth power"
@@ -49,7 +50,7 @@ ColumnLayout {
                     EmberSlot { id: powerSlot; shell: root.shell; anchors.fill: parent }
                 }
             }
-            contentItem: Text { text: "Bluetooth"; leftPadding: powerSwitch.indicator.width + powerSwitch.spacing; color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; verticalAlignment: Text.AlignVCenter }
+            contentItem: Text { text: "Bluetooth"; leftPadding: powerSwitch.indicator.width + powerSwitch.spacing; color: root.theme.text; font: root.theme.textFont; verticalAlignment: Text.AlignVCenter }
         }
     }
     ListView {
@@ -90,7 +91,7 @@ ColumnLayout {
                 onClicked: root.bluetooth.toggle(deviceRow.device)
             }
             Text {
-                font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+                font: root.theme.textFont
                 Layout.fillWidth: true; Layout.leftMargin: 12; Layout.rightMargin: 12
                 text: root.bluetooth.errors[deviceRow.address] || ""
                 visible: text.length > 0; wrapMode: Text.Wrap
@@ -98,5 +99,5 @@ ColumnLayout {
             }
         }
     }
-    Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; visible: root.bluetooth.enabled && list.count === 0; text: "No devices found"; color: root.theme.secondary }
+    Text { font: root.theme.textFont; visible: root.bluetooth.enabled && list.count === 0; text: "No devices found"; color: root.theme.secondary }
 }

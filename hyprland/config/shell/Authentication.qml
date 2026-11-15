@@ -44,18 +44,19 @@ Scope {
         Rectangle {
             width: Math.min(480, parent.width - 40); height: content.implicitHeight + 44
             anchors.centerIn: parent
-            radius: 16; color: root.theme.background; border.width: 1; border.color: root.theme.accent
+            radius: 20; color: "transparent"
+            PillBackground { anchors.fill: parent; theme: root.theme; radius: 20 }
             ColumnLayout {
                 id: content
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 22 }
                 spacing: 16
                 RowLayout {
                     ShellIcon { name: "shield-check"; Layout.preferredWidth: 26; Layout.preferredHeight: 26 }
-                    Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; text: "Authentication required"; color: root.theme.text }
+                    Text { font: root.theme.textFont; text: "Authentication required"; color: root.theme.text }
                 }
-                Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; Layout.fillWidth: true; text: root.testing ? "Authentication is required to change system settings." : root.flow ? root.flow.message : ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: root.theme.text }
+                Text { font: root.theme.textFont; Layout.fillWidth: true; text: root.testing ? "Authentication is required to change system settings." : root.flow ? root.flow.message : ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: root.theme.text }
                 ComboBox {
-                    font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+                    font: root.theme.textFont
                     id: identity
                     Layout.fillWidth: true
                     visible: !root.testing && root.flow && root.flow.identities.length > 1
@@ -63,20 +64,21 @@ Scope {
                     displayText: currentValue ? String(currentValue.name || currentValue.userName || currentValue.uid || currentValue) : ""
                     onActivated: { if (root.flow) root.flow.selectedIdentity = currentValue; password.clear() }
                 }
-                Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; text: root.testing ? "Password" : root.flow ? root.flow.inputPrompt : ""; color: root.theme.secondary; textFormat: Text.PlainText }
+                Text { font: root.theme.textFont; text: root.testing ? "Password" : root.flow ? root.flow.inputPrompt : ""; color: root.theme.secondary; textFormat: Text.PlainText }
                 TextField {
-                    font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+                    font: root.theme.textFont
                     id: password
                     Layout.fillWidth: true; implicitHeight: 44
                     enabled: root.testing || !!(root.flow && root.flow.isResponseRequired)
                     echoMode: root.flow && root.flow.responseVisible ? TextInput.Normal : TextInput.Password
                     color: root.theme.text; leftPadding: 12
                     selectByMouse: true
-                    background: Rectangle { radius: 8; color: root.theme.surface; border.width: 1; border.color: password.activeFocus ? root.theme.accent : root.theme.border }
+                    background: Rectangle { radius: 8; color: "#50423d3a"; border.width: 0
+                Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 10 } height: 2; radius: 1; color: "#cc7855"; visible: password.activeFocus } }
                     onAccepted: root.submit()
                     Keys.onEscapePressed: root.cancel()
                 }
-                Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; Layout.fillWidth: true; visible: text.length > 0; text: root.testing ? (root.shell.fixtureData.authError || "") : root.flow ? (root.flow.supplementaryMessage || (root.flow.failed ? "Authentication failed. Try again." : "")) : ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: root.flow && (root.flow.supplementaryIsError || root.flow.failed) ? root.theme.red : root.theme.secondary }
+                Text { font: root.theme.textFont; Layout.fillWidth: true; visible: text.length > 0; text: root.testing ? (root.shell.fixtureData.authError || "") : root.flow ? (root.flow.supplementaryMessage || (root.flow.failed ? "Authentication failed. Try again." : "")) : ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: root.flow && (root.flow.supplementaryIsError || root.flow.failed) ? root.theme.red : root.theme.secondary }
                 RowLayout {
                     Layout.fillWidth: true
                     Item { Layout.fillWidth: true }

@@ -137,6 +137,17 @@ class Calculator:
                 stack.append(pos)
             elif char == ")":
                 pairs[stack.pop()] = pos
+        def resolve_currency(left, right):
+            # Search the containing bracket group before each outer group.
+            # Each group prefers its nearest left currency, then its right.
+            scopes = sorted(((a + 1, b) for a, b in pairs.items() if a < left and right <= b),
+                            key=lambda scope: scope[1] - scope[0])
+            for start, end in scopes + [(0, len(body))]:
+                local = [(a, b, code) for a, b, code in currencies if start <= a and b <= end]
+                before = [code for _, b, code in local if b <= left]
+                after = [code for a, _, code in local if a >= right]
+                if before or after:
+                    return before[-1] if before else after[0]
         numbers = list(re.finditer(r"(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+−-]?\d+)?", body))
         def walk(start, end):
             while start < end and body[start].isspace(): start += 1
@@ -163,9 +174,7 @@ class Calculator:
                             or any(sign in body[left:right] for sign in "%‰‱")):
                         parts.append(walk(left, right))
                     else:
-                        before = [code for _, b, code in currencies if b <= left]
-                        after = [code for a, _, code in currencies if a >= right]
-                        code = before[-1] if before else after[0]
+                        code = resolve_currency(left, right)
                         parts.append(f"({body[left:right].strip()}) {code}")
                 return "".join(part + (" " + body[splits[i]] + " " if i < len(splits) else "")
                                for i, part in enumerate(parts))

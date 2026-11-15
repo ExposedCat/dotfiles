@@ -25,7 +25,7 @@ hl.layer_rule({
 -- Capture and recording masks must appear immediately, with no layer fade.
 hl.layer_rule({
     name = "instant-capture-overlays",
-    match = { namespace = "^dotfiles-(capture(-warmup)?|record-shade|record-status)$" },
+    match = { namespace = "^dotfiles-(capture(-warmup)?|record-shade)$" },
     no_anim = true,
 })
 

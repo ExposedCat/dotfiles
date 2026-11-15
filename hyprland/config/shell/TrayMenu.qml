@@ -137,7 +137,7 @@ PopupWindow {
                             visible: row.modelData.buttonType === QsMenuButtonType.None && source.toString().length > 0
                         }
                         Text {
-                            font.family: popup.theme.fontFamily; font.weight: popup.theme.fontWeight; font.pixelSize: popup.theme.bodySize
+                            font: popup.theme.textFont
                             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
                             width: 18; horizontalAlignment: Text.AlignHCenter
                             visible: row.modelData.buttonType !== QsMenuButtonType.None
@@ -145,7 +145,7 @@ PopupWindow {
                             color: popup.theme.accent;
                         }
                         Text {
-                            font.family: popup.theme.fontFamily; font.weight: popup.theme.fontWeight; font.pixelSize: popup.theme.bodySize
+                            font: popup.theme.textFont
                             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 28; rightMargin: 22 }
                             text: popup.label(row.modelData.text)
                             textFormat: Text.PlainText; elide: Text.ElideRight
@@ -163,7 +163,7 @@ PopupWindow {
                     }
                 }
             }
-            Text { font.family: popup.theme.fontFamily; font.weight: popup.theme.fontWeight; font.pixelSize: popup.theme.bodySize; visible: !popup.entries.length; text: "Loading…"; color: popup.theme.secondary; padding: 12 }
+            Text { font: popup.theme.textFont; visible: !popup.entries.length; text: "Loading…"; color: popup.theme.secondary; padding: 12 }
         }
     }
 }

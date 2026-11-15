@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import "CaptureGeometry.js" as Geometry
 
 PanelWindow {
     id: shade
@@ -15,17 +16,18 @@ PanelWindow {
     WlrLayershell.namespace: "dotfiles-record-shade"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-    readonly property bool target: selection.monitor === display.name
+    readonly property var localSelection: Geometry.local(selection, display)
+    readonly property bool target: localSelection.width > 0 && localSelection.height > 0
     readonly property color dim: "#99000000"
 
-    Rectangle { width: shade.width; height: shade.target ? selection.y : shade.height; color: shade.dim }
-    Rectangle { visible: shade.target; x: 0; y: selection.y; width: selection.x; height: selection.height; color: shade.dim }
-    Rectangle { visible: shade.target; x: selection.x + selection.width; y: selection.y; width: Math.max(0, shade.width - x); height: selection.height; color: shade.dim }
-    Rectangle { visible: shade.target; x: 0; y: selection.y + selection.height; width: shade.width; height: Math.max(0, shade.height - y); color: shade.dim }
+    Rectangle { width: shade.width; height: shade.target ? localSelection.y : shade.height; color: shade.dim }
+    Rectangle { visible: shade.target; x: 0; y: localSelection.y; width: localSelection.x; height: localSelection.height; color: shade.dim }
+    Rectangle { visible: shade.target; x: localSelection.x + localSelection.width; y: localSelection.y; width: Math.max(0, shade.width - x); height: localSelection.height; color: shade.dim }
+    Rectangle { visible: shade.target; x: 0; y: localSelection.y + localSelection.height; width: shade.width; height: Math.max(0, shade.height - y); color: shade.dim }
 
-    // Draw strictly outside the encoded rectangle so the video stays clean.
-    Rectangle { visible: shade.target; x: selection.x - 2; y: selection.y - 2; width: selection.width + 4; height: 2; color: "#f38ba8" }
-    Rectangle { visible: shade.target; x: selection.x - 2; y: selection.y + selection.height; width: selection.width + 4; height: 2; color: "#f38ba8" }
-    Rectangle { visible: shade.target; x: selection.x - 2; y: selection.y; width: 2; height: selection.height; color: "#f38ba8" }
-    Rectangle { visible: shade.target; x: selection.x + selection.width; y: selection.y; width: 2; height: selection.height; color: "#f38ba8" }
+    // These edges are strictly outside the encoded global rectangle.
+    Rectangle { x: selection.x - display.x - 2; y: selection.y - display.y - 2; width: selection.width + 4; height: 2; color: "#cc7855" }
+    Rectangle { x: selection.x - display.x - 2; y: selection.y - display.y + selection.height; width: selection.width + 4; height: 2; color: "#cc7855" }
+    Rectangle { x: selection.x - display.x - 2; y: selection.y - display.y; width: 2; height: selection.height; color: "#cc7855" }
+    Rectangle { x: selection.x - display.x + selection.width; y: selection.y - display.y; width: 2; height: selection.height; color: "#cc7855" }
 }

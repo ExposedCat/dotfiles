@@ -22,8 +22,8 @@ Item {
         RowLayout {
             Layout.fillWidth: true; spacing: 10
             ShellIcon { name: root.shell.osd.icon; Layout.preferredWidth: 21; Layout.preferredHeight: 21 }
-            Text { Layout.fillWidth: true; text: root.shell.osd.title; color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; elide: Text.ElideRight }
-            Text { text: root.shell.osd.valueText; color: root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize }
+            Text { Layout.fillWidth: true; text: root.shell.osd.title; color: root.theme.text; font: root.theme.textFont; elide: Text.ElideRight }
+            Text { text: root.shell.osd.valueText; color: root.theme.secondary; font: root.theme.textFont }
         }
         Rectangle {
             visible: root.shell.osd.kind !== "workspace"

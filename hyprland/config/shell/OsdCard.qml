@@ -12,8 +12,8 @@ Rectangle {
         spacing: 12
         RowLayout {
             ShellIcon { name: root.osd.icon; Layout.preferredWidth: 21; Layout.preferredHeight: 21 }
-            Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; Layout.fillWidth: true; elide: Text.ElideRight; text: root.osd.title; color: root.theme.text }
-            Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; text: root.osd.valueText; color: root.theme.text }
+            Text { font: root.theme.textFont; Layout.fillWidth: true; elide: Text.ElideRight; text: root.osd.title; color: root.theme.text }
+            Text { font: root.theme.textFont; text: root.osd.valueText; color: root.theme.text }
         }
         Rectangle {
             Layout.fillWidth: true; implicitHeight: 5; radius: 3; color: root.theme.surface

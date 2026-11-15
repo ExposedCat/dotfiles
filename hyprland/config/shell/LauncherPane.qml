@@ -32,7 +32,7 @@ ColumnLayout {
     signal dragMoved(real x, real y)
     signal dragFinished()
     readonly property Item emberTarget: caretSlot
-    spacing: 6
+    spacing: 4
     function combine() {
         const rows = [], seen = {};
         function append(row) { if (!seen[row.id]) { rows.push(row); seen[row.id] = true; } }
@@ -89,13 +89,13 @@ ColumnLayout {
     TextField {
         id: search; objectName: "pillSearch"
         Layout.fillWidth: true; implicitHeight: 36; focus: true
-        font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+        font: root.theme.textFont
         color: root.theme.text
         placeholderText: "Search"; placeholderTextColor: root.theme.secondary
-        leftPadding: 32; rightPadding: 64; selectByMouse: true
+        leftPadding: 50; rightPadding: 60; selectByMouse: true
         cursorVisible: !root.shell.emberEnabled
         background: Item {}
-        ShellIcon { x: 1; y: Math.round((parent.height - height) / 2); name: "search"; width: 21; height: 21; opacity: 0.8 }
+        ShellIcon { x: 13; y: Math.round((parent.height - height) / 2); name: "search"; width: 24; height: 24; opacity: 0.8 }
         EmberSlot { id: caretSlot; shell: root.shell; x: search.cursorRectangle.x; y: search.cursorRectangle.y; width: 3; height: search.cursorRectangle.height || 19; shapeRadius: 1.5; caret: true }
         onTextChanged: {
             root.copied = false; root.selectedId = ""; root.selectionExplicit = false;
@@ -138,7 +138,6 @@ ColumnLayout {
             Accessible.name: "Move launcher"
         }
     }
-    Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Qt.alpha(root.theme.border, 0.35) }
     ListView {
         id: list; objectName: "pillApps"
         Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 2
@@ -150,36 +149,36 @@ ColumnLayout {
             id: resultRow
             required property var modelData
             required property int index
-            width: list.width; height: 44; radius: 10
+            width: list.width; height: 52; radius: 10
             color: ListView.isCurrentItem ? Qt.alpha(root.theme.hover, 0.58) : "transparent"
             border.width: ListView.isCurrentItem ? 1 : 0; border.color: Qt.alpha(root.theme.border, 0.22)
             RowLayout {
-                anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
-                spacing: 10
+                anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                spacing: 8
                 Item {
-                    Layout.preferredWidth: 26; Layout.preferredHeight: 28
+                    Layout.preferredWidth: 34; Layout.preferredHeight: 36
                     Image {
-                        id: resultIcon; anchors.centerIn: parent; width: 24; height: 24
+                        id: resultIcon; anchors.centerIn: parent; width: 32; height: 32
                         source: resultRow.modelData.icon ? (resultRow.modelData.icon.startsWith("/") ? "file://" + resultRow.modelData.icon : Quickshell.iconPath(resultRow.modelData.icon, true)) : ""
                         visible: status === Image.Ready
-                        sourceSize.width: 32; sourceSize.height: 32; fillMode: Image.PreserveAspectFit
+                        sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit
                     }
                     Text {
                         anchors.centerIn: parent; visible: !resultIcon.visible
                         text: resultRow.modelData.glyph || ({app: "◇", file: "▤", bookmark: "↗", web: "⌕", currency: "⇄", date: "◷", calculation: "="})[resultRow.modelData.kind] || "·"
                         width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight
-                        font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; color: root.theme.text; textFormat: Text.PlainText
+                        font: root.theme.textFont; color: root.theme.text; textFormat: Text.PlainText
                     }
                 }
-                Text { Layout.fillWidth: true; text: resultRow.modelData.name; textFormat: Text.PlainText; font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; color: root.theme.text; elide: Text.ElideRight }
+                Text { Layout.fillWidth: true; text: resultRow.modelData.name; textFormat: Text.PlainText; font: root.theme.textFont; color: root.theme.text; elide: Text.ElideRight }
                 Text {
                     Layout.preferredWidth: Math.min(implicitWidth, list.width * 0.44)
                     text: resultRow.modelData.kind === "currency" ? (resultRow.modelData.rateDate || "") : resultRow.modelData.description || ""
                     textFormat: Text.PlainText; horizontalAlignment: Text.AlignRight
-                    font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+                    font: root.theme.textFont
                     color: root.theme.secondary; elide: Text.ElideRight
                 }
-                Text { text: "★"; visible: providers.isFavorite(resultRow.modelData); color: "#cc7855"; font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize }
+                Text { text: "★"; visible: providers.isFavorite(resultRow.modelData); color: "#cc7855"; font: root.theme.textFont }
             }
             MouseArea {
                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -199,14 +198,14 @@ ColumnLayout {
             anchors.centerIn: parent; width: parent.width - 20; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter
             visible: list.count === 0
             text: root.loading ? "" : providers.notice || providers.fileNotice || root.error || "No matches"
-            color: root.theme.secondary; font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+            color: root.theme.secondary; font: root.theme.textFont
         }
     }
     Text {
         Layout.fillWidth: true
         visible: !!providers.actionError
         text: providers.actionError; textFormat: Text.PlainText; wrapMode: Text.WordWrap
-        font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+        font: root.theme.textFont
         color: root.theme.red
     }
 }

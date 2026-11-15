@@ -62,17 +62,17 @@ ColumnLayout {
                     implicitWidth: statusLabel.implicitWidth + 20; implicitHeight: 32
                     Rectangle { anchors.fill: parent; radius: 16; color: root.theme.surface; visible: !statusSlot.occupied }
                     EmberSlot { id: statusSlot; shell: root.shell; anchors.fill: parent; shapeOpacity: 0.45 }
-                    Text { id: statusLabel; anchors.centerIn: parent; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; text: modelData.state; color: root.theme.text }
+                    Text { id: statusLabel; anchors.centerIn: parent; font: root.theme.textFont; text: modelData.state; color: root.theme.text }
                 }
                 Item { Layout.fillWidth: true }
-                Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; visible: root.devices.length > 1; text: modelData.name; color: root.theme.secondary }
+                Text { font: root.theme.textFont; visible: root.devices.length > 1; text: modelData.name; color: root.theme.secondary }
             }
-            Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; text: "Ethernet link  " + (modelData.speed > 0 ? root.speed(modelData.speed) : "—"); color: root.theme.secondary }
+            Text { font: root.theme.textFont; text: "Ethernet link  " + (modelData.speed > 0 ? root.speed(modelData.speed) : "—"); color: root.theme.secondary }
         }
     }
     ColumnLayout {
         Layout.fillWidth: true; spacing: 4
-        Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; text: "Internet speed"; color: root.theme.secondary }
+        Text { font: root.theme.textFont; text: "Internet speed"; color: root.theme.secondary }
         RowLayout {
             Layout.fillWidth: true; spacing: 8
             Repeater {
@@ -85,21 +85,21 @@ ColumnLayout {
                     Layout.preferredWidth: rateLabel.implicitWidth + 20; implicitHeight: 32
                     activeFocusOnTab: true
                     EmberSlot { id: rateSlot; shell: root.shell; anchors.fill: parent; shapeOpacity: 0.35 }
-                    Text { id: rateLabel; anchors.centerIn: parent; text: rate.modelData.label + " " + root.speed(root.result ? root.result[rate.modelData.key] : null); color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize }
+                    Text { id: rateLabel; anchors.centerIn: parent; text: rate.modelData.label + " " + root.speed(root.result ? root.result[rate.modelData.key] : null); color: root.theme.text; font: root.theme.textFont }
                 }
             }
             Item { Layout.fillWidth: true }
             ShellButton { theme: root.theme; icon: "rotate-cw"; pending: root.testing; enabled: !pending; hint: "Measure internet speed"; onClicked: root.testSpeed() }
         }
         Text {
-            font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+            font: root.theme.textFont
             Layout.fillWidth: true
             text: root.testing ? (root.phase === "upload" ? "Measuring upload…" : "Measuring download…") : root.testError || (root.result ? "Tested " + Qt.formatDateTime(new Date(root.result.measuredAt), "d MMM hh:mm") : "Press refresh to measure")
             color: root.testError && !root.testing ? root.theme.red : root.theme.secondary
             wrapMode: Text.Wrap
         }
     }
-    Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; visible: root.unavailable || root.devices.length === 0; text: root.unavailable ? "Connection status unavailable" : reader.running ? "Checking…" : "Ethernet disconnected"; color: root.theme.secondary; wrapMode: Text.Wrap; Layout.fillWidth: true }
+    Text { font: root.theme.textFont; visible: root.unavailable || root.devices.length === 0; text: root.unavailable ? "Connection status unavailable" : reader.running ? "Checking…" : "Ethernet disconnected"; color: root.theme.secondary; wrapMode: Text.Wrap; Layout.fillWidth: true }
     FileView { id: saved; path: root.shell.fixture ? "" : root.resultPath; blockLoading: true; printErrors: false }
     Component.onCompleted: { loadResult(); if (shell.panel === "ethernet") refreshStatus(); }
     Process {

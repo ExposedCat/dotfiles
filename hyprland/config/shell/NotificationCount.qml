@@ -16,6 +16,6 @@ Rectangle {
         id: label
         anchors.centerIn: parent
         text: root.count; color: root.theme.secondary
-        font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize
+        font: root.theme.textFont
     }
 }

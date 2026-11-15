@@ -79,7 +79,7 @@ class CalculatorTests(unittest.TestCase):
             ('2 + 15 usd + 10 eur', '17 usd + 10 eur'),
             ('15 eur + 2 + 10 usd + 3', '17 eur + 13 usd'),
             ('2 + 15 eur + 4 + 10 usd', '21 eur + 10 usd'),
-            ('15 eur + (2 + 3 usd)', '17 eur + 3 usd'),
+            ('15 eur + (2 + 3 usd)', '15 eur + 5 usd'),
             ('2 + 15 eur to usd', '17 eur to usd'),
             ('15 eur - 2', '13 eur'),
             ('2 - 15 eur', '-13 eur'),
@@ -97,6 +97,24 @@ class CalculatorTests(unittest.TestCase):
                 self.assertEqual(rows[0]['kind'], 'currency')
         for query in ('2 kg + 15 eur', '2 + 15 eur^2', '1 / eur'):
             self.assertEqual(self.calc.search(query)[0]['value'], self.calc.evaluate(query), query)
+
+    def test_currency_inference_prefers_bracket_group_before_outer_groups(self):
+        for query, explicit in [
+            ('12 eur + 5 + 12 czk', '17 eur + 12 czk'),
+            ('12 eur + (5 + 12 czk)', '12 eur + 17 czk'),
+            ('12 eur + (12 czk + 5) + 20 usd', '12 eur + 17 czk + 20 usd'),
+            ('12 eur + (5 + 12 czk + 2 usd)', '12 eur + 17 czk + 2 usd'),
+            ('12 eur + (2 usd + (5 + 12 czk))', '12 eur + 2 usd + 17 czk'),
+            ('12 eur + (2 usd + (5 + 3)) + 12 czk', '12 eur + 10 usd + 12 czk'),
+            ('(5 + 3) + 12 czk', '20 czk'),
+            ('12 eur + ((5 + 3)) + 12 czk', '20 eur + 12 czk'),
+            ('12 eur + (5 + (12 czk))', '12 eur + 17 czk'),
+            ('12 eur + (5 + 12 czk) to usd', '(12 eur + 17 czk) to usd'),
+            ('12 eur + (5 + 12 czk', '12 eur + 17 czk'),
+            ('12 eur + (5 + 12 czk) / 4', '12 eur + 4.25 czk'),
+        ]:
+            with self.subTest(query=query):
+                self.assertEqual(self.calc.search(query)[0]['value'], self.calc.evaluate(explicit))
 
 
 class DateTests(unittest.TestCase):

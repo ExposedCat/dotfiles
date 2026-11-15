@@ -10,6 +10,7 @@ QtObject {
     readonly property int fontWeight: Font.Normal
     readonly property int bodySize: 18
     readonly property int smallSize: bodySize
+    readonly property font textFont: Qt.font({family: fontFamily, pixelSize: bodySize, weight: fontWeight, features: {"tnum": 1}})
     property color background: "#000000"
     property color surface: "#191919"
     property color hover: "#333333"

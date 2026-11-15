@@ -55,7 +55,7 @@ Scope {
             case 1:
                 test.check(bar.pillState === "expanded" && pill.width > bar.compactWidth && pill.height === 40, "Hover expansion");
                 test.check(bar.workspaceInset === 20, "Workspaces must stay at the left inset");
-                test.check(test.findItem(bar.contentItem, item => item.text === Qt.formatDateTime(test.app.clock.date, "MMM d, ddd")).opacity === 1, "Expanded date is missing");
+                test.check(test.findItem(bar.contentItem, item => item.text === Qt.formatDateTime(test.app.clock.date, "MM.dd")).opacity === 1, "Expanded date is missing");
                 test.app.gesture("tap", "100");
                 break;
             case 2:

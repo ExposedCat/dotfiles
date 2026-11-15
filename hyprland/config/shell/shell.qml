@@ -19,6 +19,7 @@ ShellRoot {
     property string layout: "English (US)"
     property string keyboard: ""
     property bool recording: false
+    property bool captureActive: false
     property string actionError: ""
     property alias audio: sound
     property alias osd: osd
@@ -119,11 +120,12 @@ ShellRoot {
     Bar { id: bar; screen: root.mainScreen; shell: root; theme: palette }
     PillTheme { id: overlayColors }
     Overlays { id: overlays; shell: root; theme: overlayColors; showOsd: false }
-    Authentication { id: authentication; shell: root; theme: palette }
+    Authentication { id: authentication; shell: root; theme: overlayColors }
     IpcHandler {
         target: "shell"
         function toggle(panel: string): void { if (["launcher", "notifications", "power", "connections", "ethernet", "bluetooth", "media", "mixer", "system"].includes(panel)) root.toggle(panel); }
         function gesture(action: string, timestamp: string): void { root.gesture(action, timestamp); }
+        function capture(active: bool): void { root.captureActive = active; }
         function applications(): string {
             const pane = root.panel === "launcher" ? bar.activePane : null;
             return JSON.stringify({helper: root.helper, open: !!pane, count: pane ? pane.apps.length : 0, loading: pane ? pane.loading : false, error: pane ? pane.error : ""});

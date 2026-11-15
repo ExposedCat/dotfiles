@@ -12,8 +12,8 @@ CheckBox {
         implicitWidth: 18; implicitHeight: 18
         x: 0; y: (root.height - height) / 2
         radius: 5
-        color: root.checked ? root.theme.accent : root.theme.surface
-        border.width: 1; border.color: root.activeFocus ? root.theme.text : root.checked ? root.theme.accent : "#666666"
+        color: root.checked ? "#cc7855" : root.theme.surface
+        border.width: 1; border.color: root.activeFocus ? root.theme.text : root.checked ? "#cc7855" : "#666666"
         Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; anchors.centerIn: parent; visible: root.checked; text: "✓"; color: "#101010" }
     }
     contentItem: Text {

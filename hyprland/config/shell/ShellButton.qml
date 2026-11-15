@@ -24,8 +24,6 @@ Rectangle {
     Keys.onSpacePressed: clicked(Qt.LeftButton)
     readonly property real implicitContentWidth: content.implicitWidth
     property int iconSize: 21
-    property int textSize: theme.bodySize
-    property string textFamily: theme.fontFamily
     property bool pending: false
     property bool elideText: false
     implicitWidth: content.implicitWidth + 22
@@ -43,7 +41,7 @@ Rectangle {
         spacing: 7
         ShellIcon { name: root.icon; Layout.preferredWidth: root.iconSize; Layout.preferredHeight: root.iconSize; visible: root.icon.length > 0 && !root.pending }
         Spinner { visible: root.pending; running: visible; Layout.preferredWidth: root.iconSize; Layout.preferredHeight: root.iconSize }
-        Text { font.family: root.textFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.textSize; Layout.maximumWidth: root.elideText ? Math.max(0, root.width - 22 - (root.icon.length > 0 || root.pending ? root.iconSize + 7 : 0) - (root.indicator ? 13 : 0)) : Infinity; elide: Text.ElideRight; visible: root.text.length > 0; text: root.text; textFormat: Text.PlainText; color: root.danger ? root.theme.red : root.selected ? root.theme.accent : root.theme.text }
+        Text { font: root.theme.textFont; Layout.maximumWidth: root.elideText ? Math.max(0, root.width - 22 - (root.icon.length > 0 || root.pending ? root.iconSize + 7 : 0) - (root.indicator ? 13 : 0)) : Infinity; elide: Text.ElideRight; visible: root.text.length > 0; text: root.text; textFormat: Text.PlainText; color: root.danger ? root.theme.red : root.selected ? root.theme.accent : root.theme.text }
         Rectangle { visible: root.indicator; Layout.preferredWidth: 6; Layout.preferredHeight: 6; radius: 3; color: root.theme.accent }
     }
     HoverHandler { id: buttonHover }

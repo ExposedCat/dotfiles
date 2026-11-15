@@ -145,8 +145,7 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         sourceSize.width: 42; sourceSize.height: 42
                     }
-                    Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; Layout.fillWidth: true; text: root.entry.summary; textFormat: Text.PlainText; color: root.theme.text; wrapMode: Text.NoWrap; maximumLineCount: 1; elide: Text.ElideRight }
-                    NotificationCount { visible: root.groupControls && !root.inCenter; theme: root.theme; count: root.groupCount }
+                    Text { font: root.theme.textFont; Layout.fillWidth: true; text: root.entry.summary; textFormat: Text.PlainText; color: root.theme.text; wrapMode: Text.NoWrap; maximumLineCount: 1; elide: Text.ElideRight }
                     ShellButton { objectName: "notificationGroupToggle"; visible: root.groupControls; theme: root.theme; icon: root.groupExpanded ? "chevron-up" : "chevron-down"; hint: root.groupExpanded ? "Collapse notifications" : "Expand notifications"; implicitWidth: 30; implicitHeight: 30; Layout.alignment: Qt.AlignTop; onClicked: root.toggleGroup() }
                     NotificationDismiss {
                         objectName: "notificationDismiss"
@@ -160,7 +159,7 @@ Item {
                         onGroupDismissed: root.dismissGroup()
                     }
                 }
-                Text { objectName: "notificationBody"; font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; visible: text.length > 0; Layout.fillWidth: true; text: root.entry.body; textFormat: Text.PlainText; color: root.theme.secondary; wrapMode: Text.Wrap; maximumLineCount: root.detailsExpanded ? 5 : 1; elide: Text.ElideRight }
+                Text { objectName: "notificationBody"; font: root.theme.textFont; visible: text.length > 0; Layout.fillWidth: true; text: root.entry.body; textFormat: Text.PlainText; color: root.theme.secondary; wrapMode: Text.Wrap; maximumLineCount: root.detailsExpanded ? 5 : 1; elide: Text.ElideRight }
             }
         }
         Item {
@@ -205,7 +204,7 @@ Item {
             visible: root.composing
             Layout.fillWidth: true; spacing: 8
             TextField {
-                font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize
+                font: root.theme.textFont
                 id: replyText
                 Layout.fillWidth: true; implicitHeight: 38
                 color: root.theme.text; leftPadding: 10

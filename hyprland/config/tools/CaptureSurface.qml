@@ -2,10 +2,12 @@ import QtQuick
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Wayland
+import "CaptureGeometry.js" as Geometry
 
 PanelWindow {
     id: window
-    ShellTheme { id: typography }
+    objectName: "captureSurface"
+    PillTheme { id: typography }
     required property var controller
     required property var display
     screen: Quickshell.screens.find(s => s.name === display.name) || Quickshell.screens[0]
@@ -15,254 +17,259 @@ PanelWindow {
     visible: controller.active && !controller.recording
     WlrLayershell.namespace: "dotfiles-capture"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: controller.current === display.name ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: current ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
-    property real selectionX: 0
-    property real selectionY: 0
-    property real selectionWidth: 0
-    property real selectionHeight: 0
-    property string tool: "select"
-    property color ink: "#89b4fa"
-    property var strokes: []
-    property var draft: null
+    readonly property string tool: controller.tool
+    readonly property var strokes: controller.strokes
+    readonly property color ink: controller.ink
     readonly property bool current: controller.current === display.name
-    readonly property bool selected: current && selectionWidth >= 2 && selectionHeight >= 2
+    readonly property bool selected: controller.selected
     readonly property bool video: controller.data.mode === "record"
-
-    function repaint() { drawing.requestPaint() }
-    function finish() {
-        if (!selected || controller.exporting) return;
-        if (textInput.visible) { textInput.commit(); return }
-        if (video) controller.beginRecording(display, selectionX, selectionY, selectionWidth, selectionHeight);
-        else controller.exportImage(selectionContent, display.scale);
+    readonly property var localSelection: Geometry.local(controller.selection, display)
+    readonly property bool intersects: localSelection.width > 0 && localSelection.height > 0
+    function repaint() { selectionContent.repaint(); }
+    function undo() { controller.undo(); }
+    function insideSelection(x, y) {
+        const rect = controller.selection;
+        return selected && x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
     }
-    function undo() { strokes = strokes.slice(0, -1); repaint() }
-    Component.onCompleted: {
-        const selection = controller.data.selection;
-        if (selection && selection.monitor === display.name) {
-            selectionX = selection.x; selectionY = selection.y;
-            selectionWidth = selection.width; selectionHeight = selection.height;
+    function finish() {
+        if (!selected || controller.exporting || controller.closePending || controller.recordPending || controller.dragging) return;
+        if (textInput.visible) { textInput.commit(); return; }
+        if (video) controller.beginRecording();
+        else {
+            const outputs = controller.data.outputs.filter(o => Geometry.valid(Geometry.intersect(controller.selection, o)));
+            controller.exportImage(selectionContent, Math.max(...outputs.map(o => o.scale)));
         }
     }
-
+    function modifier(key) { return [Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt, Qt.Key_Meta, Qt.Key_AltGr, Qt.Key_Super_L, Qt.Key_Super_R].includes(key); }
+    function command(event) {
+        if (modifier(event.key)) return false;
+        if (textInput.visible) return [Qt.Key_Escape, Qt.Key_Return, Qt.Key_Enter].includes(event.key);
+        return true;
+    }
     component ActionButton: Rectangle {
+        id: button
         property string caption
         property string icon
         property bool chosen: false
         signal clicked()
-        implicitHeight: 34
-        implicitWidth: 36
-        color: hover.containsMouse ? "#45475a" : "#313244"
-        border.width: chosen ? 1 : 0
-        border.color: "#89b4fa"
+        implicitHeight: 36; implicitWidth: 38
+        color: chosen ? "#55423d3a" : "transparent"
         opacity: enabled ? 1 : 0.45
-        radius: 8
+        radius: 10
         Accessible.role: Accessible.Button
         Accessible.name: caption
-        Image { anchors.centerIn: parent; width: 19; height: 19; sourceSize.width: 19; sourceSize.height: 19; source: Qt.resolvedUrl("icons/" + parent.icon + ".svg") }
-        MouseArea { id: hover; anchors.fill: parent; hoverEnabled: true; onClicked: parent.clicked() }
-
-
-
+        Image { anchors.centerIn: parent; width: 19; height: 19; sourceSize: Qt.size(19, 19); source: Qt.resolvedUrl("icons/" + button.icon + ".svg") }
+        MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: button.clicked() }
     }
-
     Item {
         id: scene
+        objectName: "captureScene:" + display.name
         anchors.fill: parent
         focus: window.current
-        Connections { target: scene.Window.window; function onFrameSwapped() { controller.noteFrame(display.name) } }
-        Image {
-            anchors.fill: parent
-            source: controller.includeCursor ? display.cursor : display.plain
-            cache: false
-            fillMode: Image.Stretch
-        }
-
-        // Only this item is exported. Selection borders, handles, and toolbars
-        // are siblings and therefore cannot appear in the saved image.
-        Item {
-            id: selectionContent
-            x: window.selectionX; y: window.selectionY
-            width: window.selectionWidth; height: window.selectionHeight
-            visible: window.selected
-            clip: true
-            Image {
-                x: -window.selectionX; y: -window.selectionY
-                width: scene.width; height: scene.height
-                source: controller.includeCursor ? display.cursor : display.plain
-                cache: false
-                fillMode: Image.Stretch
-            }
-            Canvas {
-                id: drawing
-                x: -window.selectionX; y: -window.selectionY
-                width: scene.width; height: scene.height
-                onPaint: {
-                    const ctx = getContext("2d");
-                    ctx.clearRect(0, 0, width, height);
-                    const items = window.draft ? window.strokes.concat([window.draft]) : window.strokes;
-                    for (const item of items) {
-                        ctx.strokeStyle = item.color;
-                        ctx.fillStyle = item.color;
-                        ctx.lineWidth = 3;
-                        ctx.lineCap = "round";
-                        ctx.lineJoin = "round";
-                        const dx = item.x2 - item.x, dy = item.y2 - item.y;
-                        if (item.type === "redact") {
-                            ctx.fillStyle = "#111111";
-                            ctx.fillRect(Math.min(item.x, item.x2), Math.min(item.y, item.y2), Math.abs(dx), Math.abs(dy));
-                        } else if (item.type === "box") {
-                            ctx.strokeRect(item.x, item.y, dx, dy);
-                        } else if (item.type === "arrow") {
-                            ctx.beginPath(); ctx.moveTo(item.x, item.y); ctx.lineTo(item.x2, item.y2); ctx.stroke();
-                            const angle = Math.atan2(dy, dx), head = 14;
-                            ctx.beginPath(); ctx.moveTo(item.x2, item.y2);
-                            ctx.lineTo(item.x2 - head * Math.cos(angle - Math.PI / 6), item.y2 - head * Math.sin(angle - Math.PI / 6));
-                            ctx.lineTo(item.x2 - head * Math.cos(angle + Math.PI / 6), item.y2 - head * Math.sin(angle + Math.PI / 6));
-                            ctx.closePath(); ctx.fill();
-                        } else if (item.type === "pen") {
-                            ctx.beginPath();
-                            item.points.forEach((p, index) => { if (index === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y) });
-                            ctx.stroke();
-                        } else if (item.type === "text") {
-                            ctx.font = typography.bodySize + 'px "' + typography.fontFamily + '"';
-                            ctx.fillText(item.text, item.x, item.y + typography.bodySize);
-                        }
-                    }
+        Keys.onShortcutOverride: event => { if (window.command(event)) event.accepted = true; }
+        Keys.onPressed: event => {
+            controller.keyPressed(event.key, event.modifiers, event.isAutoRepeat);
+            if (controller.closePending || controller.recordPending) {
+                event.accepted = true;
+                if (event.key === Qt.Key_Escape && !event.isAutoRepeat) controller.closeSession();
+            } else if (event.key === Qt.Key_Escape) {
+                event.accepted = true;
+                if (!event.isAutoRepeat) {
+                    if (textInput.visible) { textInput.visible = false; scene.forceActiveFocus(); }
+                    else controller.closeSession();
                 }
-            }
+            } else if (textInput.visible && [Qt.Key_Return, Qt.Key_Enter].includes(event.key)) {
+                event.accepted = true;
+                if (!event.isAutoRepeat) textInput.commit();
+            } else if (!textInput.visible && ([Qt.Key_Backspace, Qt.Key_Delete].includes(event.key)
+                       || (event.key === Qt.Key_Z && (event.modifiers & Qt.ControlModifier)))) {
+                event.accepted = true;
+                if (!event.isAutoRepeat) window.undo();
+            } else if (window.command(event)) {
+                event.accepted = true;
+                if (!event.isAutoRepeat) window.finish();
+            } else event.accepted = false;
         }
-
-        Rectangle { width: scene.width; height: window.selected ? window.selectionY : scene.height; color: "#99000000" }
-        Rectangle { visible: window.selected; x: 0; y: window.selectionY; width: window.selectionX; height: window.selectionHeight; color: "#99000000" }
-        Rectangle { visible: window.selected; x: window.selectionX + window.selectionWidth; y: window.selectionY; width: Math.max(0, scene.width - x); height: window.selectionHeight; color: "#99000000" }
-        Rectangle { visible: window.selected; x: 0; y: window.selectionY + window.selectionHeight; width: scene.width; height: Math.max(0, scene.height - y); color: "#99000000" }
+        Keys.onReleased: event => {
+            const consume = controller.closePending || controller.recordPending || window.command(event);
+            controller.keyReleased(event.key, event.isAutoRepeat);
+            event.accepted = consume;
+        }
+        Connections { target: scene.Window.window; function onFrameSwapped() { controller.noteFrame(display.name); } }
+        Image { anchors.fill: parent; source: controller.includeCursor ? display.cursor : display.plain; cache: false; fillMode: Image.Stretch }
+        CaptureContent {
+            id: selectionContent
+            controller: window.controller
+            x: controller.selection.x - display.x; y: controller.selection.y - display.y
+            visible: window.selected
+        }
+        Rectangle { width: scene.width; height: window.intersects ? window.localSelection.y : scene.height; color: "#99000000" }
+        Rectangle { visible: window.intersects; x: 0; y: window.localSelection.y; width: window.localSelection.x; height: window.localSelection.height; color: "#99000000" }
+        Rectangle { visible: window.intersects; x: window.localSelection.x + window.localSelection.width; y: window.localSelection.y; width: Math.max(0, scene.width - x); height: window.localSelection.height; color: "#99000000" }
+        Rectangle { visible: window.intersects; x: 0; y: window.localSelection.y + window.localSelection.height; width: scene.width; height: Math.max(0, scene.height - y); color: "#99000000" }
         Rectangle {
             visible: window.selected
-            x: window.selectionX; y: window.selectionY
-            width: window.selectionWidth; height: window.selectionHeight
-            color: "transparent"
-            border.color: "#89b4fa"
-            border.width: 1
+            x: controller.selection.x - display.x; y: controller.selection.y - display.y
+            width: controller.selection.width; height: controller.selection.height
+            color: "transparent"; border.color: "#cc7855"; border.width: 1
         }
         MouseArea {
             id: pointer
+            objectName: "capturePointer"
             anchors.fill: parent
-            cursorShape: window.tool === "select" ? Qt.CrossCursor : window.tool === "text" ? Qt.IBeamCursor : Qt.CrossCursor
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            preventStealing: true
+            hoverEnabled: true
+            cursorShape: dragMode === "move" && pressed ? Qt.ClosedHandCursor
+                : !window.tool && window.insideSelection(display.x + mouseX, display.y + mouseY) ? Qt.SizeAllCursor
+                : window.tool === "text" && window.insideSelection(display.x + mouseX, display.y + mouseY) ? Qt.IBeamCursor : Qt.CrossCursor
             property real startX: 0
             property real startY: 0
-            onPressed: mouse => {
-                controller.current = display.name;
-                startX = Math.floor(mouse.x); startY = Math.floor(mouse.y);
-                if (window.tool === "select") {
+            property string dragMode: ""
+            property var startSelection: null
+            function point(mouse) {
+                const bounds = controller.desktopBounds;
+                return {x: Math.round(Math.max(bounds.x, Math.min(bounds.x + bounds.width, display.x + mouse.x))),
+                        y: Math.round(Math.max(bounds.y, Math.min(bounds.y + bounds.height, display.y + mouse.y)))};
+            }
+            function move(mouse) {
+                const p = point(mouse);
+                if (dragMode === "select") controller.selection = {x: Math.min(startX, p.x), y: Math.min(startY, p.y), width: Math.abs(p.x - startX), height: Math.abs(p.y - startY)};
+                else if (dragMode === "move") {
+                    const bounds = controller.desktopBounds;
+                    controller.selection = {
+                        x: Math.max(bounds.x, Math.min(bounds.x + bounds.width - startSelection.width, startSelection.x + p.x - startX)),
+                        y: Math.max(bounds.y, Math.min(bounds.y + bounds.height - startSelection.height, startSelection.y + p.y - startY)),
+                        width: startSelection.width, height: startSelection.height
+                    };
+                } else if (dragMode === "draw" && controller.draft) {
+                    const draft = Object.assign({}, controller.draft, {x2: p.x, y2: p.y, points: controller.draft.points.concat([p])});
+                    controller.draft = draft;
+                }
+            }
+            function begin(mouse) {
+                controller.dragging = true;
+                const p = point(mouse); startX = p.x; startY = p.y;
+                // Keep exclusive keyboard focus stable during a geometry drag:
+                // changing it mid-press can cancel Wayland's pointer grab.
+                const editingText = window.tool === "text" && mouse.button === Qt.LeftButton && window.insideSelection(p.x, p.y);
+                if (!editingText && textInput.visible) {
                     textInput.visible = false;
-                    window.selectionX = startX; window.selectionY = startY;
-                    window.selectionWidth = 0; window.selectionHeight = 0;
-                } else if (window.selected && mouse.x >= window.selectionX && mouse.x <= window.selectionX + window.selectionWidth
-                           && mouse.y >= window.selectionY && mouse.y <= window.selectionY + window.selectionHeight) {
-                    if (window.tool === "text") {
+                    if (window.current) scene.forceActiveFocus();
+                }
+                if (window.tool === "text" && mouse.button === Qt.LeftButton && window.insideSelection(p.x, p.y)) controller.current = display.name;
+                startSelection = Object.assign({}, controller.selection);
+                if (mouse.button === Qt.RightButton || !window.insideSelection(p.x, p.y)) {
+                    dragMode = "select";
+                    textInput.visible = false;
+                    controller.selection = {x: p.x, y: p.y, width: 0, height: 0};
+                } else if (!window.tool) {
+                    dragMode = "move";
+                    textInput.visible = false;
+                } else {
+                    dragMode = window.tool === "text" ? "text" : "draw";
+                    if (dragMode === "text") {
                         textInput.x = mouse.x; textInput.y = mouse.y;
                         textInput.text = ""; textInput.visible = true; textInput.forceActiveFocus();
-                    } else {
-                        window.draft = { type: window.tool, x: startX, y: startY, x2: startX, y2: startY,
-                            color: window.ink.toString(), points: [{ x: startX, y: startY }] };
-                    }
+                    } else controller.draft = {type: window.tool, x: p.x, y: p.y, x2: p.x, y2: p.y, color: window.ink.toString(), points: [p]};
                 }
             }
-            onPositionChanged: mouse => {
-                if (!pressed) return;
-                const x = Math.round(Math.max(0, Math.min(scene.width, mouse.x)));
-                const y = Math.round(Math.max(0, Math.min(scene.height, mouse.y)));
-                if (window.tool === "select") {
-                    window.selectionX = Math.min(startX, x); window.selectionY = Math.min(startY, y);
-                    window.selectionWidth = Math.abs(x - startX); window.selectionHeight = Math.abs(y - startY);
-                } else if (window.draft) {
-                    window.draft.x2 = x; window.draft.y2 = y;
-                    window.draft.points.push({ x: x, y: y }); window.repaint();
+            onPositionChanged: mouse => { if (pressed) move(mouse); }
+            function end(mouse) {
+                move(mouse);
+                if (controller.draft) { controller.strokes = controller.strokes.concat([controller.draft]); controller.draft = null; }
+                if (dragMode !== "text") {
+                    const p = point(mouse), output = controller.data.outputs.find(o => p.x >= o.x && p.x < o.x + o.width && p.y >= o.y && p.y < o.y + o.height);
+                    if (output) controller.current = output.name;
                 }
+                if (dragMode === "select" || dragMode === "move") controller.remember();
+                dragMode = "";
+                controller.dragging = false;
+                Qt.callLater(() => controller.finishInput());
             }
-            onReleased: {
-                if (window.draft) { window.strokes = window.strokes.concat([window.draft]); window.draft = null; window.repaint() }
-            }
+            function cancel() { controller.draft = null; dragMode = ""; controller.dragging = false; Qt.callLater(() => controller.finishInput()); }
+            onPressed: mouse => begin(mouse)
+            onReleased: mouse => end(mouse)
+            onCanceled: cancel()
         }
         TextField {
-            font.family: typography.fontFamily; font.weight: typography.fontWeight; font.pixelSize: typography.bodySize
             id: textInput
-            visible: false
-            width: Math.min(380, scene.width - x)
+            objectName: "captureAnnotationInput"
+            font: typography.textFont
+            Keys.forwardTo: [scene]
+            visible: false; width: Math.min(380, scene.width - x)
             color: window.ink
-
             placeholderText: "Type a label, then Enter"
-            background: Rectangle { color: "#e61e1e2e"; radius: 6; border.color: "#89b4fa" }
+            background: Rectangle { color: typography.background; radius: 8; border.color: typography.secondary }
             function commit() {
-                if (text.length) window.strokes = window.strokes.concat([{type: "text", x: x + leftPadding, y: y + topPadding, text: text, color: window.ink.toString()}]);
-                visible = false; scene.forceActiveFocus(); window.repaint();
+                if (text.length) controller.strokes = controller.strokes.concat([{type: "text", x: display.x + x + leftPadding, y: display.y + y + topPadding, text: text, color: window.ink.toString()}]);
+                visible = false; scene.forceActiveFocus();
             }
             onAccepted: commit()
         }
-        Rectangle {
+        Item {
             id: toolbar
-            visible: window.selected && !(pointer.pressed && window.tool === "select")
-            x: Math.max(12, (scene.width - width) / 2)
-            y: window.selected ? (window.selectionY + window.selectionHeight + height + 24 < scene.height
-                ? window.selectionY + window.selectionHeight + 12 : Math.max(12, window.selectionY - height - 12)) : scene.height - height - 28
-            width: controls.width + 20
-            height: 54
-            color: "#f51e1e2e"
-            border.color: "#45475a"
-            radius: 12
-            Row {
-                id: controls
-                anchors.centerIn: parent
-                spacing: 5
-                ActionButton { caption: "Select area"; icon: "scan"; chosen: window.tool === "select"; onClicked: window.tool = "select" }
-                Repeater {
-                    model: window.video ? [] : ["pen", "arrow", "box", "text", "redact"]
-                    delegate: ActionButton {
-                        required property string modelData
-                        caption: modelData[0].toUpperCase() + modelData.slice(1)
-                        icon: ({pen: "pen-line", arrow: "arrow-up-right", box: "square", text: "type", redact: "rectangle-ellipsis"})[modelData]
-                        chosen: window.tool === modelData
-                        enabled: window.selected
-                        onClicked: window.tool = modelData
+            objectName: "captureToolbar"
+            visible: window.current && window.selected
+            opacity: controller.dragging && ["select", "move"].includes(pointer.dragMode) ? 0 : 1
+            x: Math.max(8, Math.min(scene.width - width - 8, (scene.width - width) / 2))
+            y: Math.min(scene.height - height - 8, Math.max(8, window.localSelection.y + window.localSelection.height + height + 24 < scene.height
+                ? window.localSelection.y + window.localSelection.height + 12 : window.localSelection.y - height - 12))
+            width: Math.min(scene.width - 16, controls.implicitWidth + 20); height: 54
+            PillBackground { anchors.fill: parent; theme: typography; radius: 20 }
+            Flickable {
+                anchors.fill: parent; anchors.margins: 8; clip: true
+                contentWidth: controls.implicitWidth; contentHeight: height
+                flickableDirection: Flickable.HorizontalFlick; boundsBehavior: Flickable.StopAtBounds
+                Row {
+                    id: controls
+                    height: parent.height; spacing: 5
+                    Repeater {
+                        objectName: "captureTools"
+                        model: window.video ? [] : ["pen", "arrow", "box", "text", "blur"]
+                        ActionButton {
+                            required property string modelData
+                            objectName: "captureTool:" + modelData
+                            caption: modelData[0].toUpperCase() + modelData.slice(1)
+                            icon: ({pen:"pen-line", arrow:"move-up-right", box:"square", text:"type", blur:"opacity"})[modelData]
+                            chosen: window.tool === modelData
+                            onClicked: controller.tool = controller.tool === modelData ? "" : modelData
+                        }
                     }
-                }
-                Repeater {
-                    model: window.video ? [] : ["#89b4fa", "#f38ba8", "#f9e2af", "#ffffff"]
-                    delegate: Rectangle {
-                        required property string modelData
-                        width: 24; height: 34; radius: 7
-                        color: modelData
-                        border.width: window.ink.toString() === modelData ? 3 : 0
-                        border.color: "#6c7086"
-                        MouseArea { anchors.fill: parent; onClicked: window.ink = parent.modelData }
+                    Repeater {
+                        model: window.video ? [] : ["#cc7855", "#ed9c87", "#e4c393", "#ffffff"]
+                        Rectangle {
+                            required property string modelData
+                            width: 24; height: 36; radius: 7; color: modelData
+                            border.width: window.ink.toString() === modelData ? 2 : 0; border.color: typography.text
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: controller.ink = parent.modelData }
+                        }
                     }
+                    ActionButton { caption: "Cursor " + (controller.includeCursor ? "On" : "Off"); icon: controller.includeCursor ? "mouse-pointer-2" : "mouse-pointer-2-off"; chosen: controller.includeCursor; onClicked: { controller.includeCursor = !controller.includeCursor; controller.remember(); } }
+                    ActionButton { objectName: "captureRecordButton"; visible: window.video; caption: "Start recording"; icon: "video"; onClicked: window.finish() }
                 }
-                ActionButton { visible: !window.video; caption: "Undo"; icon: "undo-2"; enabled: window.strokes.length > 0; onClicked: window.undo() }
-                ActionButton { caption: "Cursor " + (controller.includeCursor ? "On" : "Off"); icon: controller.includeCursor ? "mouse-pointer-2" : "mouse-pointer-2-off"; chosen: controller.includeCursor; onClicked: controller.includeCursor = !controller.includeCursor }
-                ActionButton { caption: window.video ? "Record" : controller.exporting ? "Copying…" : "Copy and save · Enter / Ctrl+C"; icon: window.video ? "circle-dot" : "copy"; chosen: true; enabled: window.selected && !controller.exporting; onClicked: window.finish() }
-                ActionButton { caption: "Cancel · Escape"; icon: "x"; onClicked: controller.closeSession() }
             }
         }
         Rectangle {
             visible: controller.error.length > 0
-            anchors.top: parent.top
-            anchors.topMargin: 18
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: status.implicitWidth + 30; height: 38; radius: 10
-            color: "#e61e1e2e"
-            Text {
-                font.family: typography.fontFamily; font.weight: typography.fontWeight; font.pixelSize: typography.bodySize
-                id: status
-                anchors.centerIn: parent
-                text: controller.error
-                color: "#f38ba8"
-
-            }
+            anchors { top: parent.top; topMargin: 18; horizontalCenter: parent.horizontalCenter }
+            width: Math.min(scene.width - 32, status.implicitWidth + 30); height: status.implicitHeight + 20; radius: 20
+            color: typography.background
+            Text { id: status; width: parent.width - 30; anchors.centerIn: parent; text: controller.error; wrapMode: Text.Wrap; font: typography.textFont; color: typography.red }
         }
-        Shortcut { context: Qt.ApplicationShortcut; sequence: "Escape"; enabled: window.current; onActivated: { if (textInput.visible) textInput.visible = false; else controller.closeSession() } }
-        Shortcut { context: Qt.ApplicationShortcut; sequence: "Return"; enabled: window.current && !textInput.visible; onActivated: window.finish() }
-        Shortcut { context: Qt.ApplicationShortcut; sequence: "Ctrl+C"; enabled: window.current && !textInput.visible && !window.video; onActivated: window.finish() }
-        Shortcut { context: Qt.ApplicationShortcut; sequence: "Ctrl+Z"; enabled: window.current && !textInput.visible && !window.video; onActivated: window.undo() }
+        MouseArea {
+            anchors.fill: parent
+            z: 100
+            acceptedButtons: Qt.RightButton
+            preventStealing: true
+            cursorShape: Qt.CrossCursor
+            onPressed: mouse => pointer.begin(mouse)
+            onPositionChanged: mouse => { if (pressed) pointer.move(mouse); }
+            onReleased: mouse => pointer.end(mouse)
+            onCanceled: pointer.cancel()
+        }
+
     }
 }

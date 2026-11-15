@@ -73,12 +73,12 @@ Scope {
         id: writer
         onExited: (code, status) => { if (code === 0) Qt.quit(); else { root.submitting = false; root.error = "Could not send the response."; opening.start() } }
     }
-    Desktop.ShellTheme { id: portalTheme }
+    Desktop.PillTheme { id: portalTheme }
     FloatingWindow {
         id: window
         title: "Desktop portal: " + (root.sharing ? "Screen sharing" : root.permission ? "Permission" : "Open With")
         implicitWidth: root.sharing ? 680 : 440
-        implicitHeight: root.sharing ? (root.regionMode ? 470 : Math.min(520, Math.max(310, 138 + Math.ceil(root.sources.length / root.columns) * 172)))
+        implicitHeight: root.sharing ? (root.regionMode ? 640 : Math.min(700, Math.max(402, 198 + Math.ceil(root.sources.length / root.columns) * 204))) + (selectedSourceName.visible ? Math.max(0, selectedSourceName.implicitHeight - 22) : 0)
                         : root.permission ? Math.min(620, permissionContent.implicitHeight + 108) : Math.min(440, 140 + Math.max(1, (root.data.apps || []).length) * 50)
         minimumSize: Qt.size(implicitWidth, implicitHeight)
         maximumSize: minimumSize
@@ -89,9 +89,9 @@ Scope {
         Rectangle {
             id: surface
             anchors.fill: parent
-            color: portalTheme.background
-            radius: 16
-            border.width: 1; border.color: "#292929"
+            color: "transparent"
+            radius: 20
+            Desktop.PillBackground { anchors.fill: parent; theme: portalTheme; radius: 20 }
             opacity: root.reveal
             scale: 0.97 + root.reveal * 0.03
             ColumnLayout {
@@ -100,15 +100,16 @@ Scope {
                     visible: root.sharing; Layout.fillWidth: true; spacing: 12
                     Item {
                         id: tabs
-                        Layout.fillWidth: true; implicitHeight: 36
+                        objectName: "shareTabs"
+                        Layout.fillWidth: true; implicitHeight: 42
                         readonly property int index: root.tab === "screen" ? 0 : root.tab === "window" ? 1 : 2
                         Keys.onRightPressed: root.setTab(["screen", "window", "workspace"][Math.min(2, index + 1)])
                         Keys.onLeftPressed: root.setTab(["screen", "window", "workspace"][Math.max(0, index - 1)])
-                        Rectangle { anchors.fill: parent; radius: 9; color: portalTheme.surface }
+                        Rectangle { anchors.fill: parent; radius: 12; color: "#181310" }
                         Rectangle {
                             x: 3 + tabs.index * (tabs.width - 6) / 3; y: 3
                             width: (tabs.width - 6) / 3; height: tabs.height - 6
-                            radius: 7; color: "#353535"
+                            radius: 10; color: "#685145"
                             Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
                         }
                         Repeater {
@@ -121,7 +122,7 @@ Scope {
                                 Accessible.role: Accessible.PageTab; Accessible.name: modelData.name; Accessible.selected: root.tab === modelData.id
                                 Keys.onReturnPressed: root.setTab(modelData.id)
                                 Keys.onSpacePressed: root.setTab(modelData.id)
-                                Text { anchors.centerIn: parent; text: modelData.name; color: root.tab === modelData.id ? portalTheme.text : "#999999"; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; Behavior on color { ColorAnimation { duration: 120 } } }
+                                Text { anchors.centerIn: parent; text: modelData.name; color: root.tab === modelData.id ? portalTheme.text : "#e2dad4"; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; Behavior on color { ColorAnimation { duration: 120 } } }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { tabs.forceActiveFocus(); root.setTab(parent.modelData.id); } }
                             }
                         }
@@ -216,9 +217,10 @@ Scope {
                 }
                 GridView {
                     id: sourceGrid
+                    objectName: "shareSources"
                     property real transition: 1
                     visible: root.sharing; Layout.fillWidth: true; Layout.fillHeight: true
-                    clip: true; model: root.sources; cellWidth: Math.floor(width / root.columns); cellHeight: 172
+                    clip: true; model: root.sources; cellWidth: Math.floor(width / root.columns); cellHeight: 204
                     opacity: transition; transform: Translate { y: (1 - sourceGrid.transition) * 6 }
                     boundsBehavior: Flickable.StopAtBounds; ScrollBar.vertical: ScrollBar {}
                     NumberAnimation { id: tabChange; target: sourceGrid; property: "transition"; from: 0; to: 1; duration: 140; easing.type: Easing.OutCubic }
@@ -226,11 +228,11 @@ Scope {
                         id: sourceCard
                         required property var modelData
                         readonly property bool chosen: root.selected === modelData.id
-                        width: sourceGrid.cellWidth - 8; height: 164
+                        width: sourceGrid.cellWidth - 8; height: sourceGrid.cellHeight - 8
                         // GridView places delegates flush against its clip edge.
                         // Reserve room for the hover scale on all four sides.
                         transform: Translate { x: 4; y: 4 }
-                        scale: sourcePointer.pressed ? 0.975 : sourcePointer.containsMouse ? 1.012 : 1
+                        scale: sourcePointer.pressed ? 0.975 : 1
                         Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                         activeFocusOnTab: true
                         Accessible.role: Accessible.RadioButton; Accessible.name: modelData.name + ", " + modelData.subtitle; Accessible.checked: chosen
@@ -239,15 +241,17 @@ Scope {
                         SourcePreview { id: sourcePreview; anchors { top: parent.top; left: parent.left; right: parent.right } height: 132; sourceData: sourceCard.modelData; theme: portalTheme; fixture: root.fixture }
                         Rectangle {
                             anchors.fill: sourcePreview; radius: 11; color: "transparent"
-                            border.width: sourceCard.chosen || sourceCard.activeFocus ? 2 : 1
-                            border.color: sourceCard.chosen || sourceCard.activeFocus ? portalTheme.accent : sourcePointer.containsMouse ? "#555555" : "#282828"
+                            border.width: sourceCard.activeFocus ? 1 : 0
+                            border.color: sourceCard.activeFocus ? portalTheme.text : "#50423d3a"
                             Behavior on border.color { ColorAnimation { duration: 120 } }
                         }
-                        Text { anchors { left: parent.left; right: parent.right; top: sourcePreview.bottom; topMargin: 8 } text: sourceCard.modelData.name; textFormat: Text.PlainText; color: sourceCard.chosen ? portalTheme.text : portalTheme.secondary; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; elide: Text.ElideRight }
+                        Rectangle { visible: sourceCard.chosen; x: 0; y: sourcePreview.height + 4; width: parent.width; height: sourceName.height + 8; radius: 10; color: "#70cc7855" }
+                        Text { id: sourceName; objectName: "shareSourceName"; anchors { left: parent.left; right: parent.right; top: sourcePreview.bottom; leftMargin: 8; rightMargin: 8; topMargin: 8 } wrapMode: Text.Wrap; maximumLineCount: 2; text: sourceCard.modelData.name; textFormat: Text.PlainText; color: sourceCard.chosen ? portalTheme.text : portalTheme.secondary; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; elide: Text.ElideRight }
                         MouseArea { id: sourcePointer; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { sourceCard.forceActiveFocus(); root.choose(sourceCard.modelData.id); } }
                     }
                     Text { anchors.centerIn: parent; visible: sourceGrid.count === 0; text: "No sources"; color: portalTheme.secondary; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize }
                 }
+                Text { id: selectedSourceName; objectName: "shareSelectedName"; visible: root.sharing && !!root.chosenSource && root.chosenSource.name.length > 36; Layout.fillWidth: true; text: root.chosenSource ? root.chosenSource.name : ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; font: portalTheme.textFont; color: portalTheme.text }
                 Rectangle {
                     visible: root.sharing && root.regionMode && !!root.chosenSource
                     Layout.fillWidth: true; Layout.preferredHeight: 140; color: portalTheme.surface; radius: 10; clip: true
@@ -258,7 +262,7 @@ Scope {
                         y: root.region ? root.region[1] / root.chosenSource.height * regionPreview.height : 0
                         width: root.region ? root.region[2] / root.chosenSource.width * regionPreview.width : 0
                         height: root.region ? root.region[3] / root.chosenSource.height * regionPreview.height : 0
-                        color: "#3389b4fa"; border.color: portalTheme.accent; border.width: 2
+                        color: "#33cc7855"; border.color: portalTheme.accent; border.width: 2
                     }
                     MouseArea {
                         x: regionPreview.x; y: 0; width: regionPreview.width; height: regionPreview.height; cursorShape: Qt.CrossCursor

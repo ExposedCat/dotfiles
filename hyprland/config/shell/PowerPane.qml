@@ -39,6 +39,6 @@ ColumnLayout {
             }
         }
     }
-    Text { Layout.alignment: Qt.AlignHCenter; text: root.confirmAction ? "Click again to confirm" : ""; color: root.theme.secondary; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize }
-    Text { Layout.fillWidth: true; text: root.shell.actionError; visible: text.length > 0; color: root.theme.red; wrapMode: Text.Wrap; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize }
+    Text { Layout.alignment: Qt.AlignHCenter; text: root.confirmAction ? "Click again to confirm" : ""; color: root.theme.secondary; font: root.theme.textFont }
+    Text { Layout.fillWidth: true; text: root.shell.actionError; visible: text.length > 0; color: root.theme.red; wrapMode: Text.Wrap; font: root.theme.textFont }
 }

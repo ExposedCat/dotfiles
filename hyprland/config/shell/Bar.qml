@@ -46,7 +46,7 @@ PanelWindow {
     property bool dragPressed: false
     property var focusGrab: null
     readonly property bool pinnedLauncher: shell.panel === "launcher" && launcherDragged
-    readonly property bool wantsFocusGrab: !!shell.panel && !hidden && (!pinnedLauncher || dragPressed) && !centerFocus.editing
+    readonly property bool wantsFocusGrab: !!shell.panel && !hidden && !shell.captureActive && (!pinnedLauncher || dragPressed) && !centerFocus.editing
     readonly property bool nativeActive: !!bar.contentItem.Window.window && bar.contentItem.Window.window.active
     function beginLauncherDrag(x, y) {
         if (shell.panel !== "launcher") return;
@@ -62,12 +62,12 @@ PanelWindow {
     }
     function endLauncherDrag() { dragPressed = false; }
     function lostFocus() {
-        if (shell.panel && !pinnedLauncher && !dragPressed && !hidden) {
+        if (shell.panel && !pinnedLauncher && !dragPressed && !hidden && !shell.captureActive) {
             suppressHover = true; hoverRelease.restart();
             dismiss(); hoverExpanded = false;
         }
     }
-    function applicationFocused() { focusLoss.restart(); }
+    function applicationFocused() { if (!shell.captureActive) focusLoss.restart(); }
     Component { id: panelFocusGrab; HyprlandFocusGrab {} }
     Component.onCompleted: {
         if (Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")) {
@@ -85,15 +85,21 @@ PanelWindow {
     Timer { id: armFocus; interval: 0; onTriggered: { if (bar.focusGrab && bar.wantsFocusGrab) bar.focusGrab.active = true; } }
     Timer { id: focusLoss; interval: 50; onTriggered: { if (!bar.nativeActive && !trayMenu.visible) bar.lostFocus(); } }
     Timer { id: hoverRelease; interval: 300; onTriggered: bar.suppressHover = false }
-    onNativeActiveChanged: { if (!nativeActive && shell.panel) focusLoss.restart(); }
+    onNativeActiveChanged: { if (!nativeActive && shell.panel && !shell.captureActive) focusLoss.restart(); }
     onMediaHeightChanged: { if (shell.panel === "media") selectPanel("media"); }
     readonly property int headerHeight: 40
     readonly property int pillRadius: 20
     readonly property int sideInset: 20
+    readonly property int groupSpacing: 24
     readonly property real compactContentWidth: timeButton.width + 14 + layoutLabel.width + (hasNotifications ? 30 : 0)
     readonly property real compactWidth: Math.ceil((compactContentWidth + 36) / 2) * 2
-    readonly property real leftNeed: compactContentWidth / 2 + 14 + dateLabel.width + 24 + leftControls.width + sideInset
-    readonly property real rightNeed: compactContentWidth / 2 + 24 + rightControls.width + sideInset
+    readonly property real leftContentWidth: compactContentWidth / 2 + 14 + dateLabel.width + workspaceControls.implicitWidth + (trayItems.count ? trayIcons.implicitWidth : 0) + sideInset
+    readonly property real rightContentWidth: compactContentWidth / 2 + Math.max(0, weekdayLabel.width - layoutLabel.width) + layoutLabel.width + controlButtons.implicitWidth + sideInset
+    readonly property real leftNeed: leftContentWidth + groupSpacing * (trayItems.count ? 2 : 1)
+    // Each left spacer takes half the remaining left-hand room. Reserve room
+    // for the matching right spacer too, without measuring its own stretched width.
+    readonly property real rightNeed: trayItems.count ? 2 * (Math.ceil(rightContentWidth) + groupSpacing) - Math.floor(leftContentWidth) : rightContentWidth + groupSpacing * 2
+    readonly property real sharedSpacing: trayItems.count ? Math.max(groupSpacing, workspaceTraySpacer.width) : groupSpacing
     readonly property real controlsWidth: Math.ceil(Math.max(600, 2 * Math.max(leftNeed, rightNeed)) / 2) * 2
     readonly property real targetWidth: Math.min(width - 24, shell.panel ? paneWidth : expanded ? controlsWidth : compactWidth + feedbackLeft + feedbackRight)
     readonly property real targetHeight: shell.panel ? paneHeight : headerHeight
@@ -114,7 +120,7 @@ PanelWindow {
     readonly property real detailsOpacity: Math.min(1, Math.max(0, (pill.width - controlsWidth + 60) / 60))
     readonly property real workspaceInset: leftControls.x
     PillTheme { id: colors }
-    TextMetrics { id: clockMetrics; font.family: colors.fontFamily; font.pixelSize: colors.bodySize; text: "00:00" }
+    TextMetrics { id: clockMetrics; font: colors.textFont; text: "00:00" }
 
     // This native surface never changes size or takes reserved app space.
     anchors { top: true; left: true; right: true }
@@ -123,13 +129,13 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "dotfiles-bar"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: hidden ? WlrKeyboardFocus.None : ["launcher", "media", "mixer", "system", "power", "ethernet", "bluetooth"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: hidden || shell.captureActive ? WlrKeyboardFocus.None : ["launcher", "media", "mixer", "system", "power", "ethernet", "bluetooth"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
     Region { id: pillInput; item: pill }
     Region { id: outsideInput; item: bar.contentItem }
     // Keep the native input region and focus grab intact until release. A fast
     // pointer can get ahead of the painted surface between rendering frames.
     mask: Region { regions: bar.hidden ? [] : bar.shell.panel && (!bar.pinnedLauncher || bar.dragPressed) ? [outsideInput] : [pillInput] }
-    ReplyFocus { id: centerFocus; available: bar.shell.panel === "notifications" && !bar.hidden; store: bar.shell.notifications; surface: "center"; targetWindow: bar }
+    ReplyFocus { id: centerFocus; available: bar.shell.panel === "notifications" && !bar.hidden && !bar.shell.captureActive; store: bar.shell.notifications; surface: "center"; targetWindow: bar }
     MouseArea {
         anchors.fill: parent
         enabled: bar.shell.panel.length > 0 && !bar.pinnedLauncher && !bar.dragPressed
@@ -148,9 +154,16 @@ PanelWindow {
     }
     onWidthChanged: { if (shell.panel) selectPanel(shell.panel); }
     onHeightChanged: { if (shell.panel) selectPanel(shell.panel); }
-    Shortcut { sequence: "Escape"; enabled: !!bar.shell.panel; context: Qt.WindowShortcut; onActivated: bar.dismiss() }
+    Shortcut { sequence: "Escape"; enabled: !!bar.shell.panel && !bar.shell.captureActive; context: Qt.WindowShortcut; onActivated: bar.dismiss() }
     Connections {
         target: bar.shell
+        function onCaptureActiveChanged() {
+            focusLoss.stop();
+            if (!bar.shell.captureActive && bar.shell.panel && !bar.hidden) {
+                if (centerFocus.editing && centerFocus.grab) centerFocus.grab.active = true;
+                if (bar.shell.panel === "launcher" && panelLoader.item) panelLoader.item.focusSearch();
+            }
+        }
         function onPanelChanged() {
             focusLoss.stop();
             bar.dragPressed = false;
@@ -174,10 +187,10 @@ PanelWindow {
     }
     onHiddenChanged: {
         if (hidden) { trayMenu.visible = false; collapse.stop(); focusLoss.stop(); }
-        else if (shell.panel === "launcher" && panelLoader.item) panelLoader.item.focusSearch();
+        else if (!shell.captureActive && shell.panel === "launcher" && panelLoader.item) panelLoader.item.focusSearch();
     }
     onFullscreenChanged: { if (fullscreen) hoverExpanded = false; }
-    Timer { id: focusDelay; interval: 230; onTriggered: { if (bar.shell.panel === "launcher" && panelLoader.item) panelLoader.item.focusSearch(); } }
+    Timer { id: focusDelay; interval: 230; onTriggered: { if (!bar.shell.captureActive && bar.shell.panel === "launcher" && panelLoader.item) panelLoader.item.focusSearch(); } }
     Timer { id: collapse; interval: 240; onTriggered: { if (!hover.hovered && !bar.shell.panel && !trayMenu.visible && !bar.hidden) bar.hoverExpanded = false; } }
     TrayMenu { id: trayMenu; theme: colors; onVisibleChanged: { if (!visible && !hover.hovered) collapse.restart(); } }
     Item {
@@ -222,7 +235,7 @@ PanelWindow {
                     Text {
                         x: Math.round((parent.width - width) / 2); y: Math.round((parent.height - height) / 2)
                         text: Qt.formatDateTime(bar.shell.clock.date, "hh:mm")
-                        font.family: colors.fontFamily; font.weight: colors.fontWeight; font.pixelSize: colors.bodySize; font.features: ({"tnum": 1})
+                        font: colors.textFont
                         color: colors.text
                     }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bar.openPanel("notifications") }
@@ -231,37 +244,86 @@ PanelWindow {
                     id: dateLabel
                     width: Math.ceil(implicitWidth)
                     x: timeButton.x - width - 14; y: Math.round((bar.headerHeight - height) / 2)
-                    text: Qt.formatDateTime(bar.shell.clock.date, "MMM d, ddd")
-                    font.family: colors.fontFamily; font.weight: colors.fontWeight; font.pixelSize: colors.bodySize
+                    text: Qt.formatDateTime(bar.shell.clock.date, "MM.dd")
+                    font: colors.textFont
                     color: colors.secondary
                     opacity: bar.shell.panel === "launcher" ? 1 : bar.detailsOpacity
                     visible: opacity > 0
                 }
                 Text {
                     id: layoutLabel
+                    readonly property real compactX: timeButton.x + timeButton.width + 14
+                    width: Math.ceil(implicitWidth)
+                    x: Math.round(compactX + (rightControls.x - compactX) * bar.detailsOpacity)
+                    y: Math.round((bar.headerHeight - height) / 2)
+                    text: bar.shell.layoutLabel
+                    font: colors.textFont
+                    color: colors.secondary
+                }
+                Text {
+                    id: weekdayLabel
                     width: Math.ceil(implicitWidth)
                     x: timeButton.x + timeButton.width + 14; y: Math.round((bar.headerHeight - height) / 2)
-                    text: bar.shell.layoutLabel
-                    font.family: colors.fontFamily; font.weight: colors.fontWeight; font.pixelSize: colors.bodySize
+                    text: Qt.formatDateTime(bar.shell.clock.date, "ddd")
+                    font: colors.textFont
                     color: colors.secondary
+                    opacity: bar.detailsOpacity
+                    visible: opacity > 0
                 }
                 ShellButton {
                     id: notificationDot
                     objectName: "pillNotificationIndicator"
                     visible: bar.hasNotifications
-                    x: layoutLabel.x + layoutLabel.width + 12; y: 4
+                    x: Math.round(weekdayLabel.x + layoutLabel.width + (weekdayLabel.width - layoutLabel.width) * bar.detailsOpacity + 12); y: 4
                     theme: colors; implicitWidth: 18; implicitHeight: 32
                     hint: "Notifications"; onClicked: bar.openPanel("notifications")
                     Rectangle { anchors.centerIn: parent; width: 6; height: 6; radius: 3; color: colors.accent }
                 }
-                Row {
+                RowLayout {
                     id: leftControls
                     x: bar.sideInset; y: 0
-                    height: bar.headerHeight; spacing: 8
+                    width: Math.max(implicitWidth, dateLabel.x - x)
+                    height: bar.headerHeight; spacing: 0
                     opacity: bar.shell.panel === "launcher" ? 0 : bar.detailsOpacity
                     enabled: opacity > 0.95
-                    WorkspaceDots { id: workspaceWidget; shell: bar.shell; theme: colors; spaces: bar.spaces; floating: true; implicitHeight: bar.headerHeight }
-                    ShellButton { y: 2; visible: bar.shell.recording; theme: colors; icon: "circle-dot"; danger: true; hint: "Stop recording"; onClicked: bar.shell.desktop("record") }
+                    Row {
+                        id: workspaceControls
+                        Layout.alignment: Qt.AlignVCenter
+                        height: bar.headerHeight; spacing: 8
+                        WorkspaceDots { id: workspaceWidget; shell: bar.shell; theme: colors; spaces: bar.spaces; floating: true; implicitHeight: bar.headerHeight }
+                        ShellButton { y: 2; visible: bar.shell.recording; theme: colors; icon: "circle-dot"; danger: true; hint: "Stop recording"; onClicked: bar.shell.desktop("record") }
+                    }
+                    Item { id: workspaceTraySpacer; visible: trayItems.count > 0; Layout.fillWidth: true; Layout.minimumWidth: bar.groupSpacing }
+                    Row {
+                        id: trayIcons
+                        Layout.alignment: Qt.AlignVCenter
+                        height: 36; spacing: 2
+                        visible: trayItems.count > 0
+                        Repeater {
+                            id: trayItems
+                            model: bar.shell.fixture ? [] : SystemTray.items
+                            Item {
+                                id: tray
+                                required property var modelData
+                                implicitWidth: 34; implicitHeight: 36
+                                Image { anchors.centerIn: parent; width: 18; height: 18; sourceSize.width: 18; sourceSize.height: 18; source: tray.modelData.icon }
+                                MouseArea {
+                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                                    onClicked: event => {
+                                        if (event.button === Qt.RightButton || tray.modelData.onlyMenu) {
+                                            const point = tray.mapToItem(bar.contentItem, 0, tray.height);
+                                            bar.shell.panel = "";
+                                            trayMenu.open(tray.modelData, bar, point.x, point.y, tray.width);
+                                        } else if (event.button === Qt.MiddleButton) tray.modelData.secondaryActivate();
+                                        else tray.modelData.activate();
+                                    }
+                                    onWheel: event => tray.modelData.scroll(event.angleDelta.y, false)
+                                }
+                            }
+                        }
+                    }
+                    Item { Layout.fillWidth: true; Layout.minimumWidth: bar.groupSpacing }
                 }
                 Row {
                     id: rightControls
@@ -269,44 +331,30 @@ PanelWindow {
                     // Hold the row at its expanded screen position while the
                     // surface changes size, rather than following its edge.
                     x: Math.round((bar.width + bar.controlsWidth) / 2) - bar.sideInset - width - pill.x; y: 2
-                    height: 36; spacing: 2
+                    height: 36; spacing: 0
                     opacity: bar.shell.panel === "launcher" ? 0 : bar.detailsOpacity
                     enabled: opacity > 0.95
-                    Repeater {
-                        model: bar.shell.fixture ? [] : SystemTray.items
-                        Item {
-                            id: tray
-                            required property var modelData
-                            implicitWidth: 34; implicitHeight: 36
-                            Image { anchors.centerIn: parent; width: 18; height: 18; sourceSize.width: 18; sourceSize.height: 18; source: tray.modelData.icon }
-                            MouseArea {
-                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                                onClicked: event => {
-                                    if (event.button === Qt.RightButton || tray.modelData.onlyMenu) {
-                                        const point = tray.mapToItem(bar.contentItem, 0, tray.height);
-                                        bar.shell.panel = "";
-                                        trayMenu.open(tray.modelData, bar, point.x, point.y, tray.width);
-                                    } else if (event.button === Qt.MiddleButton) tray.modelData.secondaryActivate();
-                                    else tray.modelData.activate();
-                                }
-                                onWheel: event => tray.modelData.scroll(event.angleDelta.y, false)
-                            }
-                        }
+                    // Reserve the layout label's expanded position while it
+                    // moves here from beside the clock.
+                    Item { width: layoutLabel.width + bar.sharedSpacing; height: 36 }
+                    Row {
+                        id: controlButtons
+                        height: 36; spacing: 2
+                        ShellButton { objectName: "pillMusicButton"; visible: !!bar.shell.media.player; emberShell: bar.shell; theme: colors; icon: "music"; hint: "Now playing"; selected: bar.shell.panel === "media"; onClicked: bar.openPanel("media") }
+                        ShellButton { emberShell: bar.shell; theme: colors; icon: bar.shell.audio.muted ? "volume-x" : "volume-2"; hint: "Sound"; selected: bar.shell.panel === "mixer"; onClicked: bar.openPanel("mixer"); onScrolled: delta => bar.shell.audio.adjust(delta > 0 ? 0.05 : -0.05) }
+                        ShellButton { emberShell: bar.shell; theme: colors; icon: "activity"; hint: "System statistics"; selected: bar.shell.panel === "system"; onClicked: bar.openPanel("system") }
+                        ShellButton { emberShell: bar.shell; theme: colors; icon: "ethernet-port"; hint: "Network"; selected: bar.shell.panel === "ethernet"; onClicked: bar.openPanel("ethernet") }
+                        ShellButton { emberShell: bar.shell; theme: colors; icon: "bluetooth"; hint: "Bluetooth"; selected: bar.shell.panel === "bluetooth"; onClicked: bar.openPanel("bluetooth") }
+                        ShellButton { emberShell: bar.shell; theme: colors; icon: "power"; hint: "Power"; selected: bar.shell.panel === "power"; onClicked: bar.openPanel("power") }
                     }
-                    ShellButton { objectName: "pillMusicButton"; visible: !!bar.shell.media.player; emberShell: bar.shell; theme: colors; icon: "music"; hint: "Now playing"; selected: bar.shell.panel === "media"; onClicked: bar.openPanel("media") }
-                    ShellButton { emberShell: bar.shell; theme: colors; icon: bar.shell.audio.muted ? "volume-x" : "volume-2"; hint: "Sound"; selected: bar.shell.panel === "mixer"; onClicked: bar.openPanel("mixer"); onScrolled: delta => bar.shell.audio.adjust(delta > 0 ? 0.05 : -0.05) }
-                    ShellButton { emberShell: bar.shell; theme: colors; icon: "activity"; hint: "System statistics"; selected: bar.shell.panel === "system"; onClicked: bar.openPanel("system") }
-                    ShellButton { emberShell: bar.shell; theme: colors; icon: "ethernet-port"; hint: "Network"; selected: bar.shell.panel === "ethernet"; onClicked: bar.openPanel("ethernet") }
-                    ShellButton { emberShell: bar.shell; theme: colors; icon: "bluetooth"; hint: "Bluetooth"; selected: bar.shell.panel === "bluetooth"; onClicked: bar.openPanel("bluetooth") }
-                    ShellButton { emberShell: bar.shell; theme: colors; icon: "power"; hint: "Power"; selected: bar.shell.panel === "power"; onClicked: bar.openPanel("power") }
                 }
             }
             Item {
                 id: panelLoader
-                x: bar.launcherDragged ? 24 : Math.round((bar.width - bar.paneWidth) / 2) - pill.x + 24
-                y: 16
-                width: bar.paneWidth - 48; height: bar.paneHeight - y - 24
+                readonly property int inset: bar.shownPanel === "launcher" ? 12 : 24
+                x: bar.launcherDragged ? inset : Math.round((bar.width - bar.paneWidth) / 2) - pill.x + inset
+                y: bar.shownPanel === "launcher" ? 8 : 16
+                width: bar.paneWidth - inset * 2; height: bar.paneHeight - y - inset
                 readonly property var item: bar.shownPanel ? paneSlots.itemAt(bar.paneNames.indexOf(bar.shownPanel))?.item || null : null
                 Repeater {
                     id: paneSlots

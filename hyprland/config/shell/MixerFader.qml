@@ -47,7 +47,7 @@ ColumnLayout {
         Layout.alignment: Qt.AlignHCenter; Layout.preferredHeight: 24
         text: root.available ? Math.round(fader.value * 100) + "%" : "—"
         color: root.theme.text; opacity: root.shell.emberTarget === fader.emberSlot ? 1 : 0.75
-        font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize
+        font: root.theme.textFont
     }
     Item {
         Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 36; Layout.preferredHeight: 32

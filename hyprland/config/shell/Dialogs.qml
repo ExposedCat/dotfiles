@@ -118,7 +118,7 @@ Item {
                         }
                     }
                 }
-                Text { font.family: window.theme.fontFamily; font.weight: window.theme.fontWeight; font.pixelSize: window.theme.bodySize; text: window.shell.actionError; visible: text.length > 0; color: window.theme.red; wrapMode: Text.Wrap; Layout.preferredWidth: 228 }
+                Text { font: window.theme.textFont; text: window.shell.actionError; visible: text.length > 0; color: window.theme.red; wrapMode: Text.Wrap; Layout.preferredWidth: 228 }
             }
         }
     }

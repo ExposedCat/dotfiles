@@ -119,7 +119,7 @@ them; Shift+Caps Lock toggles normal Caps Lock.
 | Super+N | Active notifications, calendar, and Do not disturb |
 | Super+M | Power menu (lock, suspend, logout, restart, shut down) |
 | Print | Select and annotate a screenshot area |
-| Alt+Print | Preselect the current window in the capture overlay |
+| Alt+Print | Immediately copy and save the current window |
 | Ctrl+Shift+Alt+R | Select a recording area, or stop the active recording |
 | Super+Page Up/Down or Ctrl+Alt+Left/Right | Previous/next workspace on the focused monitor, including Logitech side buttons |
 | Super+Shift+Page Up/Down or Ctrl+Alt+Shift+Left/Right | Move the active window to the previous/next workspace on its monitor |
@@ -160,7 +160,8 @@ Launcher examples:
 | `100 usd eur` or `100 usd to eur` | Currency conversion through Qalculate |
 | `100 usd` | CZK and EUR suggestions; other source currencies offer CZK, USD, and EUR |
 | `25 * 2 eur`, `25 eur / 4` | €50 or €6.25, followed by CZK/USD/EUR equivalents |
-| `2 + 15 eur)` | €17; unlabelled additive amounts inherit the closest currency on their left, then on their right |
+| `2 + 15 eur)` | €17; unlabelled additive amounts inherit the closest left currency, then right, within their bracket group before looking outward |
+| `12 eur + (5 + 12 czk)` | 12 EUR + 17 CZK; the local CZK takes priority over the outer EUR |
 | `2 + 2) * 3` | 12; Qalculate supplies the missing opening parenthesis |
 | `5 ft to cm`, `350 fahrenheit to celsius` | Unit conversion |
 | `sqrt(2)`, `sin(pi/2)` | Qalculate functions; `=` explicitly selects other expressions |
@@ -212,32 +213,46 @@ the package is staged and an unmodified user-local RPM payload under
 available. Bubblewrap gives that fallback its packaged data directory without
 changing the running system's packages.
 
-The capture overlay freezes each monitor and keeps selection and annotation in
-the same interface. It covers the floating pill. The icon toolbar appears only
-after an area is selected and hides while
-the area is being adjusted; there is no top hint. Its tooltips identify Select,
-Pen, Arrow, Box, Text, Redact, Undo, cursor toggle, copy/save, and cancel. Choose an ink
-color and use Undo or Ctrl+Z. Select lets you reframe the area without leaving
-the overlay. The Cursor On/Off button controls whether the pointer appears in
-the image or recording. Enter or Ctrl+C exports the annotated image directly to
-the clipboard and a PNG in the XDG Pictures directory under `Screenshots/`.
-Escape cancels. Selection borders and controls are excluded from the export.
-No separate image editor opens, and no additional screenshot shortcuts are bound.
+The capture overlay freezes every monitor and uses one desktop-wide selection,
+including regions spanning displays with different scale factors or negative
+coordinates. The brown-glass toolbar appears after selection and hides during
+a drag. It contains Pen, Arrow, Box, Text, Blur, cursor toggle, and Start recording
+(video only). Click the selected annotation tool again to turn it off. With no
+tool selected, left-drag inside the selection to move it. Left-drag outside it
+to select a new region; right-drag anywhere always selects a new region, even
+with an annotation tool active. Movement keeps the region inside desktop bounds.
+The opacity icon applies heavy blur with 8px rounded corners, including earlier
+annotations; later annotations remain sharp. Ctrl+Z undoes each blur patch.
+There are no selection, copy/save, undo, or close buttons. Escape cancels.
+Outside text entry, any non-modifier key copies and saves a screenshot; Escape
+cancels, and Ctrl+Z or Backspace/Delete undo annotations. Text entry retains its normal
+editing and clipboard behavior; Enter commits a label. The image is copied to
+the clipboard and saved as PNG under the XDG Pictures directory's `Screenshots/`.
+Selection borders, dimming, and controls are excluded. Mixed-scale captures use
+the highest participating output scale; gaps between monitors are black.
+Screenshot and recording regions are remembered separately, together with the
+shared cursor setting, under `~/.local/state/dotfiles/hyprland/capture.json`.
+Restored regions are clipped to the currently connected desktop.
 
-Selections stay within a single monitor. Alt+Print starts with the active
-window's visible rectangle selected on its monitor. For recording, choose the
-area and cursor option, then press Enter or Record. Press Ctrl+Shift+Alt+R again
-to stop, or click the recording indicator on the other monitor. The recorder
-receives SIGINT and finalizes an MP4 in the XDG Videos directory under
-`Recordings/`. Video dimensions are rounded down to even numbers as required by
-the encoder. During recording, both monitors are dimmed outside the selected
-rectangle. The rectangle remains live and undimmed; the shading passes clicks
-through to applications. Its border sits outside the encoded image. Capture
-startup uses parallel raw pixmaps instead of sequential PNG compression and
-reuses a preloaded capture worker with its graphics context warmed at login.
-The worker has no visible selection window while idle, releases captured images
-when finished, and has no layer fade animation. A cold fallback remains available
-when the worker is not running.
+Alt+Print immediately captures the active window's visible rectangle across
+all intersecting displays and copies/saves it, without opening a selector.
+For recording, choose a region and cursor option, then press a non-modifier key
+or the video-camera button. Ctrl+Shift+Alt+R is the only stop control. Recording
+borders remain outside the encoded rectangle; dimming passes input through.
+Single-output regions retain direct wl-screenrec capture. Spanning regions
+record each intersecting output, then crop, scale, and combine them into one MP4
+in the XDG Videos directory's `Recordings/` when stopped. This final composition
+can take additional time. Capture overlays disappear as soon as stopping begins.
+Intermediate clips are retained next to the output if composition fails.
+FFmpeg with libx264 and Python Pillow are required for spanning recordings and
+immediate window screenshots, respectively.
+
+The selector keeps input captured until held keys and modifiers are released,
+so cancellation/export does not reach the restored app. It suspends shell
+focus-loss dismissal while open, preserving an open launcher and its query and
+selection. Startup uses parallel raw pixmaps and a preloaded worker with its
+graphics context warmed at login. No selection window remains visible while
+idle, and a cold fallback is available if the worker is absent.
 
 The clipboard picker preserves text and image bytes and renders previews as
 plain text. Cliphist respects selections marked sensitive by the source
@@ -261,10 +276,13 @@ center. Volume/microphone/brightness feedback and workspace changes temporarily
 use the pill itself. Notifications appear independently in the top-right corner,
 with the same small gap from the top and right edges.
 
-Hover widens the pill to reveal workspaces fixed to its left inset, app tray
-icons, media, sound, system statistics, network, Bluetooth, and power
-controls. Month, date, and weekday appear
-immediately to the left of the stationary clock. A recording indicator appears
+Hover widens the pill to reveal workspaces and app tray icons on the left,
+with media, sound, system statistics, network, Bluetooth, and power
+controls on the right. Spaces separate the workspaces, tray, date group,
+and controls. The gaps on both sides of the tray share the available room; the
+layout-to-controls gap matches them. The numeric date (`11.15`) appears to the left of the stationary
+clock; the weekday replaces EN/RU beside it as the layout label moves to the
+right-hand controls. A recording indicator appears
 while recording, and the sound icon reflects mute state. Leaving collapses it after 240 ms; an open menu or tray menu keeps it
 expanded. Media, mixer, system, network, Bluetooth, power, and notifications grow from the
 same floating surface, with a constant 20-pixel corner radius and a single
@@ -340,8 +358,9 @@ Panel buttons have no hover highlights or tooltips; icon-button hints are used
 for accessibility. Tray menus use the shell's dark colors and typography, with
 checks, disabled actions, separators, and navigable submenus. Clickable controls
 use a pointer cursor. Bluetooth uses a fixed-height scrolling viewport.
-Quickshell uses Adwaita Sans Regular with 18px text, including the compact launcher
-and mixer. Typography is defined in `shell/ShellTheme.qml`;
+Quickshell uses Adwaita Sans Regular with 18px text throughout the bar, launcher,
+notifications, menus, media, statistics, and inputs. All shell text binds to the
+shared `textFont` in `shell/ShellTheme.qml`;
 `tools/ShellTheme.qml` links to that shared theme for standalone tools.
 Workspaces appear as dim dots with a white active
 indicator that stretches to fill a minimum-width block when there are few workspaces.
@@ -417,11 +436,10 @@ Reply supports Send/Cancel, Enter to send, and Escape to cancel; drafts remain
 in memory only, and follow the message into the center when its banner is consumed.
 Banners fade and drop in at the top-right with a slight tilt, independently of
 the pill. Fresh messages joining a stack fall onto its top card too. Notifications with
-the same app and exact title share a stack, showing the newest message and a
-count. The arrow expands or collapses its messages; the top dismiss button
+the same app and exact title share a stack, showing the newest message. The arrow expands or collapses its messages; the top dismiss button
 closes that banner group. Up to four groups can appear at once.
 Banner and center cards use the pill's translucent brown gradient, with lighter
-inset surfaces in the center, slim glass stack edges, and banner count badges.
+inset surfaces in the center and slim glass stack edges.
 Arrivals queue during banner hover/reply. Opening the center consumes visible and
 queued banners; arrivals while it is open go directly into the center. Those
 messages, including later updates, do not replay as banners after it closes.
@@ -498,8 +516,15 @@ selection, deliberate navigation, drag threshold/placement, and focus dismissal.
 Nautilus on the isolated desktop's private D-Bus session, checking file results,
 copying, favorites, and recents. Run all GUI and D-Bus fixtures through the
 isolated helper; do not run them on the working desktop.
+`hyprland/tests/capture-input.py` runs a nested compositor through that helper
+and checks real held/repeated Escape, Enter, Ctrl+C, modifier releases, annotation
+editing, and the cold fallback against an underlying key-event observer.
+It also checks the capture/shell handoff with the real launcher, preserving its
+query and selection through cancel/export and restoring focus-loss dismissal.
 `hyprland/tests/notification-layout.qml` checks card separation and stable delegates
 through reordering, variable body heights, width changes, and inline reply/cancel.
+`hyprland/tests/notification-center-layout.qml` checks spacing between groups on
+first open, hidden and live arrivals, retained pane resizing, body changes, and dismissal.
 `hyprland/tests/pill-features.qml` exercises the integrated views, notification
 queue/expiry pause, media/mixer controls, retained state, and Super restoration.
 `hyprland/tests/pill-dismissal.qml` covers notification arrivals while a menu is

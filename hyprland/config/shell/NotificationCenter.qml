@@ -89,7 +89,6 @@ RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true
             clip: true; spacing: 14
             model: groupModel
-            add: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120 } }
             HoverHandler { onHoveredChanged: { root.shell.notifications.centerHovered = hovered; if (hovered) root.notificationMode = true; } }
             boundsBehavior: Flickable.StopAtBounds
             ScrollBar.vertical: ScrollBar {}
@@ -100,13 +99,17 @@ RowLayout {
                 presented: wanted
                 onRetired: root.retireGroup(groupKey)
                 width: notificationList.width; emberShell: root.shell; theme: root.theme; store: root.shell.notifications; group: root.groupsByKey[groupKey]
+                // A ListView add transition retains positions measured before
+                // wrapped card content settles. Fade without a view transition
+                // so changing group heights continue to reflow their neighbors.
+                NumberAnimation on opacity { from: 0; to: 1; duration: 120 }
                 expanded: !!root.expandedGroups[groupKey]
                 onToggleExpanded: root.toggleGroup(groupKey)
             }
             Column {
                 anchors.centerIn: parent; visible: notificationList.count === 0; spacing: 12
                 ShellIcon { anchors.horizontalCenter: parent.horizontalCenter; name: "bell-off"; width: 21; height: 21; opacity: 0.6 }
-                Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; text: "No notifications"; color: root.theme.secondary }
+                Text { font: root.theme.textFont; text: "No notifications"; color: root.theme.secondary }
             }
         }
         RowLayout {

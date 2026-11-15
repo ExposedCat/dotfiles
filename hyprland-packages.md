@@ -35,6 +35,8 @@
 - tuned-ppd
 - grim
 - wl-screenrec
+- ffmpeg (including libx264, for cross-screen recording composition)
+- python3-pillow (for direct window screenshots)
 - wl-clipboard
 - cliphist
 - gnome-online-accounts

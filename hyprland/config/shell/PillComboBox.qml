@@ -7,7 +7,7 @@ ComboBox {
     property real menuWidth: width
     property string emptyText: ""
     implicitHeight: flat ? 30 : 42
-    font.family: theme.fontFamily; font.pixelSize: theme.bodySize
+    font: theme.textFont
     leftPadding: flat ? 0 : 14; rightPadding: flat ? 26 : 36
     background: Rectangle { color: root.flat ? "transparent" : Qt.alpha(root.theme.text, 0.06); radius: 10 }
     contentItem: Text {
@@ -17,6 +17,7 @@ ComboBox {
     indicator: ShellIcon { name: "chevron-down"; width: 21; height: 21; x: root.width - width - (root.flat ? 1 : 12); y: Math.round((root.height - height) / 2); opacity: root.enabled ? 1 : 0.4 }
     HoverHandler { enabled: root.enabled; cursorShape: Qt.PointingHandCursor }
     delegate: ItemDelegate {
+        font: root.font
         required property var modelData
         required property int index
         width: root.popup.width - 16; height: 40
