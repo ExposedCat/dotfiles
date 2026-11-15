@@ -13,7 +13,7 @@ end
 
 local function add(id, monitor, windows, visible, special)
     local workspace = {
-        id = id, monitor = monitor, windows = windows or 0,
+        id = id, name = tostring(id), monitor = monitor, windows = windows or 0,
         visible = visible or false, special = special or false,
     }
     table.insert(state, workspace)
@@ -72,8 +72,21 @@ local function setup()
             applied[tonumber(spec.workspace)] = rule
             return rule
         end,
-        dispatch = function(command) table.insert(dispatched, command) end,
+        dispatch = function(command)
+            table.insert(dispatched, command)
+            if command.action == "renumber" then
+                local target
+                for _, workspace in ipairs(state) do
+                    assert(workspace.id ~= command.id, "renumbering must not collide with another workspace")
+                    if workspace.id == command.from then target = workspace end
+                end
+                assert(target, "renumbering must keep the existing workspace object")
+                target.id, target.name = command.id, tostring(command.id)
+                emit("workspace.renamed")
+            end
+        end,
         dsp = {
+            workspace = { change_id = function(spec) return { action = "renumber", from = spec.workspace, id = spec.id } end },
             focus = function(spec) return { action = "focus", id = spec.workspace } end,
             window = { move = function(spec) return { action = "move", id = spec.workspace } end },
         },
@@ -83,6 +96,10 @@ local function setup()
     local policy = assert(loadfile(module_path))()
     emit("config.reloaded")
     settle()
+    for _, command in ipairs(dispatched) do
+        assert(command.action == "renumber", "setup must not switch focus or move windows")
+    end
+    dispatched = {}
     return policy
 end
 
@@ -92,55 +109,87 @@ local function ids(policy, monitor)
     return table.concat(result, ",")
 end
 
+local function edges(policy, monitor, count)
+    local list = policy.list(monitor)
+    assert(#list == count, "unexpected number of workspaces: " .. ids(policy, monitor))
+    assert(list[1].windows == 0 and list[#list].windows == 0, "both edges must be empty")
+    for index = 2, #list do assert(list[index-1].id < list[index].id, "visual order and slide direction must agree") end
+    return table.unpack(list)
+end
+
 local policy = setup()
-assert(ids(policy, monitors[1]) == "1,3")
-assert(ids(policy, monitors[2]) == "2,4")
-assert(#dispatched == 0, "initialization must not change focus or move windows")
+assert(ids(policy, monitors[1]) == "1,3,4")
+assert(ids(policy, monitors[2]) == "2,5,6")
+assert(state[1] == monitors[1].active_workspace and state[1].windows == 2, "initialization must preserve the focused workspace object and its windows")
+local left, middle, right = edges(policy, monitors[1], 3)
+edges(policy, monitors[2], 3)
+policy.step(-1)
+assert(dispatched[#dispatched].id == left.id, "previous must reach the left edge")
 policy.step(1)
-assert(dispatched[#dispatched].id == 3)
+assert(dispatched[#dispatched].id == right.id, "next must reach the right edge")
+policy.select(1, true)
+assert(dispatched[#dispatched].id == left.id and dispatched[#dispatched].action == "move")
 monitors.focused = monitors[2]
 policy.step(1)
-assert(dispatched[#dispatched].id == 4, "switching must stay on the focused monitor")
-policy.select(2, true)
-assert(dispatched[#dispatched].id == 4 and dispatched[#dispatched].action == "move")
+assert(dispatched[#dispatched].id == policy.list(monitors[2])[3].id, "switching must stay on the focused monitor")
 local count = #dispatched
 policy.select(10)
+monitors[2].active_workspace = policy.list(monitors[2])[1]
 policy.step(-1)
-assert(#dispatched == count, "out-of-range navigation must stop at the edge")
+monitors[2].active_workspace = policy.list(monitors[2])[3]
+policy.step(1)
+assert(#dispatched == count, "navigation must stop at both edges")
 
 policy = setup()
-local first = state[1]
-local tail = policy.list(monitors[1])[2]
-first.visible = false
-tail.visible = true
-monitors[1].active_workspace = tail
+left, middle, right = edges(policy, monitors[1], 3)
+local other = ids(policy, monitors[2])
+middle.visible = false
+left.visible = true
+monitors[1].active_workspace = left
 emit("workspace.active")
 settle()
-assert(ids(policy, monitors[1]) == "1,3", "viewing the empty tail must not spawn endless empty workspaces")
-tail.windows = 1
+edges(policy, monitors[1], 3)
+left.windows = 1
 emit("window.open")
 emit("window.move_to_workspace")
 assert(#timers == 1, "related lifecycle events should coalesce")
 settle()
-assert(ids(policy, monitors[1]) == "1,3,5", "using the tail must append a new empty workspace")
-first.windows = 0
-emit("window.close")
-settle()
-assert(ids(policy, monitors[1]) == "3,5", "a hidden empty workspace must disappear")
-tail.windows = 0
-emit("window.close")
-settle()
-assert(ids(policy, monitors[1]) == "3,5", "a visible empty workspace must survive")
-tail.visible = false
-policy.list(monitors[1])[2].visible = true
-monitors[1].active_workspace = policy.list(monitors[1])[2]
+edges(policy, monitors[1], 4)
+assert(policy.list(monitors[1])[2] == left and policy.list(monitors[1])[3] == middle,
+       "prepending must keep occupied objects in order")
+assert(monitors[1].active_workspace == left and left.visible, "making room must retain focus")
+assert(ids(policy, monitors[2]) == other, "making room must not renumber another monitor")
+left.visible = false
+right.visible = true
+monitors[1].active_workspace = right
 emit("workspace.active")
 settle()
-assert(ids(policy, monitors[1]) == "5", "the former visible empty workspace must disappear after leaving it")
-assert(ids(policy, monitors[2]) == "2,4", "other monitors must remain unchanged")
+edges(policy, monitors[1], 4)
+right.windows = 1
+emit("window.open")
+settle()
+edges(policy, monitors[1], 5)
+middle.windows = 0
+emit("window.close")
+settle()
+edges(policy, monitors[1], 4)
+left.windows = 0
+emit("window.close")
+settle()
+edges(policy, monitors[1], 3)
+right.windows = 0
+emit("window.close")
+settle()
+assert(#policy.list(monitors[1]) == 1 and policy.list(monitors[1])[1] == right,
+       "an empty monitor must keep only its visible workspace")
+assert(ids(policy, monitors[2]) == other, "other monitors must remain unchanged")
+right.windows = 1
+emit("window.open")
+settle()
+edges(policy, monitors[1], 3)
 
 policy = setup()
-add(-99, monitors[1], 1, false, true)
+local special = add(-99, monitors[1], 1, false, true)
 monitors[2].enabled = false
 for _, workspace in ipairs(state) do
     if workspace.monitor == monitors[2] then
@@ -150,15 +199,29 @@ for _, workspace in ipairs(state) do
 end
 emit("monitor.removed")
 settle()
-assert(ids(policy, monitors[1]) == "1,2,4", "hotplug should retain migrated windows and just one empty tail")
+edges(policy, monitors[1], 4)
 assert(#policy.list(monitors[2]) == 0)
-assert(state[#state].special, "scratchpads must remain unmanaged")
+local found = false
+for _, workspace in ipairs(state) do if workspace == special then found = true end end
+assert(found, "scratchpads must remain unmanaged")
 
--- A reload rebuilds rule state without changing the workspace list or focus.
-local before = ids(policy, monitors[1])
+-- Reloads must preserve order without moving/focusing/renumbering anything.
+local before, dispatched_before = ids(policy, monitors[1]), #dispatched
 policy = assert(loadfile(module_path))()
 emit("config.reloaded")
 settle()
 assert(ids(policy, monitors[1]) == before)
-assert(#dispatched == 0)
-print("Workspace lifecycle, monitor isolation, shortcuts, hotplug, and reload passed")
+assert(#dispatched == dispatched_before)
+
+-- Empty and mirrored outputs must not acquire duplicate or unmanaged edges.
+policy = setup()
+state = {}
+for _, monitor in ipairs(monitors) do monitor.active_workspace = nil end
+emit("workspace.removed")
+settle()
+assert(#policy.list(monitors[1]) == 1 and #policy.list(monitors[2]) == 1)
+monitors[2].is_mirror = true
+emit("monitor.added")
+settle()
+assert(#policy.list(monitors[2]) == 0)
+print("Two-sided workspace lifecycle, empty-monitor collapse, stable workspace objects, monitor isolation, shortcuts, hotplug, and reload passed")

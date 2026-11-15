@@ -107,6 +107,42 @@ with tempfile.TemporaryDirectory(prefix='capture-multi-', dir=os.environ['XDG_RU
         wait_for(lambda:state(),'No test shell')
         assert ipc('open') is True
         wait_for(lambda:len(state()['frames'])==2,'Both surfaces did not render')
+        # Dragging on a non-current output must hide every toolbar until release.
+        cursor('set 620 170');cursor('press button1');cursor('set 760 290')
+        during = state()
+        assert during['dragging'] and not any(t['visible'] for t in during['toolbars']), during
+        cursor('release button1')
+        after = state()
+        visible = [t for t in after['toolbars'] if t['visible']]
+        assert len(visible) == 1 and visible[0]['output'] == 'HEADLESS-2', after
+        assert visible[0]['side'] == 'bottom' and visible[0]['x'] > 350, after
+        # Candidate priority, orientation and bounds use each output's local
+        # selection, including the display with a negative global origin.
+        for output in outputs:
+            for side, rect in [
+                ('bottom', (300,150,200,100)), ('top', (500,450,200,100)),
+                ('left', (300,20,400,560)), ('right', (20,20,400,560)),
+                ('inner-top', (0,0,800,600)),
+            ]:
+                x,y,w,h = rect
+                ipc('selectArea', json.dumps(dict(x=output['x']+x,y=output['y']+y,width=w,height=h)), output['name'])
+                toolbar = next(t for t in state()['toolbars'] if t['visible'])
+                assert toolbar['output'] == output['name'] and toolbar['side'] == side, toolbar
+                assert toolbar['vertical'] == (side in ('left','right')), toolbar
+                assert toolbar['x'] >= 8 and toolbar['y'] >= 8, toolbar
+                assert toolbar['x']+toolbar['width'] <= 792 and toolbar['y']+toolbar['height'] <= 592, toolbar
+                if toolbar['vertical']:
+                    assert abs(toolbar['y'] + toolbar['height']/2 - (y+h/2)) <= 1, toolbar
+                    point = ipc('toolbarPoint', 'arrow')
+                    cursor(f"set {round(point['x'])} {round(point['y'])}")
+                    cursor('press button1');cursor('release button1')
+                    assert state()['tool'] == 'arrow', state()
+                    cursor('press button1');cursor('release button1')
+                    assert state()['tool'] == '', state()
+                    if side == 'left' and output['name'] == 'HEADLESS-2' and os.environ.get('DOTFILES_TOOLBAR_PREVIEW'):
+                        subprocess.run(['/usr/bin/grim',os.environ['DOTFILES_TOOLBAR_PREVIEW']],env=env,check=True)
+                elif side == 'bottom':
+                    assert abs(toolbar['x'] + toolbar['width']/2 - (x+w/2)) <= 1, toolbar
         cursor('set -100 200');cursor('press button1');cursor('set 200 400');cursor('release button1')
         selected=state()
         assert selected['selection']==dict(x=-100,y=200,width=300,height=200),selected
@@ -261,7 +297,7 @@ with tempfile.TemporaryDirectory(prefix='capture-multi-', dir=os.environ['XDG_RU
         cursor('set 50 380');cursor('release button3')
         wait_for(lambda:not state()['active'],'Pending cancel did not finish on mouse release')
         assert not state()['dragging'],state()
-        print('CAPTURE MULTISCREEN PASS: tool toggling, inside movement, bounds, outside/RMB reselection, text/toolbar RMB, cross-output drag, negative coordinates, staggered mixed-scale displays, seam-spanning annotations, exact export, rounded heavy blur, annotation order, blur undo, and persisted cursor/region')
+        print('CAPTURE MULTISCREEN PASS: release-only toolbar across outputs, five placement priorities, vertical controls, tool toggling, inside movement, bounds, outside/RMB reselection, text/toolbar RMB, cross-output drag, negative coordinates, staggered mixed-scale displays, seam-spanning annotations, exact high-DPI export, rounded heavy blur, annotation order, blur undo, and persisted cursor/region')
     except Exception:
         log.flush();print((root/'qml.log').read_text());raise
     finally:

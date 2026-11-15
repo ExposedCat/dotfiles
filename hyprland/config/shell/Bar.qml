@@ -13,10 +13,27 @@ PanelWindow {
     readonly property var monitorInfo: shell.fixture ? null : Hyprland.monitorFor(screen)
     readonly property bool fullscreen: shell.fixture ? !!shell.fixtureData.fullscreen : !!(monitorInfo && monitorInfo.activeWorkspace && monitorInfo.activeWorkspace.hasFullscreen)
     readonly property bool hidden: shell.pillHidden || shell.pillSuppressed || fullscreen
-    readonly property var spaces: shell.fixture ? (shell.fixtureData.workspaces || [{id: 1, active: true}, {id: 2, active: false}, {id: 3, active: false}]) : Hyprland.workspaces.values.filter(w => w.id > 0 && w.monitor && w.monitor.name === screen.name).sort((a,b) => a.id - b.id)
+    // The pill stays on the main screen; its workspace controls follow the
+    // focused monitor. Feedback retains the monitor that emitted the switch.
+    readonly property string workspaceOutput: !expanded && shell.osd.visible && shell.osd.kind === "workspace" && shell.osd.output
+        ? shell.osd.output : shell.focusedScreen?.name || screen?.name || ""
+    readonly property var spaces: shell.fixture
+        ? (shell.fixtureData.workspacesByMonitor?.[workspaceOutput] || shell.fixtureData.workspaces || [{id: 1, active: true}, {id: 2, active: false}, {id: 3, active: false}])
+        : Hyprland.workspaces.values.filter(w => w.id > 0 && w.monitor && w.monitor.name === workspaceOutput).sort((a,b) => a.id - b.id)
     readonly property bool expanded: hoverExpanded || shell.panel.length > 0 || trayMenu.visible
     readonly property string pillState: hidden ? "hidden" : shell.panel || feedbackKind || (expanded ? "expanded" : "compact")
     readonly property bool hasNotifications: shell.notifications.entries.length > 0
+    // Track the pointer on the fixed native surface, not the animated header.
+    readonly property bool pillHovered: hover.hovered && (
+        (hover.point.position.x >= pill.x && hover.point.position.x < pill.x + pill.width
+            && hover.point.position.y >= pill.y && hover.point.position.y < pill.y + headerHeight)
+        || (expanded && !shell.panel && hover.point.position.x >= expansionTarget.x
+            && hover.point.position.x < expansionTarget.x + expansionTarget.width
+            && hover.point.position.y >= expansionTarget.y && hover.point.position.y < expansionTarget.y + expansionTarget.height))
+    onPillHoveredChanged: {
+        if (pillHovered && !hidden && !feedbackVisible && !suppressHover) { collapse.stop(); hoverExpanded = true; }
+        else collapse.restart();
+    }
     property bool hoverExpanded: false
     property bool suppressHover: false
     property string shownPanel: ""
@@ -91,15 +108,17 @@ PanelWindow {
     readonly property int pillRadius: 20
     readonly property int sideInset: 20
     readonly property int groupSpacing: 24
-    readonly property real compactContentWidth: timeButton.width + 14 + layoutLabel.width + (hasNotifications ? 30 : 0)
-    readonly property real compactWidth: Math.ceil((compactContentWidth + 36) / 2) * 2
+    readonly property real compactContentWidth: timeButton.width + 14 + layoutLabel.width
+    readonly property int notificationSpace: hasNotifications ? 30 : 0
+    readonly property real compactWidth: Math.ceil((compactContentWidth + 36 + notificationSpace) / 2) * 2
     readonly property real leftContentWidth: compactContentWidth / 2 + 14 + dateLabel.width + workspaceControls.implicitWidth + (trayItems.count ? trayIcons.implicitWidth : 0) + sideInset
-    readonly property real rightContentWidth: compactContentWidth / 2 + Math.max(0, weekdayLabel.width - layoutLabel.width) + layoutLabel.width + controlButtons.implicitWidth + sideInset
+    // Reserve the indicator's slot while expanded so arrivals never retarget
+    // the expansion animation, fade the controls, or move them under the mouse.
+    readonly property real rightContentWidth: compactContentWidth / 2 + weekdayLabel.width - layoutLabel.width + 30 + controlButtons.implicitWidth + sideInset
     readonly property real leftNeed: leftContentWidth + groupSpacing * (trayItems.count ? 2 : 1)
     // Each left spacer takes half the remaining left-hand room. Reserve room
     // for the matching right spacer too, without measuring its own stretched width.
-    readonly property real rightNeed: trayItems.count ? 2 * (Math.ceil(rightContentWidth) + groupSpacing) - Math.floor(leftContentWidth) : rightContentWidth + groupSpacing * 2
-    readonly property real sharedSpacing: trayItems.count ? Math.max(groupSpacing, workspaceTraySpacer.width) : groupSpacing
+    readonly property real rightNeed: trayItems.count ? 2 * Math.ceil(rightContentWidth) - Math.floor(leftContentWidth) : rightContentWidth + groupSpacing
     readonly property real controlsWidth: Math.ceil(Math.max(600, 2 * Math.max(leftNeed, rightNeed)) / 2) * 2
     readonly property real targetWidth: Math.min(width - 24, shell.panel ? paneWidth : expanded ? controlsWidth : compactWidth + feedbackLeft + feedbackRight)
     readonly property real targetHeight: shell.panel ? paneHeight : headerHeight
@@ -107,7 +126,7 @@ PanelWindow {
     // Only an active pointer gesture bypasses the animation.
     // Snap all painted coordinates to whole pixels to avoid text shimmer.
     readonly property rect targetGeometry: Qt.rect(
-        pinnedLauncher ? launcherPosition.x : (width - targetWidth) / 2 + (feedbackRight - feedbackLeft) / 2,
+        pinnedLauncher ? launcherPosition.x : (width - targetWidth) / 2 + (feedbackRight - feedbackLeft + (!expanded ? notificationSpace : 0)) / 2,
         pinnedLauncher ? launcherPosition.y : theme.panelGap, targetWidth, targetHeight)
     property rect animatedGeometry: targetGeometry
     Behavior on animatedGeometry {
@@ -131,10 +150,18 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: hidden || shell.captureActive ? WlrKeyboardFocus.None : ["launcher", "media", "mixer", "system", "power", "ethernet", "bluetooth"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
     Region { id: pillInput; item: pill }
+    // A fast pointer can reach the controls before the painted pill does.
+    // Keep that destination interactive throughout hover expansion.
+    Item {
+        id: expansionTarget
+        x: bar.targetGeometry.x; y: bar.targetGeometry.y
+        width: bar.targetWidth; height: bar.headerHeight
+    }
+    Region { id: expansionInput; item: expansionTarget }
     Region { id: outsideInput; item: bar.contentItem }
     // Keep the native input region and focus grab intact until release. A fast
     // pointer can get ahead of the painted surface between rendering frames.
-    mask: Region { regions: bar.hidden ? [] : bar.shell.panel && (!bar.pinnedLauncher || bar.dragPressed) ? [outsideInput] : [pillInput] }
+    mask: Region { regions: bar.hidden ? [] : bar.shell.panel && (!bar.pinnedLauncher || bar.dragPressed) ? [outsideInput] : bar.expanded && !bar.shell.panel ? [pillInput, expansionInput] : [pillInput] }
     ReplyFocus { id: centerFocus; available: bar.shell.panel === "notifications" && !bar.hidden && !bar.shell.captureActive; store: bar.shell.notifications; surface: "center"; targetWindow: bar }
     MouseArea {
         anchors.fill: parent
@@ -176,7 +203,7 @@ PanelWindow {
             } else {
                 unload.restart();
                 if (bar.launcherDragged) { bar.suppressHover = true; hoverRelease.restart(); }
-                bar.hoverExpanded = !bar.suppressHover && hover.hovered;
+                bar.hoverExpanded = !bar.suppressHover && bar.pillHovered;
                 if (pill.height === bar.headerHeight) bar.shownPanel = "";
             }
         }
@@ -191,8 +218,9 @@ PanelWindow {
     }
     onFullscreenChanged: { if (fullscreen) hoverExpanded = false; }
     Timer { id: focusDelay; interval: 230; onTriggered: { if (!bar.shell.captureActive && bar.shell.panel === "launcher" && panelLoader.item) panelLoader.item.focusSearch(); } }
-    Timer { id: collapse; interval: 240; onTriggered: { if (!hover.hovered && !bar.shell.panel && !trayMenu.visible && !bar.hidden) bar.hoverExpanded = false; } }
-    TrayMenu { id: trayMenu; theme: colors; onVisibleChanged: { if (!visible && !hover.hovered) collapse.restart(); } }
+    Timer { id: collapse; interval: 240; onTriggered: { if (!bar.pillHovered && !bar.shell.panel && !trayMenu.visible && !bar.hidden) bar.hoverExpanded = false; } }
+    TrayMenu { id: trayMenu; theme: colors; onVisibleChanged: { if (!visible && !bar.pillHovered) collapse.restart(); } }
+    HoverHandler { id: hover; enabled: !bar.hidden }
     Item {
         id: pill
         objectName: "floatingPill"
@@ -214,13 +242,6 @@ PanelWindow {
                 opacity: bar.shownPanel ? 0 : 1
                 enabled: opacity > 0.95
                 Behavior on opacity { NumberAnimation { duration: 100 } }
-                HoverHandler {
-                    id: hover
-                    onHoveredChanged: {
-                        if (hovered && !bar.hidden && !bar.feedbackVisible && !bar.suppressHover) { collapse.stop(); bar.hoverExpanded = true; }
-                        else collapse.restart();
-                    }
-                }
                 Item {
                     id: timeButton
                     width: Math.ceil(clockMetrics.width) + 2; height: bar.headerHeight
@@ -252,13 +273,14 @@ PanelWindow {
                 }
                 Text {
                     id: layoutLabel
-                    readonly property real compactX: timeButton.x + timeButton.width + 14
                     width: Math.ceil(implicitWidth)
-                    x: Math.round(compactX + (rightControls.x - compactX) * bar.detailsOpacity)
+                    x: timeButton.x + timeButton.width + 14
                     y: Math.round((bar.headerHeight - height) / 2)
                     text: bar.shell.layoutLabel
                     font: colors.textFont
                     color: colors.secondary
+                    opacity: 1 - bar.detailsOpacity
+                    visible: opacity > 0
                 }
                 Text {
                     id: weekdayLabel
@@ -273,7 +295,11 @@ PanelWindow {
                 ShellButton {
                     id: notificationDot
                     objectName: "pillNotificationIndicator"
-                    visible: bar.hasNotifications
+                    opacity: bar.hasNotifications ? 1 : 0
+                    scale: opacity
+                    visible: opacity > 0
+                    enabled: bar.hasNotifications
+                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.InOutCubic } }
                     x: Math.round(weekdayLabel.x + layoutLabel.width + (weekdayLabel.width - layoutLabel.width) * bar.detailsOpacity + 12); y: 4
                     theme: colors; implicitWidth: 18; implicitHeight: 32
                     hint: "Notifications"; onClicked: bar.openPanel("notifications")
@@ -291,7 +317,14 @@ PanelWindow {
                         Layout.alignment: Qt.AlignVCenter
                         height: bar.headerHeight; spacing: 8
                         WorkspaceDots { id: workspaceWidget; shell: bar.shell; theme: colors; spaces: bar.spaces; floating: true; implicitHeight: bar.headerHeight }
-                        ShellButton { y: 2; visible: bar.shell.recording; theme: colors; icon: "circle-dot"; danger: true; hint: "Stop recording"; onClicked: bar.shell.desktop("record") }
+                        Item {
+                            objectName: "pillScreenSharingIndicator"
+                            visible: bar.shell.screenSharing
+                            width: 36; height: bar.headerHeight
+                            Accessible.role: Accessible.StaticText
+                            Accessible.name: "Screen sharing active"
+                            ShellIcon { anchors.centerIn: parent; name: "screen-share"; width: 21; height: 21 }
+                        }
                     }
                     Item { id: workspaceTraySpacer; visible: trayItems.count > 0; Layout.fillWidth: true; Layout.minimumWidth: bar.groupSpacing }
                     Row {
@@ -334,9 +367,6 @@ PanelWindow {
                     height: 36; spacing: 0
                     opacity: bar.shell.panel === "launcher" ? 0 : bar.detailsOpacity
                     enabled: opacity > 0.95
-                    // Reserve the layout label's expanded position while it
-                    // moves here from beside the clock.
-                    Item { width: layoutLabel.width + bar.sharedSpacing; height: 36 }
                     Row {
                         id: controlButtons
                         height: 36; spacing: 2

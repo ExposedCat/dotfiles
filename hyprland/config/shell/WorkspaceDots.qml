@@ -7,9 +7,13 @@ Item {
     required property var theme
     required property var spaces
     property int fixtureActive: 0
+    property string selectedId: ""
     property bool floating: false
     property alias emberSlot: activeSlot
-    readonly property int current: shell.fixture ? Math.min(fixtureActive, Math.max(0, spaces.length - 1)) : Math.max(0, spaces.findIndex(w => w.active))
+    readonly property int current: {
+        const selected = selectedId ? spaces.findIndex(w => String(w.id) === selectedId) : -1;
+        return selected >= 0 ? selected : shell.fixture ? Math.min(fixtureActive, Math.max(0, spaces.length - 1)) : Math.max(0, spaces.findIndex(w => w.active));
+    }
     readonly property real gap: 10
     readonly property real dot: 7
     readonly property real activeWidth: Math.max(dot, 66 - Math.max(0, spaces.length - 1) * (dot + gap))

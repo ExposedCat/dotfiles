@@ -18,7 +18,7 @@ Item {
     WorkspaceDots {
         id: switches
         shell: root.shell; theme: root.theme; spaces: root.spaces; floating: true; implicitHeight: 40
-        fixtureActive: Math.max(0, root.spaces.findIndex(s => String(s.id) === root.shell.osd.workspaceLabel))
+        selectedId: root.shell.osd.workspaceId
         visible: root.workspace
     }
     Rectangle {

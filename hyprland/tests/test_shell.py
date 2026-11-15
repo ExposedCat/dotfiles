@@ -12,6 +12,23 @@ shell = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(shell)
 
 
+class SessionInfoTests(unittest.TestCase):
+    def test_main_keyboard_supplies_initial_layout(self):
+        output='{"keyboards":[{"name":"other","active_keymap":"Other"},{"name":"main","main":true,"active_keymap":"Russian"}]}'
+        with patch.object(shell.subprocess,"check_output",return_value=output) as call:
+            self.assertEqual(shell.session_info(),dict(layout="Russian",keyboard="main"))
+            self.assertEqual(call.call_args.kwargs['timeout'],2)
+
+    def test_missing_keyboard_uses_default_layout(self):
+        with patch.object(shell.subprocess,"check_output",return_value='{"keyboards":[]}'):
+            self.assertEqual(shell.session_info(),dict(layout="English (US)",keyboard=""))
+
+    def test_unavailable_compositor_does_not_keep_a_helper_running(self):
+        for error in (FileNotFoundError(),ValueError(),subprocess.TimeoutExpired("hyprctl",2)):
+            with self.subTest(error=error),patch.object(shell.subprocess,"check_output",side_effect=error):
+                self.assertEqual(shell.session_info(),dict(layout="English (US)",keyboard=""))
+
+
 class EthernetStatusTests(unittest.TestCase):
     def status(self, output, speed="2500\n"):
         result = subprocess.CompletedProcess([], 0, output, "")

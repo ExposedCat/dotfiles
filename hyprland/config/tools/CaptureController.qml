@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -150,6 +151,9 @@ Scope {
         exporting = true;
         error = "";
         remember();
+        // grabToImage's target size is multiplied by the source window's DPR.
+        // Request the desired composite pixel size once, on any hosting output.
+        const pixelRatio = item.Screen.devicePixelRatio || 1;
         item.grabToImage(result => {
             if (!result.saveToFile(data.render)) {
                 error = "Could not render the selected image.";
@@ -157,7 +161,7 @@ Scope {
                 return;
             }
             exporter.running = true;
-        }, Qt.size(Math.max(1, Math.round(item.width * scale)), Math.max(1, Math.round(item.height * scale))));
+        }, Qt.size(Math.max(1, Math.round(item.width * scale / pixelRatio)), Math.max(1, Math.round(item.height * scale / pixelRatio))));
     }
 
     Process {

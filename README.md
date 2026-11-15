@@ -134,10 +134,14 @@ so the latest control replaces the previous one. Levels are read back from the
 monitor; DDC/CI must be enabled on the display.
 
 Each monitor has an independent dynamic workspace list and an empty workspace
-at the end. Opening a window there adds another empty workspace. Other empty
+at both ends. Opening a window at either edge adds another empty workspace on
+that side; visiting an empty edge does not add more. An entirely empty monitor
+keeps a single workspace. Other empty
 workspaces disappear automatically after leaving them. Switching stops at the
-ends of the list. Workspace IDs remain stable while windows are open; number
-shortcuts refer to positions within the focused monitor's list.
+ends of the list. Number shortcuts refer to positions within the focused
+monitor's list. If no positive ID is free before the first workspace, only the
+affected monitor's workspace IDs shift to make room; windows, layouts, and focus
+stay on their existing workspace objects.
 
 The Quickshell launcher indexes installed desktop entries, including Flatpaks,
 with fuzzy subsequence matching and frequently used apps ranked ahead of equally
@@ -215,8 +219,11 @@ changing the running system's packages.
 
 The capture overlay freezes every monitor and uses one desktop-wide selection,
 including regions spanning displays with different scale factors or negative
-coordinates. The brown-glass toolbar appears after selection and hides during
-a drag. It contains Pen, Arrow, Box, Text, Blur, cursor toggle, and Start recording
+coordinates. The brown-glass toolbar appears after mouse release and stays
+hidden on every monitor during a drag. It tries below the selected area, above,
+left, right, then inside its top edge. Horizontal placements center on the
+selection; side placements use an upright vertical toolbar centered alongside
+it. Placement stays within the hosting monitor. It contains Pen, Arrow, Box, Text, Blur, cursor toggle, and Start recording
 (video only). Click the selected annotation tool again to turn it off. With no
 tool selected, left-drag inside the selection to move it. Left-drag outside it
 to select a new region; right-drag anywhere always selects a new region, even
@@ -275,15 +282,22 @@ active notifications remain. There is no separator or inactive dot. Click the ti
 center. Volume/microphone/brightness feedback and workspace changes temporarily
 use the pill itself. Notifications appear independently in the top-right corner,
 with the same small gap from the top and right edges.
+Workspace feedback shows the workspace list and selected workspace of the
+monitor where the switch occurred. Expanded workspace controls follow the
+focused monitor while the pill remains on the main display.
 
 Hover widens the pill to reveal workspaces and app tray icons on the left,
 with media, sound, system statistics, network, Bluetooth, and power
 controls on the right. Spaces separate the workspaces, tray, date group,
 and controls. The gaps on both sides of the tray share the available room; the
-layout-to-controls gap matches them. The numeric date (`11.15`) appears to the left of the stationary
-clock; the weekday replaces EN/RU beside it as the layout label moves to the
-right-hand controls. A recording indicator appears
-while recording, and the sound icon reflects mute state. Leaving collapses it after 240 ms; an open menu or tray menu keeps it
+date-to-controls gap matches them. The numeric date (`11.15`) appears to the left of the stationary
+clock; the weekday replaces EN/RU beside it as the layout label fades out.
+The notification dot fades and scales into a reserved slot in the expanded
+pill, keeping its controls and clock stationary. While expanding, the pill
+accepts hover across its destination so moving onto appearing controls keeps it open.
+A screen-sharing indicator appears while a portal stream has an active PipeWire
+consumer; local recordings use the recording-area outline without a bar icon.
+The sound icon reflects mute state. Leaving collapses it after 240 ms; an open menu or tray menu keeps it
 expanded. Media, mixer, system, network, Bluetooth, power, and notifications grow from the
 same floating surface, with a constant 20-pixel corner radius and a single
 220 ms geometry animation. Popup content retains its size and screen position
@@ -479,12 +493,19 @@ permanent enablement links. Recording uses the transient
 `dotfiles-hyprland-record.service`. These services stop with the UWSM graphical
 session and restart on failure. Only one notification daemon and Polkit agent
 should run in the session. The shell requires Quickshell 0.3.2 or newer.
+Screen-sharing status uses Quickshell's native PipeWire objects. There is no
+background recording-status process or systemd unit polling. Initial keyboard
+details are read once; subsequent layout changes use Hyprland events.
 
 Check the install/restore failure handling with:
 
 ```bash
 python3 -m unittest discover -s hyprland/tests
 ```
+
+Run `hyprland/tests/screen-sharing.qml` with a shell fixture on the isolated
+helper's nested Wayland compositor. It checks local recording and camera
+exclusion, active/paused portal streams, multiple consumers, and share teardown.
 
 The notification regression fixture `hyprland/tests/notification-behavior.qml`
 checks hover-paused expiry, queued arrivals, replacement updates, and stable

@@ -18,7 +18,7 @@ ShellRoot {
     property var panelScreen: null
     property string layout: "English (US)"
     property string keyboard: ""
-    property bool recording: false
+    readonly property bool screenSharing: sharing.active
     property bool captureActive: false
     property string actionError: ""
     property alias audio: sound
@@ -43,7 +43,7 @@ ShellRoot {
     // Resolve this component's directory, then construct a filesystem path.
     readonly property string helper: decodeURIComponent(Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "")) + "/../tools/desktop.py"
     readonly property string backend: decodeURIComponent(Qt.resolvedUrl("shell.py").toString().replace(/^file:\/\//, ""))
-    readonly property var focusedScreen: fixture ? Quickshell.screens[0] : Quickshell.screens.find(s => Hyprland.focusedMonitor && s.name === Hyprland.focusedMonitor.name) || Quickshell.screens[0]
+    readonly property var focusedScreen: Quickshell.screens.find(s => s.name === (fixture ? fixtureData.focusedOutput : Hyprland.focusedMonitor?.name)) || Quickshell.screens[0]
     readonly property string layoutLabel: layout.toLowerCase().includes("russian") ? "RU" : "EN"
     function toggle(name, screen, originX, originWidth) {
         if (name === "media" && !players.player) return;
@@ -88,7 +88,6 @@ ShellRoot {
         try {
             fixtureData = JSON.parse(fixtureFile.text());
             layout = fixtureData.layout || "English (US)";
-            recording = !!fixtureData.recording;
             if (fixtureData.notifications) notifications.entries = fixtureData.notifications;
         } catch (e) { console.warn("Invalid shell fixture:", e); }
     }
@@ -102,6 +101,7 @@ ShellRoot {
     }
     Applications { id: appIndex; shell: root }
     Media { id: players; shell: root }
+    ScreenSharing { id: sharing; fixture: root.fixture; fixtureData: root.fixtureData }
     Brightness { id: monitorBrightness; shell: root }
     SystemStats { id: systemStats; shell: root }
     Notifications { id: notifications; singlePopup: false; presentationPaused: root.panel === "notifications"; centerOpen: root.panel === "notifications"; statePath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/dotfiles/hyprland/notifications.json" }
@@ -134,7 +134,7 @@ ShellRoot {
             return JSON.stringify({applications: appIndex.apps.length, players: players.players.length, outputs: sound.outputs.length, inputs: sound.inputs.length, retained: Object.keys(bar.retained), statistics: systemStats.sample, brightness: monitorBrightness.devices});
         }
         function brightness(output: string, current: int, maximum: int): void { osd.showBrightness(output, current, maximum); }
-        function status(): string { return JSON.stringify({pill: bar.pillState, lastGesture: root.lastGesture, pillHidden: root.pillHidden, panel: root.panel, unread: notifications.unread, dnd: notifications.dnd, popups: notifications.popups.length, notifications: notifications.entries.length, volume: sound.volume, muted: sound.muted, osd: osd.visible, osdKind: osd.kind, osdLevel: osd.level, osdOutput: osd.output, layout: root.layout, recording: root.recording, fixture: root.fixture, polkit: !!(authentication.agent && authentication.agent.isRegistered)}); }
+        function status(): string { return JSON.stringify({pill: bar.pillState, lastGesture: root.lastGesture, pillHidden: root.pillHidden, panel: root.panel, unread: notifications.unread, dnd: notifications.dnd, popups: notifications.popups.length, notifications: notifications.entries.length, volume: sound.volume, muted: sound.muted, osd: osd.visible, osdKind: osd.kind, osdLevel: osd.level, osdOutput: osd.output, layout: root.layout, screenSharing: root.screenSharing, fixture: root.fixture, polkit: !!(authentication.agent && authentication.agent.isRegistered)}); }
     }
     FileView { id: fixtureFile; path: Quickshell.env("DOTFILES_SHELL_FIXTURE") || ""; blockLoading: true; watchChanges: root.fixture; printErrors: false; onFileChanged: reload(); onLoaded: root.loadFixture() }
     Component.onCompleted: { loadFixture(); if (!fixture) appIndex.refresh(); }
@@ -151,7 +151,10 @@ ShellRoot {
             }
             if (event.name === "workspacev2" && !root.panel && !root.pill.expanded) {
                 const comma = event.data.indexOf(",");
-                osd.showWorkspace(comma >= 0 ? event.data.slice(comma + 1) : event.data);
+                const identity = comma >= 0 ? event.data.slice(0, comma) : event.data;
+                const workspace = Hyprland.workspaces.values.find(w => String(w.id) === identity);
+                osd.showWorkspace(comma >= 0 ? event.data.slice(comma + 1) : event.data,
+                    workspace?.monitor?.name || root.focusedScreen?.name || "", identity);
                 return;
             }
             if (event.name !== "activelayout") return;
@@ -160,8 +163,8 @@ ShellRoot {
         }
     }
     Process {
-        id: watcher
-        command: ["/usr/bin/python3", root.backend, "watch"]
+        id: sessionInfo
+        command: ["/usr/bin/python3", root.backend, "session-info"]
         running: !root.fixture
         stdout: SplitParser {
             onRead: line => {
@@ -169,13 +172,10 @@ ShellRoot {
                     const data = JSON.parse(line);
                     if (data.layout !== undefined) root.layout = data.layout;
                     if (data.keyboard !== undefined) root.keyboard = data.keyboard;
-                    if (data.recording !== undefined) root.recording = data.recording;
                 } catch (e) { console.warn("Invalid desktop status:", e); }
             }
         }
-        onExited: { if (!root.fixture) retry.restart(); }
     }
-    Timer { id: retry; interval: 3000; onTriggered: watcher.running = true }
     Process {
         id: actionProcess
         onExited: (code, status) => { if (code !== 0) { root.actionError = "The action could not be completed."; root.panel = "power"; } }

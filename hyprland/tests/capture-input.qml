@@ -12,8 +12,8 @@ Scope {
     property var desktop: null
     property var events: []
     TestResult { id: objects }
-    function surface() { return objects.findChild(capture, "captureSurface"); }
-    function textField() { return objects.findChild(capture, "captureAnnotationInput"); }
+    function surface() { return objects.findChild(capture, "captureSurface:" + capture.current); }
+    function textField() { const view = surface(); return view ? objects.findChild(view, "captureAnnotationInput") : null; }
     Window {
         id: underlying
         visible: true; width: 800; height: 600
@@ -73,6 +73,9 @@ Scope {
             return JSON.stringify({x:view.display.x + position.x, y:view.display.y + position.y});
         }
         function whiteInk(): void { test.capture.ink = "#ffffff"; }
+        function selectArea(rect: string, output: string): void {
+            test.capture.selection = JSON.parse(rect); test.capture.current = output;
+        }
         function undoStroke(): void { test.capture.undo(); }
         function finishSelection(): void { test.surface().finish(); }
         function toggleCursor(): void { test.capture.includeCursor = !test.capture.includeCursor; test.capture.remember(); }
@@ -94,6 +97,12 @@ Scope {
             return JSON.stringify({active: test.capture.active, exporting: test.capture.exporting,
                 finishing: test.capture.finishing, sceneFocused: !!scene?.activeFocus, dragging: test.capture.dragging, closePending: test.capture.closePending, tool: test.capture.tool, selection: test.capture.selection, current: test.capture.current, cursor: test.capture.includeCursor, preferences: test.capture.preferences, frames: test.capture.firstFrames,
                 recordPending: test.capture.recordPending, recording: test.capture.recording,
+                toolbars: test.capture.data.outputs.map(output => {
+                    const surface = objects.findChild(test.capture, "captureSurface:" + output.name);
+                    const toolbar = surface ? objects.findChild(surface, "captureToolbar") : null;
+                    return {output: output.name, visible: !!toolbar?.visible, x: toolbar?.x, y: toolbar?.y,
+                        width: toolbar?.width, height: toolbar?.height, side: toolbar?.placement.side, vertical: toolbar?.vertical};
+                }),
                 editing: !!field?.visible, text: field?.text || "", strokes: view?.strokes || [],
                 observerFocused: underlying.active, events: test.events,
                 panel: test.desktop?.panel || "", captureActive: !!test.desktop?.captureActive,

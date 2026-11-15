@@ -6,7 +6,7 @@ import "CaptureGeometry.js" as Geometry
 
 PanelWindow {
     id: window
-    objectName: "captureSurface"
+    objectName: "captureSurface:" + display.name
     PillTheme { id: typography }
     required property var controller
     required property var display
@@ -212,21 +212,27 @@ PanelWindow {
         Item {
             id: toolbar
             objectName: "captureToolbar"
-            visible: window.current && window.selected
-            opacity: controller.dragging && ["select", "move"].includes(pointer.dragMode) ? 0 : 1
-            x: Math.max(8, Math.min(scene.width - width - 8, (scene.width - width) / 2))
-            y: Math.min(scene.height - height - 8, Math.max(8, window.localSelection.y + window.localSelection.height + height + 24 < scene.height
-                ? window.localSelection.y + window.localSelection.height + 12 : window.localSelection.y - height - 12))
-            width: Math.min(scene.width - 16, controls.implicitWidth + 20); height: 54
+            visible: window.current && window.selected && !controller.dragging
+            readonly property int buttonCount: toolButtons.count + inkButtons.count + 1 + (window.video ? 1 : 0)
+            readonly property var horizontalSize: ({width: Math.min(scene.width - 16,
+                toolButtons.count * 38 + inkButtons.count * 24 + 38 + (window.video ? 38 : 0) + (buttonCount - 1) * controls.spacing + 20), height: 54})
+            readonly property var verticalSize: ({width: 58, height: Math.min(scene.height - 16, buttonCount * 36 + (buttonCount - 1) * controls.spacing + 20)})
+            readonly property var placement: Geometry.toolbar(window.localSelection, scene.width, scene.height, horizontalSize, verticalSize)
+            readonly property bool vertical: placement.vertical
+            x: placement.x; y: placement.y
+            width: placement.width; height: placement.height
             PillBackground { anchors.fill: parent; theme: typography; radius: 20 }
             Flickable {
                 anchors.fill: parent; anchors.margins: 8; clip: true
-                contentWidth: controls.implicitWidth; contentHeight: height
-                flickableDirection: Flickable.HorizontalFlick; boundsBehavior: Flickable.StopAtBounds
-                Row {
+                contentWidth: controls.implicitWidth; contentHeight: controls.implicitHeight
+                flickableDirection: toolbar.vertical ? Flickable.VerticalFlick : Flickable.HorizontalFlick; boundsBehavior: Flickable.StopAtBounds
+                Grid {
                     id: controls
-                    height: parent.height; spacing: 5
+                    columns: toolbar.vertical ? 1 : toolbar.buttonCount
+                    horizontalItemAlignment: Grid.AlignHCenter
+                    spacing: 5
                     Repeater {
+                        id: toolButtons
                         objectName: "captureTools"
                         model: window.video ? [] : ["pen", "arrow", "box", "text", "blur"]
                         ActionButton {
@@ -239,6 +245,7 @@ PanelWindow {
                         }
                     }
                     Repeater {
+                        id: inkButtons
                         model: window.video ? [] : ["#cc7855", "#ed9c87", "#e4c393", "#ffffff"]
                         Rectangle {
                             required property string modelData
