@@ -9,19 +9,19 @@ Scope {
     ShellTheme { id: typography }
     property var entries: []
     property string error: ""
-    readonly property string helper: decodeURIComponent(Qt.resolvedUrl("desktop.py").toString().replace(/^file:\/\//, ""))
+    readonly property string helper: Quickshell.env("DOTFILES_DESKTOP_BINARY") || (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/hypr/bin/dotfiles-desktop"
     readonly property var matches: entries.filter(entry => entry.preview.toLowerCase().includes(search.text.toLowerCase()))
 
     function copySelected() {
         if (!copier.running && list.currentIndex >= 0 && list.currentIndex < matches.length) {
-            copier.command = ["python3", helper, "clipboard-copy", matches[list.currentIndex].id];
+            copier.command = [helper, "desktop", "clipboard-copy", matches[list.currentIndex].id];
             copier.running = true;
         }
     }
 
     Process {
         id: reader
-        command: ["python3", root.helper, "clipboard-list"]
+        command: [root.helper, "desktop", "clipboard-list"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {

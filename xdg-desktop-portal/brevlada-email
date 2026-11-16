@@ -1,45 +1,4 @@
-#!/usr/bin/python3
-"""Forward desktop email attachments through Flatpak's document portal."""
-import os
-from pathlib import Path
-import sys
-from urllib.parse import unquote, urlsplit
-
-
-def command(arguments):
-    uris, files = [], []
-    for argument in arguments:
-        if argument[:7].lower() != 'mailto:':
-            raise ValueError('Expected an email link')
-        address, _, query = argument.partition('?')
-        fields = []
-        for field in query.split('&') if query else []:
-            key, _, value = field.partition('=')
-            if unquote(key).lower() not in ('attach', 'attachment'):
-                fields.append(field)
-                continue
-            value = unquote(value)
-            parsed = urlsplit(value)
-            if parsed.scheme:
-                if parsed.scheme != 'file' or parsed.netloc not in ('', 'localhost'):
-                    raise ValueError('Email attachments must be local files')
-                value = unquote(parsed.path)
-            path = Path(value)
-            if not path.is_absolute() or not path.is_file():
-                raise ValueError(f'Attachment is unavailable: {path}')
-            files.append(str(path))
-        uris.append(address + ('?' + '&'.join(fields) if fields else ''))
-    result = ['/usr/bin/flatpak', 'run', '--file-forwarding', 'com.chipichapa.Brevlada']
-    if uris:
-        result += ['@@u', *uris, '@@']
-    if files:
-        result += ['@@', *files, '@@']
-    return result
-
-
-if __name__ == '__main__':
-    try:
-        argv = command(sys.argv[1:])
-        os.execv(argv[0], argv)
-    except (ValueError, OSError) as error:
-        raise SystemExit(str(error))
+#!/usr/bin/env bash
+set -euo pipefail
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+exec "$config_home/hypr/bin/dotfiles-desktop" email "$@"

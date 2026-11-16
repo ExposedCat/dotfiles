@@ -7,7 +7,7 @@ description: Run Linux GUI applications and diagnostics on a private virtual des
 
 This user requires agent-owned GUI work to stay off their working desktop. Use this skill for every test or diagnostic that creates windows, including ignored GTK/WebKit tests. Prefer non-GUI APIs when they exercise the required behavior. Explicit requests to control an existing user application or browser tab remain scoped to that application.
 
-Use the helper in `scripts/desktop.py`: it creates a named Xvfb display, Openbox window manager, private Xauthority cookie, and private D-Bus session. It removes inherited Wayland and desktop-session settings and forces toolkits to use private X11. It does not open a viewer, listen on a network port, or create a system service. A stopped or unhealthy session is an error: repair or restart it; never fall back to the user's display.
+Use the helper in `scripts/desktop.py`: it creates a named Xvfb display, Openbox window manager, private Xauthority cookie, and private D-Bus session. It wraps the server and every application, input, and capture command in a Bubblewrap mount namespace with a per-session `/tmp`, removes inherited Wayland and desktop-session settings, and forces toolkits to use private X11. Xvfb has both TCP and Linux abstract socket listeners disabled. It does not open a viewer, listen on a network port, or create a system service. A stopped or unhealthy session is an error: repair or restart it; never fall back to the user's display.
 
 ## This machine
 
@@ -23,7 +23,7 @@ From a host shell, enter the same container:
 desktop="podman exec --user kitkat dev /usr/bin/python3 /var/home/kitkat/.codex/skills/isolated-gui/scripts/desktop.py"
 ```
 
-From a Flatpak sandbox that provides `flatpak-spawn`, prepend `flatpak-spawn --host` to that host command. These entry commands depend on the caller's environment; the container-local command is the verified path. Set the `desktop` variable in each shell tool call; shell variables do not persist between calls. Keep screenshots and exchanged artifacts in shared home, preferably `~/.cache/agent-desktops`, rather than assuming host and container `/tmp` are shared.
+From a Flatpak sandbox that provides `flatpak-spawn`, prepend `flatpak-spawn --host` to that host command. These entry commands depend on the caller's environment; the container-local command is the verified path. Set the `desktop` variable in each shell tool call; shell variables do not persist between calls. Keep screenshots and exchanged artifacts in shared home, preferably `~/.cache/agent-desktops`, rather than relying on `/tmp`, which is private inside helper commands.
 
 Some `/usr/local/bin` commands here forward to the host through `distrobox-host-exec`, including `dbus-run-session`. The helper uses container-local display services and rejects a directly launched host-forwarding executable. Do not bypass this by wrapping host commands in a shell. Use native container application binaries for these sessions.
 
@@ -63,11 +63,30 @@ $desktop --session brevlada-check input -- keydown w sleep 0.7 keyup w
 
 Use a real window ID from `windows`, which prints IDs and titles. Inspect a screenshot with the local image-viewing tool before choosing coordinates. Coordinates refer to the full private desktop, including decorations. `screenshot --window WINDOW_ID PATH` captures just that window and has a different coordinate origin.
 
-After input, inspect a fresh screenshot or application state to verify the result. Release held keys and mouse buttons even on failure. Keep all input and capture commands scoped through this helper. Never run bare `xdotool` or capture against the inherited `DISPLAY`; host-desktop automation cannot see this private display unless it explicitly supports selecting it.
+After input, inspect a fresh screenshot or application state to verify the result. Release held keys and mouse buttons even on failure. Keep all input and capture commands scoped through this helper. Never run bare `xdotool` or capture against the inherited `DISPLAY`; tools outside the wrapper cannot reach its private filesystem sockets; selecting a display number alone is insufficient.
 
-`env` prints shell-safe environment changes for another tool. Source these only inside a task subprocess, never in shell startup files. Prefer `run` or `launch`, which also track process ownership and cleanup.
+`env` refuses to export a usable GUI environment: environment variables alone cannot enter the private mount namespace. Launch every external tool through `run` or `launch`; their child processes inherit the private `/tmp` automatically.
 
 ## Isolation boundaries and cleanup
+
+The host and Toolbx ordinarily share `/tmp/.X11-unix` and the network namespace,
+but have different PID namespaces. Never use Xvfb `-displayfd`: it may treat a
+host PID lock as stale and displace the real Xwayland socket. The helper now uses
+both independent layers:
+
+- Bubblewrap mounts a session-owned directory over `/tmp` for Xvfb and every GUI
+  command. Server socket and lock creation/removal stays in that private directory.
+- Explicit display numbers start at 100, under a shared allocation lock; occupied
+  filesystem sockets, symlinks, PID locks, and abstract addresses are skipped.
+  Xvfb's abstract listener is disabled, and a foreign abstract listener causes
+  subsequent operations to fail closed.
+
+Before starting, the helper records the identities of existing host X11 endpoints.
+It checks those identities before GUI work and after cleanup. It never repairs or
+removes a foreign endpoint automatically. Legacy sessions without private mount
+isolation must be stopped by name before reuse. A private D-Bus session or high
+display number alone is insufficient. If Bubblewrap or another isolation step
+fails, repair it; never run the GUI command outside the wrapper.
 
 The display and input are private; home files, network access, hardware capacity, and application profiles are shared. Use fixtures and an application-specific temporary profile/data directory when necessary. Browsers and other singleton applications need their documented separate-profile option so they cannot forward requests to an existing user instance. Do not modify real mail/account data during diagnostics. Coordinate expensive GPU work and simultaneous imports of the same project.
 
@@ -81,12 +100,17 @@ Prefer ordinary close/quit UI when an application needs to save work. `stop --ap
 
 ## Dependencies and verification
 
-Required container-local tools: Python 3, `Xvfb`, `openbox`, `xdpyinfo`, `xprop`, `xdotool`, ImageMagick `import`, and `dbus-daemon`. `xauth` is useful for inspecting cookies; the helper writes its own private Xauthority file. Missing executables are reported before startup.
+Required container-local tools: Python 3, `bwrap`, `Xvfb`, `openbox`, `xdpyinfo`, `xprop`, `xdotool`, ImageMagick `import`, and `dbus-daemon`. `xauth` is useful for inspecting cookies; the helper writes its own private Xauthority file. Missing executables are reported before startup.
 
 Dependencies are installed in `dev`. If the container is rebuilt, install them in that container, never layer them onto the immutable host just for GUI testing:
 
 ```bash
-podman exec --user root dev /usr/bin/dnf install -y xorg-x11-server-Xvfb xorg-x11-xauth xdpyinfo xprop xdotool openbox ImageMagick dbus-daemon
+podman exec --user root dev /usr/bin/dnf install -y bubblewrap xorg-x11-server-Xvfb xorg-x11-xauth xdpyinfo xprop xdotool openbox ImageMagick dbus-daemon
 ```
 
 Verified on this machine: separate concurrent displays; private X11 authentication and D-Bus; GTK window screenshots; real typing and mouse click with visible result; Brevlada's GTK/WebKit viewer diagnostics; timeout and orphan-process cleanup; rejection of foreign application PIDs and backend overrides. Recheck the relevant visible behavior for each task. A working helper is not proof that an application test passed.
+
+Helper regression checks: `python3 scripts/test_runtime.py`. They cover private
+mount wrapping, refusal of legacy sessions/environment escapes, host endpoint
+identity checks, and foreign abstract-listener rejection. Validate actual GUI
+launch/input/capture and preserve host socket identities whenever the wrapper changes.

@@ -20,7 +20,7 @@ Scope {
         property string panel: "launcher"
         property bool emberEnabled: false
         property var emberTarget: null
-        property string helper: Quickshell.env("DOTFILES_SHELL_SOURCE") + "/../tools/desktop.py"
+        property string helper: Quickshell.env("DOTFILES_DESKTOP_BINARY")
     }
     Window { visible: true; width: 560; height: 428; Item { id: content; anchors.fill: parent; anchors.margins: 16 } }
     function check(condition, message) { if (!condition) { console.error("BACKEND UI FAIL:", message); Qt.quit(); throw Error(message); } }

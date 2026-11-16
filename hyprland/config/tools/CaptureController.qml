@@ -37,7 +37,7 @@ Scope {
     property string error: ""
     property var recordArguments: []
     property var recordSelection: ({ monitor: "", x: 0, y: 0, width: 0, height: 0 })
-    readonly property string helper: decodeURIComponent(Qt.resolvedUrl("capture.py").toString().replace(/^file:\/\//, ""))
+    readonly property string helper: Quickshell.env("DOTFILES_DESKTOP_BINARY") || (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/hypr/bin/dotfiles-desktop"
     property string shellConfig: Quickshell.shellDir + "/../shell/shell.qml"
     readonly property string defaultShellConfig: Quickshell.shellDir + "/../shell/shell.qml"
     property bool handoffPending: false
@@ -121,7 +121,7 @@ Scope {
         const value = JSON.stringify(preferences);
         if (settingsWriter.running || value === savedPreferences) return;
         savedPreferences = value;
-        settingsWriter.command = ["python3", helper, "preferences", value];
+        settingsWriter.command = [helper, "capture", "preferences", value];
         settingsWriter.running = true;
     }
     function undo() { strokes = strokes.slice(0, -1); }
@@ -185,7 +185,7 @@ Scope {
         if (w < 2 || h < 2) return;
         remember();
         recordSelection = { x: left, y: top, width: w, height: h };
-        recordArguments = ["python3", helper, "--session", sessionDirectory, "record", "desktop",
+        recordArguments = [helper, "capture", "--session", sessionDirectory, "record", "desktop",
                            String(left), String(top), String(w), String(h), includeCursor ? "yes" : "no"];
         if (Object.keys(heldKeys).length) recordPending = true;
         else startRecording();
@@ -291,7 +291,7 @@ Scope {
     }
     Process {
         id: exporter
-        command: ["python3", root.helper, "--session", root.sessionDirectory, "export"]
+        command: [root.helper, "capture", "--session", root.sessionDirectory, "export"]
         onExited: (code, status) => {
             root.exporting = false;
             if (code === 0) root.closeSession();

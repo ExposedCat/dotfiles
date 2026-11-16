@@ -68,25 +68,19 @@ def main():
         session.ready()
         env = session.environment(getattr(args, "env", None))
         if args.operation == "env":
-            removed = sorted(set(os.environ) - set(env))
-            if removed:
-                print("unset " + " ".join(removed))
-            for key, value in sorted(env.items()):
-                if os.environ.get(key) != value:
-                    print("export " + key + "=" + shlex.quote(value))
-            return 0
+            raise RuntimeError("Environment exports cannot enter the private mount namespace; use run or launch")
         if args.operation == "windows":
-            clients = subprocess.run([binary("xprop"), "-root", "_NET_CLIENT_LIST"], env=env, check=True, capture_output=True, text=True)
+            clients = subprocess.run(session.command([binary("xprop"), "-root", "_NET_CLIENT_LIST"]), env=env, check=True, capture_output=True, text=True)
             for window in re.findall(r"0x[0-9a-fA-F]+", clients.stdout):
-                title = subprocess.run([binary("xprop"), "-id", window, "_NET_WM_NAME", "WM_NAME"], env=env, check=True, capture_output=True, text=True)
+                title = subprocess.run(session.command([binary("xprop"), "-id", window, "_NET_WM_NAME", "WM_NAME"]), env=env, check=True, capture_output=True, text=True)
                 print(window + " " + title.stdout.strip().replace("\n", "; "))
             return 0
         if args.operation == "input":
-            return subprocess.run([binary("xdotool"), *command_arguments(args.command)], env=env, timeout=20).returncode
+            return subprocess.run(session.command([binary("xdotool"), *command_arguments(args.command)]), env=env, timeout=20).returncode
         if args.operation == "screenshot":
             path = Path(args.path).expanduser().absolute()
             path.parent.mkdir(parents=True, exist_ok=True)
-            subprocess.run([binary("import"), "-display", env["DISPLAY"], "-window", args.window or "root", str(path)], env=env, check=True, timeout=20)
+            subprocess.run(session.command([binary("import"), "-display", env["DISPLAY"], "-window", args.window or "root", str(path)]), env=env, check=True, timeout=20)
             print(str(path))
             return 0
         cwd = Path(args.cwd).expanduser()

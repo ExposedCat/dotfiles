@@ -104,7 +104,7 @@ ColumnLayout {
     Component.onCompleted: { loadResult(); if (shell.panel === "ethernet") refreshStatus(); }
     Process {
         id: reader
-        command: ["/usr/bin/python3", root.shell.backend, "ethernet"]
+        command: [root.shell.backend, "shell", "ethernet"]
         stdout: StdioCollector {
             onStreamFinished: {
                 try { const data = JSON.parse(text); if (!data.unavailable) root.update(data); else root.unavailable = true }
@@ -115,7 +115,7 @@ ColumnLayout {
     }
     Process {
         id: testProcess
-        command: ["/usr/bin/python3", root.shell.backend, "speed-test"]
+        command: [root.shell.backend, "shell", "speed-test"]
         stdout: SplitParser {
             onRead: line => {
                 try {

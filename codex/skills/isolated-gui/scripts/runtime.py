@@ -7,6 +7,7 @@ import secrets
 import selectors
 import shutil
 import signal
+import socket
 import struct
 import subprocess
 import time
@@ -32,6 +33,18 @@ def identity(pid):
 def alive(record):
     current = identity(record["pid"])
     return current is not None and current["alive"] and current["start"] == record["start"]
+
+
+def x11_snapshot():
+    paths = list(Path("/tmp/.X11-unix").glob("*")) + list(Path("/tmp").glob(".X*-lock"))
+    result = {}
+    for path in paths:
+        try:
+            value = path.lstat()
+            result[str(path)] = [value.st_dev, value.st_ino, value.st_mode]
+        except FileNotFoundError:
+            pass
+    return result
 
 
 def namespace():
@@ -82,7 +95,7 @@ class Session:
                     "HYPRLAND_INSTANCE_SIGNATURE", "MIR_SOCKET", "PULSE_SERVER", "PIPEWIRE_REMOTE"]:
             env.pop(key, None)
         env.update({
-            "DISPLAY": self.state["display"], "XAUTHORITY": self.state["authority"],
+            "DISPLAY": self.state["display"], "XAUTHORITY": self.state["authority"], "TMPDIR": "/tmp",
             "DBUS_SESSION_BUS_ADDRESS": self.state["bus"], "XDG_RUNTIME_DIR": str(self.path / "runtime"),
             "XDG_SESSION_TYPE": "x11", "XDG_CURRENT_DESKTOP": "Openbox", "XDG_SESSION_DESKTOP": "openbox",
             "GDK_BACKEND": "x11", "QT_QPA_PLATFORM": "xcb", "CLUTTER_BACKEND": "x11",
@@ -92,7 +105,7 @@ class Session:
         })
         if self.state["render"] == "software":
             env.update({"GSK_RENDERER": "cairo", "LIBGL_ALWAYS_SOFTWARE": "1", "WEBKIT_DISABLE_DMABUF_RENDERER": "1"})
-        protected = {"DISPLAY", "WAYLAND_DISPLAY", "WAYLAND_SOCKET", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "DBUS_STARTER_ADDRESS", "DBUS_STARTER_BUS_TYPE", "XDG_RUNTIME_DIR", "ISOLATED_GUI_SESSION", "GDK_BACKEND", "QT_QPA_PLATFORM", "SDL_VIDEODRIVER", "SDL_VIDEO_DRIVER", "CLUTTER_BACKEND", "GSETTINGS_BACKEND", "GIO_USE_VFS"}
+        protected = {"TMPDIR", "DISPLAY", "WAYLAND_DISPLAY", "WAYLAND_SOCKET", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "DBUS_STARTER_ADDRESS", "DBUS_STARTER_BUS_TYPE", "XDG_RUNTIME_DIR", "ISOLATED_GUI_SESSION", "GDK_BACKEND", "QT_QPA_PLATFORM", "SDL_VIDEODRIVER", "SDL_VIDEO_DRIVER", "CLUTTER_BACKEND", "GSETTINGS_BACKEND", "GIO_USE_VFS"}
         for value in additions or []:
             key, separator, data = value.partition("=")
             if not separator or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) or key in protected:
@@ -100,12 +113,41 @@ class Session:
             env[key] = data
         return env
 
+    def command(self, command, pass_fds=()):
+        if not self.state or self.state.get("isolation_version") != 2:
+            raise RuntimeError("Private mount isolation is missing; restart this named session")
+        args = [binary("bwrap"), "--unshare-user", "--bind", "/", "/", "--dev-bind", "/dev", "/dev", "--bind", str(self.path / "tmp"), "/tmp"]
+        if pass_fds:
+            raise RuntimeError("Passing extra descriptors through the private mount wrapper is unsupported")
+        return [*args, "--", *command]
+
+    def check_host_sockets(self):
+        current = x11_snapshot()
+        for path, original in self.state.get("host_x11", {}).items():
+            if current.get(path) != original:
+                raise RuntimeError(f"Host X11 endpoint changed: {path}; refusing GUI work; restart this private session")
+
+    def check_abstract_socket(self):
+        # Clients may prefer Linux abstract X11 sockets. Our server disables
+        # that transport; an occupant here is foreign, so fail before using it.
+        probe = socket.socket(socket.AF_UNIX)
+        probe.settimeout(0.2)
+        try:
+            probe.connect("\0/tmp/.X11-unix/X" + self.state["display"][1:])
+        except (FileNotFoundError, ConnectionRefusedError):
+            return
+        finally:
+            probe.close()
+        raise RuntimeError("A foreign abstract X11 listener occupies this display; refusing GUI work")
+
     def spawn(self, command, env, log, cwd=None, pass_fds=()):
         executable = shutil.which(command[0], path=env.get("PATH"))
         if executable and Path(executable).resolve().name == "distrobox-host-exec":
             raise RuntimeError("Host-forwarding commands are unsupported; use the container-local application binary")
+        env = dict(env)
+        env["ISOLATED_GUI_SESSION"] = self.state["token"]
         with (self.path / log).open("ab") as output:
-            process = subprocess.Popen(command, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+            process = subprocess.Popen(self.command(command, pass_fds), cwd=cwd, env=env, stdin=subprocess.DEVNULL,
                                        stdout=output, stderr=subprocess.STDOUT, start_new_session=True, pass_fds=pass_fds)
         record = identity(process.pid)
         record.update({"command": command, "log": str(self.path / log)})
@@ -129,9 +171,11 @@ class Session:
         path.chmod(0o600)
 
     def start(self, size, render):
-        for name in ["Xvfb", "dbus-daemon", "openbox", "xdpyinfo", "xprop", "xdotool", "import"]:
+        for name in ["bwrap", "Xvfb", "dbus-daemon", "openbox", "xdpyinfo", "xprop", "xdotool", "import"]:
             binary(name)
         if self.state and all(alive(self.state["services"].get(name, {"pid": 0, "start": ""})) for name in ["display", "bus", "wm"]):
+            if self.state.get("isolation_version") != 2 or int(self.state["display"].removeprefix(":")) < 100:
+                raise RuntimeError("Legacy shared-tmp session is unsafe; stop this named session and restart it")
             self.ready()
             return
         if self.state:
@@ -140,40 +184,80 @@ class Session:
         runtime.mkdir(mode=0o700, exist_ok=True)
         runtime.chmod(0o700)
         (runtime / "bus").unlink(missing_ok=True)
-        self.state = {"name": self.name, "namespace": namespace(), "boot": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+        private_tmp = self.path / "tmp"
+        private_tmp.mkdir(mode=0o1777, exist_ok=True)
+        private_tmp.chmod(0o1777)
+        (private_tmp / ".X11-unix").mkdir(mode=0o1777, exist_ok=True)
+        self.state = {"name": self.name, "isolation_version": 2, "host_x11": x11_snapshot(), "namespace": namespace(), "boot": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
                       "display": "", "bus": "", "authority": str(self.path / "Xauthority"), "render": render,
                       "size": size, "token": secrets.token_hex(16), "services": {}, "apps": []}
         self.save()
         cookie = secrets.token_bytes(16)
         self.authority("0", cookie)
         try:
-            read_fd, write_fd = os.pipe()
-            try:
-                process, record = self.spawn([binary("Xvfb"), "-displayfd", str(write_fd), "-screen", "0", size + "x24", "-nolisten", "tcp", "-auth", self.state["authority"]], os.environ.copy(), "xvfb.log", pass_fds=(write_fd,))
-                self.state["services"]["display"] = record
-                self.save()
-                os.close(write_fd)
-                write_fd = None
-                self.state["display"] = ":" + self.read_line(read_fd, process)
-            finally:
-                os.close(read_fd)
-                if write_fd is not None:
-                    os.close(write_fd)
-            self.authority(self.state["display"][1:], cookie)
+            # /tmp and the network namespace are shared with the host, while
+            # PIDs are not. Xvfb -displayfd can mistake the host's PID lock for
+            # a stale lock and unlink the real Xwayland socket. Never use it.
+            with (self.path.parent / "display-allocation.lock").open("a") as allocation:
+                fcntl.flock(allocation, fcntl.LOCK_EX)
+                reserved = set()
+                for state_file in self.path.parent.glob("*/state.json"):
+                    try:
+                        other = json.loads(state_file.read_text())
+                        if other.get("services", {}).get("display"):
+                            reserved.add(other.get("display"))
+                    except (OSError, ValueError):
+                        continue
+                for number in range(100, 10000):
+                    if f":{number}" in reserved:
+                        continue
+                    paths = [Path(f"/tmp/.X{number}-lock"), Path(f"/tmp/.X11-unix/X{number}"), Path(f"/tmp/.X11-unix/X{number}_")]
+                    paths += [private_tmp / f".X{number}-lock", private_tmp / ".X11-unix" / f"X{number}"]
+                    if any(os.path.lexists(path) for path in paths):
+                        continue
+                    probe = socket.socket(socket.AF_UNIX)
+                    try:
+                        probe.bind(f"\0/tmp/.X11-unix/X{number}")
+                    except OSError:
+                        continue
+                    finally:
+                        probe.close()
+                    self.state["display"] = f":{number}"
+                    self.authority(str(number), cookie)
+                    process, record = self.spawn([binary("Xvfb"), self.state["display"], "-screen", "0", size + "x24", "-nolisten", "tcp", "-nolisten", "local", "-auth", self.state["authority"]], os.environ.copy(), "xvfb.log")
+                    self.state["services"]["display"] = record
+                    self.save()
+                    for attempt in range(100):
+                        if process.poll() is not None:
+                            raise RuntimeError("Private Xvfb exited during startup; inspect xvfb.log")
+                        check = subprocess.run(self.command([binary("xdpyinfo"), "-display", self.state["display"]]), env=self.environment(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=1)
+                        if check.returncode == 0:
+                            break
+                        time.sleep(0.05)
+                    else:
+                        raise RuntimeError("Private Xvfb did not become ready; inspect xvfb.log")
+                    break
+                else:
+                    raise RuntimeError("No unoccupied high-numbered X display is available")
             config = self.path / "dbus.conf"
             config.write_text('<busconfig><type>session</type><listen>unix:path=' + escape(str(runtime / "bus")) + '</listen><auth>EXTERNAL</auth><policy context="default"><allow own="*"/><allow send_destination="*"/><allow receive_sender="*"/></policy></busconfig>\n')
-            read_fd, write_fd = os.pipe()
-            try:
-                process, record = self.spawn([binary("dbus-daemon"), "--config-file=" + str(config), "--nofork", "--print-address=" + str(write_fd)], os.environ.copy(), "dbus.log", pass_fds=(write_fd,))
-                self.state["services"]["bus"] = record
-                self.save()
-                os.close(write_fd)
-                write_fd = None
-                self.state["bus"] = self.read_line(read_fd, process)
-            finally:
-                os.close(read_fd)
-                if write_fd is not None:
-                    os.close(write_fd)
+            self.state["bus"] = "unix:path=" + str(runtime / "bus")
+            process, record = self.spawn([binary("dbus-daemon"), "--config-file=" + str(config), "--nofork"], os.environ.copy(), "dbus.log")
+            self.state["services"]["bus"] = record
+            self.save()
+            for attempt in range(100):
+                if process.poll() is not None:
+                    raise RuntimeError("Private D-Bus exited during startup; inspect dbus.log")
+                probe = socket.socket(socket.AF_UNIX)
+                try:
+                    probe.connect(str(runtime / "bus"))
+                    break
+                except (FileNotFoundError, ConnectionRefusedError):
+                    time.sleep(0.05)
+                finally:
+                    probe.close()
+            else:
+                raise RuntimeError("Private D-Bus did not become ready; inspect dbus.log")
             _, record = self.spawn([binary("openbox"), "--sm-disable"], self.environment(), "openbox.log")
             self.state["services"]["wm"] = record
             self.save()
@@ -185,10 +269,14 @@ class Session:
     def ready(self):
         if not self.state or not all(alive(self.state["services"].get(name, {"pid": 0, "start": ""})) for name in ["display", "bus", "wm"]):
             raise RuntimeError("Private session is stopped or unhealthy; restart it before GUI work")
-        subprocess.run([binary("xdpyinfo")], env=self.environment(), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=5)
+        if self.state.get("isolation_version") != 2:
+            raise RuntimeError("Legacy shared-tmp session is unsafe; stop this named session and restart it")
+        self.check_host_sockets()
+        self.check_abstract_socket()
+        subprocess.run(self.command([binary("xdpyinfo")]), env=self.environment(), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=5)
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
-            value = subprocess.run([binary("xprop"), "-root", "_NET_SUPPORTING_WM_CHECK"], env=self.environment(), capture_output=True, text=True, timeout=2)
+            value = subprocess.run(self.command([binary("xprop"), "-root", "_NET_SUPPORTING_WM_CHECK"]), env=self.environment(), capture_output=True, text=True, timeout=2)
             if "window id" in value.stdout:
                 return
             time.sleep(0.05)
@@ -236,3 +324,4 @@ class Session:
             self.state["services"] = {}
         self.state["apps"] = [record for record in self.state["apps"] if record not in records]
         self.save()
+        self.check_host_sockets()

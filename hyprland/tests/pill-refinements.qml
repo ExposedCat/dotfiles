@@ -27,10 +27,10 @@ Scope {
             switch(test.step++) {
             case 0:
                 test.app.toggle("system"); test.app.stats.sample={};
-                test.check(!!test.app.emberTarget,"System waited for a statistics sample before choosing its target");
-                test.check(!test.all(test.app.pill.activePane).some(c=>typeof c.getContext==="function"),"The ambiguous history chart is still present"); break;
+                test.check(!!test.app.emberTarget,"System lost its endpoint target while loading");
+                test.check(test.all(test.app.pill.activePane).filter(c=>c.objectName.startsWith("systemHistory:")).length===4,"System did not show CPU, memory, GPU load and VRAM histories"); break;
             case 1:
-                test.check(test.app.emberTarget.width===82 && test.app.emberTarget.height===38,"System did not use the metric value capsule");
+                test.check(test.app.emberTarget.width===8 && test.app.emberTarget.height===8,"System did not restore its live tip");
                 test.app.toggle("ethernet"); break;
             case 2:
                 test.previousTarget=test.app.emberTarget;
@@ -75,7 +75,7 @@ Scope {
                 test.app.notifications.showPopup(test.entry(21)); break;
             case 10:
                 test.check(test.app.overlays.banners.presentationCount===2 && test.app.overlays.banners.inputRegions.length===2,"Corner banners did not stack independently");
-                console.warn("REFINEMENT PASS: immediate system target, readable meters, fixed network target, action reveal/fill, continuous rapid redirects, expandable groups, five-line bodies, retained gap target, independent corner banners"); Qt.quit();
+                console.warn("REFINEMENT PASS: live resource tips, fixed network target, action reveal/fill, continuous rapid redirects, expandable groups, five-line bodies, retained gap target, independent corner banners"); Qt.quit();
             }
         }
     }

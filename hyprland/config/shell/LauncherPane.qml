@@ -145,54 +145,17 @@ ColumnLayout {
         boundsBehavior: Flickable.StopAtBounds
         PillWheel { flickable: list }
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-        delegate: Rectangle {
-            id: resultRow
-            required property var modelData
-            required property int index
-            width: list.width; height: 52; radius: 10
-            color: ListView.isCurrentItem ? Qt.alpha(root.theme.hover, 0.58) : "transparent"
-            border.width: ListView.isCurrentItem ? 1 : 0; border.color: Qt.alpha(root.theme.border, 0.22)
-            RowLayout {
-                anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
-                spacing: 8
-                Item {
-                    Layout.preferredWidth: 34; Layout.preferredHeight: 36
-                    Image {
-                        id: resultIcon; anchors.centerIn: parent; width: 32; height: 32
-                        source: resultRow.modelData.icon ? (resultRow.modelData.icon.startsWith("/") ? "file://" + resultRow.modelData.icon : Quickshell.iconPath(resultRow.modelData.icon, true)) : ""
-                        visible: status === Image.Ready
-                        sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit
-                    }
-                    Text {
-                        anchors.centerIn: parent; visible: !resultIcon.visible
-                        text: resultRow.modelData.glyph || ({app: "◇", file: "▤", bookmark: "↗", web: "⌕", currency: "⇄", date: "◷", calculation: "="})[resultRow.modelData.kind] || "·"
-                        width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight
-                        font: root.theme.textFont; color: root.theme.text; textFormat: Text.PlainText
-                    }
-                }
-                Text { Layout.fillWidth: true; text: resultRow.modelData.name; textFormat: Text.PlainText; font: root.theme.textFont; color: root.theme.text; elide: Text.ElideRight }
-                Text {
-                    Layout.preferredWidth: Math.min(implicitWidth, list.width * 0.44)
-                    text: resultRow.modelData.kind === "currency" ? (resultRow.modelData.rateDate || "") : resultRow.modelData.description || ""
-                    textFormat: Text.PlainText; horizontalAlignment: Text.AlignRight
-                    font: root.theme.textFont
-                    color: root.theme.secondary; elide: Text.ElideRight
-                }
-                Text { text: "★"; visible: providers.isFavorite(resultRow.modelData); color: "#cc7855"; font: root.theme.textFont }
+        delegate: LauncherResult {
+            theme: root.theme; width: list.width
+            selected: ListView.isCurrentItem
+            favorite: providers.isFavorite(modelData)
+            onPointerMoved: (x, y) => {
+                const p = mapToItem(root, x, y);
+                if (root.pointerPosition.x >= 0 && (Math.abs(p.x - root.pointerPosition.x) > 0.5 || Math.abs(p.y - root.pointerPosition.y) > 0.5))
+                    root.choose(index);
+                root.pointerPosition = p;
             }
-            MouseArea {
-                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                onPositionChanged: mouse => {
-                    const p = mapToItem(root, mouse.x, mouse.y);
-                    if (root.pointerPosition.x >= 0 && (Math.abs(p.x - root.pointerPosition.x) > 0.5 || Math.abs(p.y - root.pointerPosition.y) > 0.5))
-                        root.choose(resultRow.index);
-                    root.pointerPosition = p;
-                }
-                onClicked: { root.choose(resultRow.index); root.launch(); }
-            }
-            Accessible.role: Accessible.Button
-            Accessible.name: modelData.name + ". " + (modelData.description || "")
-            Accessible.onPressAction: { root.choose(index); root.launch(); }
+            onActivated: { root.choose(index); root.launch(); }
         }
         Text {
             anchors.centerIn: parent; width: parent.width - 20; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter

@@ -51,7 +51,7 @@ PanelWindow {
     property bool hoverExpanded: false
     property bool suppressHover: false
     property string shownPanel: ""
-    readonly property var paneNames: ["launcher", "notifications", "bluetooth", "ethernet", "power", "media", "mixer", "system"]
+    readonly property var paneNames: ["launcher", "portal", "notifications", "bluetooth", "ethernet", "power", "media", "mixer", "system"]
     property var retained: ({})
     readonly property string feedbackKind: !shell.panel && !expanded && shell.osd.visible ? "osd" : ""
     readonly property bool feedbackVisible: feedbackKind.length > 0
@@ -63,13 +63,14 @@ PanelWindow {
         const next = Object.assign({}, retained); next[name] = true; retained = next;
     }
     function componentFor(name) {
-        return ({launcher: launcherComponent, notifications: notificationsComponent, bluetooth: bluetoothComponent, ethernet: networkComponent, power: powerComponent, media: mediaComponent, mixer: mixerComponent, system: statsComponent})[name];
+        return ({launcher: launcherComponent, portal: portalComponent, notifications: notificationsComponent, bluetooth: bluetoothComponent, ethernet: networkComponent, power: powerComponent, media: mediaComponent, mixer: mixerComponent, system: statsComponent})[name];
     }
     Timer { id: warm; interval: 100; onTriggered: { bar.retain("launcher"); bar.retain("media"); bar.retain("mixer"); } }
     Timer { id: unload; interval: 120000; onTriggered: { const keep = {}; for (const name of ["launcher", "media", "mixer"]) if (bar.retained[name]) keep[name] = true; bar.retained = keep; } }
     property real paneWidth: 620
     property real paneHeight: 480
     property real mediaHeight: 240
+    property real systemHeight: 480
     property bool launcherDragged: false
     property point launcherPosition: Qt.point(0, 0)
     property point dragStart: Qt.point(0, 0)
@@ -118,6 +119,7 @@ PanelWindow {
     Timer { id: hoverRelease; interval: 300; onTriggered: bar.suppressHover = false }
     onNativeActiveChanged: { if (!nativeActive && shell.panel && !shell.captureActive) focusLoss.restart(); }
     onMediaHeightChanged: { if (shell.panel === "media") selectPanel("media"); }
+    onSystemHeightChanged: { if (shell.panel === "system") selectPanel("system"); }
     readonly property int headerHeight: 40
     readonly property int pillRadius: 20
     readonly property int sideInset: 20
@@ -128,7 +130,7 @@ PanelWindow {
     readonly property real leftContentWidth: compactContentWidth / 2 + 14 + dateLabel.width + workspaceControls.implicitWidth + (trayItems.count ? trayIcons.implicitWidth : 0) + sideInset
     // Reserve the indicator's slot while expanded so arrivals never retarget
     // the expansion animation, fade the controls, or move them under the mouse.
-    readonly property real rightContentWidth: compactContentWidth / 2 + weekdayLabel.width - layoutLabel.width + 30 + controlButtons.implicitWidth + sideInset
+    readonly property real rightContentWidth: compactContentWidth / 2 + weekdayLabel.width - layoutLabel.width + 30 + appearanceButton.width + controlButtons.implicitWidth + sideInset
     readonly property real leftNeed: leftContentWidth + groupSpacing * (trayItems.count ? 2 : 1)
     // Each left spacer takes half the remaining left-hand room. Reserve room
     // for the matching right spacer too, without measuring its own stretched width.
@@ -162,7 +164,7 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "dotfiles-bar"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: hidden || shell.captureActive ? WlrKeyboardFocus.None : ["launcher", "media", "mixer", "system", "power", "ethernet", "bluetooth"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: hidden || shell.captureActive ? WlrKeyboardFocus.None : ["launcher", "portal", "media", "mixer", "system", "power", "ethernet", "bluetooth"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
     Region { id: pillInput; item: pill }
     // A fast pointer can reach the controls before the painted pill does.
     // Keep that destination interactive throughout hover expansion.
@@ -186,12 +188,19 @@ PanelWindow {
     }
     function dismiss() { endLauncherDrag(); shell.panel = ""; }
     function openPanel(name) { trayMenu.visible = false; shell.toggle(name); }
+    property var portalPane: null
     function selectPanel(name) {
         // Retain this geometry until the closing fade has finished. The popup's
         // layout must not be resized to the compact pill while still visible.
-        paneWidth = Math.min(width - 24, name === "launcher" ? 560 : name === "mixer" ? 520 : name === "notifications" ? 1080 : 620);
-        paneHeight = Math.min(height - 24, name === "launcher" ? 428 : name === "mixer" ? 136 : name === "notifications" ? 680 : name === "bluetooth" ? 500 : name === "ethernet" ? 270 : name === "media" ? mediaHeight : name === "system" ? 440 : 220);
+        const portalWidth = portalPane?.desiredWidth || (shell.portal.data.kind === "share" ? 680 : shell.portal.data.kind === "access" ? 440 : 560);
+        paneWidth = Math.min(width - 24, name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "mixer" ? 520 : name === "notifications" ? 1080 : 620);
+        paneHeight = Math.min(height - 24, name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? 136 : name === "notifications" ? 680 : name === "bluetooth" ? 500 : name === "ethernet" ? 270 : name === "media" ? mediaHeight : name === "system" ? systemHeight : 220);
         retain(name); shownPanel = name;
+    }
+    Connections {
+        target: bar.portalPane
+        function onDesiredWidthChanged() { if (bar.shell.panel === "portal") bar.selectPanel("portal"); }
+        function onDesiredHeightChanged() { if (bar.shell.panel === "portal") bar.selectPanel("portal"); }
     }
     onWidthChanged: { if (shell.panel) selectPanel(shell.panel); }
     onHeightChanged: { if (shell.panel) selectPanel(shell.panel); }
@@ -202,7 +211,7 @@ PanelWindow {
             focusLoss.stop();
             if (!bar.shell.captureActive && bar.shell.panel && !bar.hidden) {
                 if (centerFocus.editing && centerFocus.grab) centerFocus.grab.active = true;
-                if (bar.shell.panel === "launcher" && panelLoader.item) panelLoader.item.focusSearch();
+                if (["launcher", "portal"].includes(bar.shell.panel) && panelLoader.item) panelLoader.item.focusSearch();
             }
         }
         function onPanelChanged() {
@@ -213,7 +222,7 @@ PanelWindow {
                 unload.stop();
                 bar.selectPanel(bar.shell.panel);
                 trayMenu.visible = false;
-                if (bar.shell.panel === "launcher") { if (panelLoader.item) panelLoader.item.activate(); focusDelay.restart(); }
+                if (["launcher", "portal"].includes(bar.shell.panel)) { if (panelLoader.item) panelLoader.item.activate(); focusDelay.restart(); }
             } else {
                 unload.restart();
                 if (bar.launcherDragged) { bar.suppressHover = true; hoverRelease.restart(); }
@@ -228,10 +237,10 @@ PanelWindow {
     }
     onHiddenChanged: {
         if (hidden) { trayMenu.visible = false; collapse.stop(); focusLoss.stop(); }
-        else if (!shell.captureActive && shell.panel === "launcher" && panelLoader.item) panelLoader.item.focusSearch();
+        else if (!shell.captureActive && ["launcher", "portal"].includes(shell.panel) && panelLoader.item) panelLoader.item.focusSearch();
     }
     onFullscreenChanged: { if (fullscreen) hoverExpanded = false; }
-    Timer { id: focusDelay; interval: 230; onTriggered: { if (!bar.shell.captureActive && bar.shell.panel === "launcher" && panelLoader.item) panelLoader.item.focusSearch(); } }
+    Timer { id: focusDelay; interval: 230; onTriggered: { if (!bar.shell.captureActive && ["launcher", "portal"].includes(bar.shell.panel) && panelLoader.item) panelLoader.item.focusSearch(); } }
     Timer { id: collapse; interval: 240; onTriggered: { if (!bar.pillHovered && !bar.shell.panel && !trayMenu.visible && !bar.hidden) bar.hoverExpanded = false; } }
     TrayMenu { id: trayMenu; theme: colors; onVisibleChanged: { if (!visible && !bar.pillHovered) collapse.restart(); } }
     HoverHandler { id: hover; enabled: !bar.hidden }
@@ -383,8 +392,17 @@ PanelWindow {
                     height: 36; spacing: 0
                     opacity: bar.shell.panel === "launcher" ? 0 : bar.detailsOpacity
                     enabled: opacity > 0.95
+                    ShellButton {
+                        id: appearanceButton; objectName: "pillAppearanceButton"
+                        emberShell: bar.shell; theme: colors
+                        icon: bar.shell.appearance.dark ? "moon" : "sun"
+                        hint: bar.shell.appearance.error || (bar.shell.appearance.dark ? "Switch to light style" : "Switch to dark style")
+                        enabled: bar.shell.appearance.available && !bar.shell.appearance.pending
+                        onClicked: bar.shell.appearance.toggle()
+                    }
                     Row {
                         id: controlButtons
+                        objectName: "pillControlButtons"
                         height: 36; spacing: 2
                         ShellButton { objectName: "pillMusicButton"; visible: !!bar.shell.media.player; emberShell: bar.shell; theme: colors; icon: "music"; hint: "Now playing"; selected: bar.shell.panel === "media"; onClicked: bar.openPanel("media") }
                         ShellButton { emberShell: bar.shell; theme: colors; icon: bar.shell.audio.muted ? "volume-x" : "volume-2"; hint: "Sound"; selected: bar.shell.panel === "mixer"; onClicked: bar.openPanel("mixer"); onScrolled: delta => bar.shell.audio.adjust(delta > 0 ? 0.05 : -0.05) }
@@ -397,9 +415,9 @@ PanelWindow {
             }
             Item {
                 id: panelLoader
-                readonly property int inset: bar.shownPanel === "launcher" ? 12 : 24
+                readonly property int inset: ["launcher", "portal"].includes(bar.shownPanel) ? 12 : 24
                 x: bar.launcherDragged ? inset : Math.round((bar.width - bar.paneWidth) / 2) - pill.x + inset
-                y: bar.shownPanel === "launcher" ? 8 : 16
+                y: ["launcher", "portal"].includes(bar.shownPanel) ? 8 : 16
                 width: bar.paneWidth - inset * 2; height: bar.paneHeight - y - inset
                 readonly property var item: bar.shownPanel ? paneSlots.itemAt(bar.paneNames.indexOf(bar.shownPanel))?.item || null : null
                 Repeater {
@@ -422,7 +440,7 @@ PanelWindow {
                             NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                         }
                         sourceComponent: bar.componentFor(modelData)
-                        onLoaded: { if (modelData === "launcher" && bar.shell.panel === "launcher") item.activate(); }
+                        onLoaded: { if (modelData === "portal") bar.portalPane = item; if (["launcher", "portal"].includes(modelData) && bar.shell.panel === modelData) { item.activate(); if (modelData === "portal") Qt.callLater(() => bar.selectPanel("portal")); } }
                     }
                 }
             }
@@ -453,6 +471,7 @@ PanelWindow {
             onDragFinished: bar.endLauncherDrag()
         }
     }
+    Component { id: portalComponent; PortalPane { shell: bar.shell; theme: colors } }
     Component { id: notificationsComponent; NotificationCenter { shell: bar.shell; theme: colors } }
     Component { id: bluetoothComponent; BluetoothMenu { shell: bar.shell; theme: colors } }
     Component { id: networkComponent; EthernetMenu { shell: bar.shell; theme: colors } }
@@ -466,7 +485,14 @@ PanelWindow {
         }
     }
     Component { id: mixerComponent; MixerPane { shell: bar.shell; theme: colors } }
-    Component { id: statsComponent; StatsPane { shell: bar.shell; theme: colors } }
+    Component {
+        id: statsComponent
+        StatsPane {
+            shell: bar.shell; theme: colors
+            onImplicitHeightChanged: bar.systemHeight = implicitHeight + 40
+            Component.onCompleted: bar.systemHeight = implicitHeight + 40
+        }
+    }
     readonly property Item emberTarget: {
         if (hidden) return null;
         if (feedbackVisible) return shell.osd.kind === "workspace" ? workspaceWing.workspaceIndicator.emberSlot : null;

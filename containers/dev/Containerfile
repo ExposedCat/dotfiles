@@ -35,6 +35,7 @@ RUN dnf install -y \
     python3 \
     rpm-build \
     rpmdevtools \
+    bubblewrap \
     xorg-x11-server-Xvfb \
     xorg-x11-xauth \
     xdpyinfo \
@@ -46,7 +47,9 @@ RUN dnf install -y \
     git gcc gcc-c++ clang make pkgconf-pkg-config rustup \
     systemd-devel fontconfig-devel wayland-devel libxkbcommon-x11-devel \
     libX11-devel libxcb-devel openssl-devel libzstd-devel alsa-lib-devel \
-    libusb1-devel squashfs-tools flatpak-builder
+    libusb1-devel squashfs-tools flatpak-builder \
+    meson ninja-build glib2-devel json-glib-devel fuse3-devel gdk-pixbuf2-devel \
+    gstreamer1-plugins-base-devel geoclue2-devel pipewire-devel libgudev-devel flatpak-devel
 
 RUN npm install -g corepack@0.34.5
 

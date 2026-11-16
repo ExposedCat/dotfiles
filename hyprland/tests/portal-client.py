@@ -10,14 +10,14 @@ if not os.environ.get('ISOLATED_GUI_SESSION'):
     raise SystemExit('Run through isolated-gui; this check opens dialogs.')
 ROOT = Path(__file__).parents[1] / 'config/portals'
 sys.path.insert(0, str(ROOT))
-import backend
+import native as backend
 
 bus = Gio.bus_get_sync(Gio.BusType.SESSION)
 # Simulate the trusted frontend, rather than bypassing production authorization.
 bus.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus', 'RequestName',
               GLib.Variant('(su)', ('org.freedesktop.portal.Desktop', 4)), None,
               Gio.DBusCallFlags.NONE, 1000, None)
-service = subprocess.Popen(['/usr/bin/python3', str(ROOT / 'backend.py')])
+service = subprocess.Popen([str(backend.BINARY), 'portal', 'backend'])
 loop = GLib.MainLoop()
 errors = []
 handle = '/org/freedesktop/portal/desktop/request/test/dialog'
@@ -80,6 +80,29 @@ def update_cancel_done(reply):
     loop.quit()
 
 
+def auto_drive():
+    global phase
+    if not os.environ.get('DOTFILES_PORTAL_AUTO'):
+        return False
+    title='^Desktop portal: '+('Open With' if phase<2 else 'Permission')+'$'
+    found=subprocess.run(['/usr/bin/xdotool','search','--onlyvisible','--name',title],text=True,capture_output=True)
+    if not found.stdout.strip():
+        return True
+    window=found.stdout.splitlines()[-1]
+    subprocess.run(['/usr/bin/xdotool','windowactivate','--sync',window],check=True)
+    if phase==0:
+        subprocess.run(['/usr/bin/xdotool','type','--clearmodifiers','firefox'],check=True)
+        phase=1
+    elif phase==1:
+        subprocess.run(['/usr/bin/xdotool','key','Return'],check=True)
+        phase=2
+    elif phase==2:
+        subprocess.run(['/usr/bin/xdotool','key','Tab','Return'],check=True)
+        phase=3
+        return False
+    return True
+
+
 try:
     for attempt in range(50):
         try:
@@ -104,6 +127,9 @@ try:
     print('READY: select Firefox and press Open.', flush=True)
     call('AppChooser', 'ChooseApplication', GLib.Variant('(ossasa{sv})', (handle, 'com.chipichapa.sele', '',
          ['org.mozilla.firefox', 'org.gnome.Nautilus'], {'filename': GLib.Variant('s', 'Project brief.html')})), app_done)
+    if os.environ.get('DOTFILES_PORTAL_AUTO'):
+        GLib.timeout_add(500, auto_drive)
+    GLib.timeout_add_seconds(30, lambda: (errors.append(RuntimeError('Portal integration timed out')), loop.quit(), False)[-1])
     loop.run()
     if errors:
         raise errors[0]

@@ -1,0 +1,33 @@
+[package]
+name = "dotfiles-desktop"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+
+[dependencies]
+anyhow = "1"
+serde_json = "1"
+gio = { version = "0.22", features = ["v2_80"] }
+glib = "0.22"
+libc = "0.2"
+tempfile = "3"
+regex = "1"
+chrono = "0.4"
+chrono-tz = "0.10"
+roxmltree = "0.21"
+rusqlite = { version = "0.38", features = ["bundled"] }
+unicode_names2 = "3"
+libloading = "0.9"
+sha2 = "0.10"
+url = "2"
+percent-encoding = "2"
+wait-timeout = "0.2"
+gio-unix = "0.22"
+glib-unix = "0.22"
+image = { version = "0.25", default-features = false, features = ["png", "pnm"] }
+signal-hook = "0.3"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"

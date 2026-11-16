@@ -32,6 +32,8 @@ ShellRoot {
     property alias media: players
     property alias brightness: monitorBrightness
     property alias stats: systemStats
+    property alias appearance: systemAppearance
+    property alias portal: portalController
     property bool emberEnabled: true
     readonly property var emberTarget: bar.emberTarget
     // HP OMEN is the main display. Fall back gracefully if it is disconnected.
@@ -39,10 +41,8 @@ ShellRoot {
     readonly property var mainScreen: Quickshell.screens.find(s => s.name === mainOutput) || Quickshell.screens[0]
     readonly property real desktopTop: Math.min(...Quickshell.screens.map(s => s.y))
     readonly property real desktopBottom: Math.max(...Quickshell.screens.map(s => s.y + s.height))
-    // Resolving a URL above Quickshell's config root returns qs-blackhole.
-    // Resolve this component's directory, then construct a filesystem path.
-    readonly property string helper: decodeURIComponent(Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "")) + "/../tools/desktop.py"
-    readonly property string backend: decodeURIComponent(Qt.resolvedUrl("shell.py").toString().replace(/^file:\/\//, ""))
+    readonly property string helper: Quickshell.env("DOTFILES_DESKTOP_BINARY") || (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/hypr/bin/dotfiles-desktop"
+    readonly property string backend: helper
     readonly property var focusedScreen: Quickshell.screens.find(s => s.name === (fixture ? fixtureData.focusedOutput : Hyprland.focusedMonitor?.name)) || Quickshell.screens[0]
     readonly property string layoutLabel: layout.toLowerCase().includes("russian") ? "RU" : "EN"
     function toggle(name, screen, originX, originWidth) {
@@ -76,11 +76,11 @@ ShellRoot {
     function fixtureEvent(name, data) { console.warn("FIXTURE", JSON.stringify({event: name, data: data})); }
     function desktop(action) {
         if (fixture) { fixtureEvent("desktop", {action: action}); return; }
-        Quickshell.execDetached(["/usr/bin/python3", helper, action]);
+        Quickshell.execDetached([helper, "desktop", action]);
     }
     function power(action) {
         if (fixture) { fixtureEvent("power", {action: action}); return; }
-        actionProcess.command = ["/usr/bin/python3", backend, "power", action];
+        actionProcess.command = [backend, "shell", "power", action];
         actionProcess.running = true;
     }
     function loadFixture() {
@@ -104,6 +104,8 @@ ShellRoot {
     ScreenSharing { id: sharing; fixture: root.fixture; fixtureData: root.fixtureData }
     Brightness { id: monitorBrightness; shell: root }
     SystemStats { id: systemStats; shell: root }
+    Appearance { id: systemAppearance; shell: root }
+    PortalController { id: portalController; shell: root }
     Notifications { id: notifications; singlePopup: false; presentationPaused: root.panel === "notifications"; centerOpen: root.panel === "notifications"; statePath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/dotfiles/hyprland/notifications.json" }
     BluetoothController { id: bluetoothController; shell: root }
     Agenda { id: agenda; shell: root }
@@ -172,7 +174,7 @@ ShellRoot {
     }
     Process {
         id: sessionInfo
-        command: ["/usr/bin/python3", root.backend, "session-info"]
+        command: [root.backend, "shell", "session-info"]
         running: !root.fixture
         stdout: SplitParser {
             onRead: line => {

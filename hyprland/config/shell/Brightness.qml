@@ -31,12 +31,12 @@ Scope {
     function applyNext() {
         if (writer.running || !queued) return;
         applying = queued; queued = null; error = "";
-        writer.command = ["/usr/bin/python3", shell.backend, "brightness-set", applying.name, String(applying.level)];
+        writer.command = [shell.backend, "shell", "brightness-set", applying.name, String(applying.level)];
         writer.running = true;
     }
     Process {
         id: reader
-        command: ["/usr/bin/python3", root.shell.backend, "brightness-list"]
+        command: [root.shell.backend, "shell", "brightness-list"]
         stdout: StdioCollector {
             onStreamFinished: {
                 try { root.devices = JSON.parse(text).devices; root.updatedAt = Date.now(); root.error = ""; }

@@ -1,53 +1,5 @@
-#!/usr/bin/python3
-"""Build the portal 1.22.1 peer-disconnect fix without replacing system packages."""
-from pathlib import Path
-import hashlib
-import os
-import shutil
-import subprocess
-
-ROOT = Path(__file__).resolve().parent
-CACHE = Path.home() / '.cache/dotfiles-build/xdg-desktop-portal'
-REVISION = '1d20fadc304f6601452b5db65ed91197dba77041'
-
-
-def run(*args, **kwargs):
-    subprocess.run(args, check=True, **kwargs)
-
-
-def main():
-    if not Path('/run/.containerenv').exists() and not Path('/.dockerenv').exists():
-        run('podman', 'exec', '--user', str(os.getuid()), 'dev', '/usr/bin/python3', str(Path(__file__).resolve()))
-        return
-    source = CACHE / 'source'
-    build = CACHE / 'build'
-    patch = ROOT / 'peer-disconnect.patch'
-    key = hashlib.sha256(patch.read_bytes()).hexdigest()
-    marker = CACHE / 'patch.sha256'
-    CACHE.mkdir(parents=True, exist_ok=True)
-    if not source.exists():
-        run('git', 'clone', '--depth', '1', '--branch', '1.22.1',
-            'https://github.com/flatpak/xdg-desktop-portal.git', str(source))
-    revision = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
-    if revision != REVISION:
-        raise SystemExit('Portal build source has an unexpected revision')
-    if not marker.exists():
-        run('git', '-C', str(source), 'apply', '--check', str(patch))
-        run('git', '-C', str(source), 'apply', str(patch))
-        marker.write_text(key)
-    elif marker.read_text() != key:
-        raise SystemExit('Preserving an existing build with a different patch')
-    reconfigure = ['--reconfigure'] if (build / 'build.ninja').exists() else []
-    run('meson', 'setup', *reconfigure, str(build), str(source), '--prefix=/usr', '--libexecdir=libexec', '--sysconfdir=/etc',
-        '-Dtests=disabled', '-Ddocumentation=disabled', '-Dman-pages=disabled')
-    run('ninja', '-C', str(build), 'src/xdg-desktop-portal')
-    target = Path.home() / '.local/libexec/dotfiles/xdg-desktop-portal'
-    target.parent.mkdir(parents=True, exist_ok=True)
-    stage = target.with_suffix('.new')
-    shutil.copy2(build / 'src/xdg-desktop-portal', stage)
-    os.replace(stage, target)
-    print(f'Built patched portal: {target}')
-
-
-if __name__ == '__main__':
-    main()
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")
+binary=$("$repo/hyprland/native/build")
+exec "$binary" manage frontend "$repo" "$@"

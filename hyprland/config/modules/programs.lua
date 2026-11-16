@@ -3,11 +3,11 @@ local function quote(value)
     return "'" .. value:gsub("'", "'\\''") .. "'"
 end
 local configHome = os.getenv("XDG_CONFIG_HOME") or (os.getenv("HOME") .. "/.config")
-local helper = "python3 " .. quote(configHome .. "/hypr/tools/desktop.py")
+local helper = quote(configHome .. "/hypr/bin/dotfiles-desktop") .. " desktop"
 return {
     terminal = "uwsm app -- ptyxis --new-window",
     fileManager = "uwsm app -- nautilus --new-window",
     menu = helper .. " launcher",
     helper = helper,
-    capture = "python3 " .. quote(configHome .. "/hypr/tools/capture.py"),
+    capture = quote(configHome .. "/hypr/bin/dotfiles-desktop") .. " capture",
 }

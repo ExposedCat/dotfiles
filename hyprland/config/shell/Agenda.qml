@@ -77,7 +77,7 @@ Scope {
     }
     Process {
         id: reader
-        command: ["/usr/bin/python3", decodeURIComponent(Qt.resolvedUrl("agenda.py").toString().replace(/^file:\/\//, "")), "--date", root.requestedKey]
+        command: [root.shell.helper, "agenda", "--date", root.requestedKey]
         stdout: SplitParser {
             onRead: line => {
                 try { root.applySnapshot(JSON.parse(line)); }

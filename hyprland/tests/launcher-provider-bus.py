@@ -13,7 +13,6 @@ from gi.repository import Gio, GLib
 if 'agent-desktops' not in os.environ.get('XDG_RUNTIME_DIR', ''):
     raise SystemExit('Use the isolated-gui helper')
 
-source = Path(__file__).parents[1] / 'config/shell/launcher.py'
 xml = '''<node><interface name="org.gnome.Shell.SearchProvider2">
 <method name="GetInitialResultSet"><arg type="as" direction="in"/><arg type="as" direction="out"/></method>
 <method name="GetResultMetas"><arg type="as" direction="in"/><arg type="aa{sv}" direction="out"/></method>
@@ -42,7 +41,7 @@ with tempfile.TemporaryDirectory(prefix='launcher-bus-') as temporary:
     copy.write_text('#!/usr/bin/python3\nimport pathlib,sys\npathlib.Path(' + repr(str(root / 'copied')) + ').write_text(sys.argv[-1])\n')
     copy.chmod(0o700)
     env = dict(os.environ, XDG_STATE_HOME=str(root/'state'), PATH=str(fake_bin)+':'+os.environ['PATH'])
-    worker = subprocess.Popen([sys.executable, str(source)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+    worker = subprocess.Popen([os.environ['DOTFILES_DESKTOP_BINARY'], 'launcher'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
     try:
         assert json.loads(worker.stdout.readline())['ready']
         worker.stdin.write(json.dumps({'id': 1, 'query': 'files invoice'})+'\n');worker.stdin.flush()

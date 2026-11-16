@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Build into an external cache. This is used only for development/installation.
+set -euo pipefail
+native=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+if [[ ! -e /run/.containerenv && ! -e /.dockerenv ]]; then
+    exec podman exec --user "$(id -u)" dev "$native/build" "$@"
+fi
+export CARGO_TARGET_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles-build/hyprland-native"
+# podman exec uses a non-login environment; rustup lives in the shared home.
+export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+cargo build --release --locked --manifest-path "$native/Cargo.toml" >&2
+printf '%s\n' "$CARGO_TARGET_DIR/release/dotfiles-desktop"

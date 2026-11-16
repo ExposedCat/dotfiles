@@ -21,7 +21,7 @@ Scope {
     property bool actionPending: false
     property string pendingToken: ""
     property var favorites: ({})
-    readonly property string path: decodeURIComponent(Qt.resolvedUrl("launcher.py").toString().replace(/^file:\/\//, ""))
+    readonly property string path: shell.helper
     readonly property bool active: shell.panel === "launcher"
     signal actionFinished(string message, bool close)
 
@@ -94,7 +94,7 @@ Scope {
     Timer { id: idle; interval: 120000; onTriggered: { if (!root.active) { worker.running = false; root.ready = false; } } }
     Process {
         id: worker
-        command: ["/usr/bin/python3", root.path]
+        command: [root.path, "launcher"]
         stdinEnabled: true
         stdout: SplitParser {
             onRead: line => {

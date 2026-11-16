@@ -7,7 +7,7 @@ cp ~/.config/Code/User/settings.json ./vscode
 mkdir -p ./codex/skills/isolated-gui/{agents,scripts}
 cp ~/.codex/skills/isolated-gui/SKILL.md ./codex/skills/isolated-gui/
 cp ~/.codex/skills/isolated-gui/agents/openai.yaml ./codex/skills/isolated-gui/agents/
-cp ~/.codex/skills/isolated-gui/scripts/{desktop,runtime}.py ./codex/skills/isolated-gui/scripts/
+cp ~/.codex/skills/isolated-gui/scripts/{desktop,runtime,test_runtime}.py ./codex/skills/isolated-gui/scripts/
 
 # Codex: capture the server workflow skill.
 mkdir -p ./codex/skills/server/agents

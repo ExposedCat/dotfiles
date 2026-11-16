@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 script=$(realpath "${BASH_SOURCE[0]}")
+repo=$(dirname "$(dirname "$script")")
+# Compile in the development environment; the host executes only the binary.
+binary=$("$repo/hyprland/native/build")
 if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
-    exec distrobox-host-exec bash "$script" "$@"
+    exec distrobox-host-exec "$binary" manage hyprland "$repo" "$@"
 fi
-exec /usr/bin/python3 "$(dirname "$script")/manage.py" "$@"
+exec "$binary" manage hyprland "$repo" "$@"

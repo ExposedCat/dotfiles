@@ -10,7 +10,7 @@ Scope {
     property var apps: []
     property string error: ""
     property bool launching: false
-    readonly property string helper: decodeURIComponent(Qt.resolvedUrl("desktop.py").toString().replace(/^file:\/\//, ""))
+    readonly property string helper: Quickshell.env("DOTFILES_DESKTOP_BINARY") || (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/hypr/bin/dotfiles-desktop"
     readonly property var matches: {
         const query = search.text.trim().toLowerCase();
         const tokens = query.split(/\s+/).filter(t => t.length);
@@ -28,13 +28,13 @@ Scope {
     function launch() {
         if (!launching && list.currentIndex >= 0 && list.currentIndex < matches.length) {
             launching = true;
-            Quickshell.execDetached(["/usr/bin/python3", helper, "app-launch", matches[list.currentIndex].id]);
+            Quickshell.execDetached([helper, "desktop", "app-launch", matches[list.currentIndex].id]);
             Qt.quit();
         }
     }
     Process {
         id: loader
-        command: ["python3", root.helper, "apps-list"]
+        command: [root.helper, "desktop", "apps-list"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {

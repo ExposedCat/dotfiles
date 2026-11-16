@@ -3,7 +3,7 @@
 
 Run through the desktop helper. --source accepts another tools directory for
 before/after comparisons. Software-rendered results are comparative, not a
-measurement of the working Hyprland session. Includes the real Python shortcut,
+measurement of the working Hyprland session. Includes the real native shortcut,
 capture commands, IPC and first full-size overlay frame on both outputs.
 """
 
@@ -34,6 +34,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, default=Path(__file__).resolve().parents[1] / 'config/tools')
     parser.add_argument('--samples', type=int, default=6)
+    parser.add_argument('--legacy-shortcut', type=Path, help='External Python reference for controlled migration comparisons')
     args = parser.parse_args()
     if args.samples < 2:
         parser.error('--samples must include a first open and at least one repeat')
@@ -98,7 +99,8 @@ def main():
                 samples = []
                 for index in range(args.samples):
                     started = time.time() * 1000
-                    shortcut = subprocess.Popen([sys.executable, str(source / 'capture.py'), 'select', 'region'],
+                    command = [sys.executable,str(args.legacy_shortcut),'select','region'] if args.legacy_shortcut else [os.environ['DOTFILES_DESKTOP_BINARY'],'capture','select','region']
+                    shortcut = subprocess.Popen(command,
                                                 env=env, stdout=log, stderr=log)
 
                     def rendered():

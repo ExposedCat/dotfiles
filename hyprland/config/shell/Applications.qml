@@ -33,7 +33,7 @@ Scope {
     Timer { id: save; interval: 200; onTriggered: history.setText(JSON.stringify({version: 1, usage: root.usage})) }
     Process {
         id: reader
-        command: ["/usr/bin/python3", root.shell.helper, "apps-list"]
+        command: [root.shell.helper, "desktop", "apps-list"]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {

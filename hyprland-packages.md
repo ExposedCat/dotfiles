@@ -9,10 +9,8 @@
 - polkit
 - ptyxis
 - nautilus
-- python3-gobject (Gio/D-Bus media controls and custom portal backend)
 - qalculate (launcher currencies, units, and advanced calculations)
-- python3-dateutil (launcher date parsing and calendar arithmetic)
-- ibus (installed emoji/Unicode catalogs and IBus introspection for launcher characters)
+- ibus (installed emoji/Unicode catalogs and native IBus API for launcher characters)
 - xdg-user-dirs (screenshot directory)
 - ddcutil (external-monitor brightness)
 - qt6-qtwayland
@@ -36,7 +34,6 @@
 - grim
 - wl-screenrec
 - ffmpeg (including libx264, for cross-screen recording composition)
-- python3-pillow (for direct window screenshots)
 - wl-clipboard
 - cliphist
 - gnome-online-accounts
@@ -45,3 +42,8 @@
 - libsecret
 - oo7-daemon
 - pam_oo7
+
+Custom desktop and portal helpers are Rust executables built from `hyprland/native/`.
+Build dependencies live in the `dev` container: Rust 1.92+, a C compiler,
+pkg-config, and GLib/GIO development headers. Python and PyGObject are needed
+only for the repository’s isolated GUI and D-Bus test harnesses.

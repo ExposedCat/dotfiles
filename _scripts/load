@@ -7,7 +7,7 @@ cp ./vscode/settings.json ~/.config/Code/User
 mkdir -p ~/.codex/skills/isolated-gui/{agents,scripts}
 cp ./codex/skills/isolated-gui/SKILL.md ~/.codex/skills/isolated-gui/
 cp ./codex/skills/isolated-gui/agents/openai.yaml ~/.codex/skills/isolated-gui/agents/
-cp ./codex/skills/isolated-gui/scripts/{desktop,runtime}.py ~/.codex/skills/isolated-gui/scripts/
+cp ./codex/skills/isolated-gui/scripts/{desktop,runtime,test_runtime}.py ~/.codex/skills/isolated-gui/scripts/
 
 # Codex: install the server workflow skill.
 mkdir -p ~/.codex/skills/server/agents
@@ -44,7 +44,7 @@ mkdir -p ~/.config/gtk-{3,4}.0
 cp ./gtk/gtk.css ~/.config/gtk-3.0/gtk.css
 cp ./gtk/gtk.css ~/.config/gtk-4.0/gtk.css
 
-# Hyprland portals: Nautilus chooser, custom dialogs, and sharing picker.
+# Build the pinned local portal release and install its routing and dialogs.
 ./xdg-desktop-portal/manage install
 
 # Audio: install profiles before enabling the WirePlumber rules.

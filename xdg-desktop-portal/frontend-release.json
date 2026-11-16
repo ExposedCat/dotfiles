@@ -1,0 +1,7 @@
+{
+  "version": "1.22.1+dotfiles.1",
+  "upstream_version": "1.22.1",
+  "url": "https://github.com/flatpak/xdg-desktop-portal.git",
+  "revision": "1d20fadc304f6601452b5db65ed91197dba77041",
+  "patches": ["peer-disconnect.patch"]
+}

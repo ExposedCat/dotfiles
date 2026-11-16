@@ -73,9 +73,11 @@ with tempfile.TemporaryDirectory(prefix='capture-input-', dir=os.environ['XDG_RU
             # Delay only preference writes to prove the cold process waits for
             # persistence instead of killing its helper as soon as it hides.
             (root/'bin').mkdir()
-            wrapper = root/'bin/python3'
-            wrapper.write_text('#!/usr/bin/python3\nimport os,sys,time\nif "preferences" in sys.argv: time.sleep(0.5)\nos.execv("/usr/bin/python3", ["/usr/bin/python3"]+sys.argv[1:])\n')
+            wrapper = root/'bin/dotfiles-desktop'
+            native = os.environ['DOTFILES_DESKTOP_BINARY']
+            wrapper.write_text('#!/usr/bin/python3\nimport os,sys,time\nif "preferences" in sys.argv: time.sleep(0.5)\nos.execv(' + repr(native) + ', [' + repr(native) + ']+sys.argv[1:])\n')
             wrapper.chmod(0o755)
+            env['DOTFILES_DESKTOP_BINARY'] = str(wrapper)
             env['PATH'] = str(root/'bin') + os.pathsep + env['PATH']
             (root/'config').mkdir()
             (root/'pictures').mkdir()
@@ -311,6 +313,7 @@ with tempfile.TemporaryDirectory(prefix='capture-input-', dir=os.environ['XDG_RU
                 assert state()['panel'] == '', 'Ordinary focus-loss dismissal was not restored'
             print('CAPTURE INPUT PASS: copy/save for letters, Ctrl+Z, modifiers, navigation/function keys, Cyrillic/Arabic, layout change while held, Escape/Backspace/Delete exceptions, repeats, text editing, warm/cold, recording, launcher/query/selection preservation and normal dismissal')
         except Exception:
+            print("Capture check state:", locals().get("keys"), state(), flush=True)
             print((root/'qml.log').read_text())
             print((root/'sway.log').read_text()[-2000:])
             raise
