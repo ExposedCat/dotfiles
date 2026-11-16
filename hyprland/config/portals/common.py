@@ -42,6 +42,11 @@ def app_metadata(identity):
 
 def app_choices(identities):
     # The frontend supplies eligible apps. Preserve those IDs in the response.
+    if not identities:
+        from gi.repository import Gio
+        identities = sorted(app.get_id() for app in Gio.AppInfo.get_all()
+                            if app.get_id() and app.should_show()
+                            and (app.supports_files() or app.supports_uris()))
     result = []
     for identity in dict.fromkeys(identities):
         row = app_metadata(identity)

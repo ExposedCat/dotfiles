@@ -14,6 +14,7 @@ CONFIG = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
 DATA = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share'))
 STATE = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 'dotfiles/xdg-desktop-portal'
 HYPR = CONFIG / 'hypr'
+FRONTEND = Path.home() / '.local/libexec/dotfiles/xdg-desktop-portal'
 SERVICE = 'dotfiles-portal.service'
 BUS = 'org.freedesktop.impl.portal.desktop.dotfiles'
 RULE = '''-- BEGIN dotfiles-portals
@@ -76,6 +77,24 @@ SystemdService={SERVICE}
 '''
     result[CONFIG / 'systemd/user' / SERVICE] = (unit.encode(), 0o644)
     result[DATA / 'dbus-1/services' / (BUS + '.service')] = (activation.encode(), 0o644)
+    if FRONTEND.is_file():
+        result[CONFIG / 'systemd/user/xdg-desktop-portal.service.d/90-peer-disconnect.conf'] = (
+            f'[Service]\nExecStart=\nExecStart="{FRONTEND}"\n'.encode(), 0o644)
+    bridge = Path.home() / '.local/libexec/dotfiles/brevlada-email'
+    result[bridge] = ((SOURCE / 'brevlada-email').read_bytes(), 0o755)
+    desktop = f'''[Desktop Entry]
+Type=Application
+Name=Brevlada
+GenericName=Email Client
+Exec=/usr/bin/python3 "{bridge}" %U
+Icon=com.chipichapa.Brevlada
+Terminal=false
+Categories=GNOME;GTK;Network;Email;
+MimeType=x-scheme-handler/mailto;
+StartupNotify=true
+DBusActivatable=false
+'''
+    result[DATA / 'applications/com.chipichapa.Brevlada.desktop'] = (desktop.encode(), 0o644)
     xdph = HYPR / 'xdph.conf'
     block = f'''# BEGIN dotfiles-share-picker
 screencopy {{
@@ -115,6 +134,9 @@ def install():
             raise RuntimeError(f'Missing dependency: {binary}')
     if not (HYPR / 'shell/ShellTheme.qml').is_file():
         raise RuntimeError('The desktop shell theme must be installed first.')
+    version = run('/usr/libexec/xdg-desktop-portal', '--version').strip()
+    if version.endswith('1.22.1') and not FRONTEND.is_file():
+        subprocess.run([str(SOURCE / 'build-frontend')], check=True, timeout=600)
     files = payloads()
     changed = {p: item for p, item in files.items() if not p.is_file() or p.read_bytes() != item[0] or p.stat().st_mode & 0o777 != item[1]}
     if not changed:
@@ -144,6 +166,9 @@ def install():
             stage.chmod(mode)
             stage.replace(path)
         refresh()
+        run('update-desktop-database', str(DATA / 'applications'))
+        run('xdg-mime', 'default', 'com.chipichapa.Brevlada.desktop', 'x-scheme-handler/mailto')
+        run('xdg-mime', 'default', 'org.gnome.Nautilus.desktop', 'inode/directory')
     except Exception:
         for entry in metadata:
             path = Path(entry['target'])

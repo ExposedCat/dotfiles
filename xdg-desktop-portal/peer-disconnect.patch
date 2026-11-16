@@ -1,0 +1,92 @@
+diff --git a/src/xdp-request.c b/src/xdp-request.c
+index 34e5d41..f1ff7e0 100644
+--- a/src/xdp-request.c
++++ b/src/xdp-request.c
+@@ -199,17 +199,15 @@ get_token (GDBusMethodInvocation *invocation)
+ }
+ 
+ static void
+-on_peer_disconnect (XdpContext *context,
+-                    const char *peer,
+-                    gpointer    user_data)
++on_peer_disconnect_in_thread_func (GTask *task,
++                                   gpointer source_object,
++                                   gpointer task_data,
++                                   GCancellable *cancellable)
+ {
+-  XdpRequest *request = XDP_REQUEST (user_data);
++  XdpRequest *request = XDP_REQUEST (source_object);
+ 
+   REQUEST_AUTOLOCK (request);
+ 
+-  if (g_strcmp0 (request->sender, peer) != 0)
+-    return;
+-
+   if (!request->exported)
+     return;
+ 
+@@ -220,6 +218,22 @@ on_peer_disconnect (XdpContext *context,
+   xdp_context_unclaim_object_path (request->context, request->id);
+ }
+ 
++static void
++on_peer_disconnect (XdpContext *context,
++                    const char *peer,
++                    gpointer user_data)
++{
++  XdpRequest *request = XDP_REQUEST (user_data);
++  g_autoptr(GTask) task = NULL;
++
++  if (g_strcmp0 (request->sender, peer) != 0)
++    return;
++
++  task = g_task_new (request, NULL, NULL, NULL);
++  g_task_set_source_tag (task, on_peer_disconnect_in_thread_func);
++  g_task_run_in_thread (task, on_peer_disconnect_in_thread_func);
++}
++
+ gboolean
+ xdp_request_init_invocation (GDBusMethodInvocation  *invocation,
+                              XdpContext             *context,
+diff --git a/src/xdp-session.c b/src/xdp-session.c
+index 5489c37..431ab2a 100644
+--- a/src/xdp-session.c
++++ b/src/xdp-session.c
+@@ -266,19 +266,33 @@ xdp_session_authorize_callback (GDBusInterfaceSkeleton *interface,
+   return TRUE;
+ }
+ 
++static void
++on_peer_disconnect_in_thread_func (GTask *task,
++                                   gpointer source_object,
++                                   gpointer task_data,
++                                   GCancellable *cancellable)
++{
++  XdpSession *session = XDP_SESSION (source_object);
++
++  SESSION_AUTOLOCK_UNREF (g_object_ref (session));
++
++  xdp_session_close (session, FALSE);
++}
++
+ static void
+ on_peer_disconnect (XdpContext *context,
+                     const char *peer,
+-                    gpointer    user_data)
++                    gpointer user_data)
+ {
+   XdpSession *session = XDP_SESSION (user_data);
+-
+-  SESSION_AUTOLOCK (session);
++  g_autoptr(GTask) task = NULL;
+ 
+   if (g_strcmp0 (session->sender, peer) != 0)
+     return;
+ 
+-  xdp_session_close (session, FALSE);
++  task = g_task_new (session, NULL, NULL, NULL);
++  g_task_set_source_tag (task, on_peer_disconnect_in_thread_func);
++  g_task_run_in_thread (task, on_peer_disconnect_in_thread_func);
+ }
+ 
+ static gboolean

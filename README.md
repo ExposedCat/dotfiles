@@ -282,6 +282,10 @@ The persistent Quickshell desktop lives in `hyprland/config/shell/`. The main HP
 OMEN (DP-3) has one floating pill, centered 8 pixels below the top edge.
 Super+Ctrl+Shift+F toggles its visibility until pressed again. The pill also
 hides automatically while its monitor's active workspace has a fullscreen app.
+Super still opens the launcher while the pill is hidden, fading and sliding it
+at full size without flashing the compact pill or clock. Closing reverses the
+transition and restores the hidden state.
+Explicitly opened views also remain available over fullscreen apps.
 It overlaps applications and reserves no tiling space. The compact pill shows
 only the time and EN/RU keyboard layout, with a lit notification dot only while
 active notifications remain. There is no separator or inactive dot. Click the time or dot for the calendar and notification
@@ -574,7 +578,8 @@ open, stable full-view geometry, Bluetooth device churn, and releasing input on 
 `hyprland/tests/pill.lua` exercises Super tap/hold/chord handling with a fake
 compositor as part of the Python suite. `hyprland/tests/pill-behavior.qml` checks
 the real shell's pill geometry, launcher, menu switching, collapse, hidden input
-region, stale IPC events, and timestamp wraparound. Run that fixture in a nested
+region, stale IPC events, timestamp wraparound, and launcher access while manually
+hidden or fullscreen. Run that fixture in a nested
 Wayland compositor inside the isolated helper (for example, Sway with
 `WLR_BACKENDS=x11` and `WLR_RENDERER=pixman`). Set `DOTFILES_SHELL_FIXTURE` to a JSON
 file, `DOTFILES_SHELL_SOURCE` to the absolute shell directory, and both

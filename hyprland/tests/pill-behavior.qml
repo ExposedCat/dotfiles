@@ -13,6 +13,10 @@ Scope {
     property bool watchClosing: false
     property rect closingGeometry
     property int closingFrames: 0
+    property int hiddenLauncherFrames: 0
+    property int hiddenOpeningFrames: 0
+    property int hiddenClosingFrames: 0
+    property int hiddenSlidingFrames: 0
     function findItem(item, predicate) {
         if (predicate(item)) return item;
         for (const child of item.children || []) {
@@ -153,11 +157,51 @@ Scope {
                 test.app.gesture("hide", "110");
                 test.app.gesture("show", "120");
                 test.check(bar.pillState === "hidden", "Super hold/release must preserve manual hiding");
-                test.app.gesture("visibility", "130");
+                test.app.gesture("tap", "130");
                 break;
             case 19:
+                test.check(bar.pillState === "launcher" && test.app.pillSuppressed && bar.mask.regions.length === 1 && bar.wantsFocusGrab, "Super tap must open an interactive launcher while manually hidden");
+                test.check(bar.WlrLayershell.keyboardFocus === WlrKeyboardFocus.OnDemand && test.findItem(bar.contentItem, item => item.objectName === "floatingPill").opacity === 1, "Hidden-pill launcher must paint and accept keyboard input");
+                test.app.gesture("hide", "140");
+                test.check(bar.pillState === "hidden" && bar.mask.regions.length === 0, "Holding Super must still hide the open launcher");
+                test.app.gesture("show", "150");
+                break;
+            case 20:
+                test.check(bar.pillState === "launcher", "Release must restore the launcher while manually hidden");
+                test.app.gesture("tap", "160");
+                break;
+            case 21:
+                test.check(bar.pillState === "hidden" && test.app.pillSuppressed && bar.mask.regions.length === 0 && !bar.wantsFocusGrab, "Second tap must close the launcher and preserve manual hiding");
+                test.app.gesture("launcher", "170");
+                break;
+            case 22:
+                test.check(bar.pillState === "launcher", "Explicit launcher shortcut must also work while manually hidden");
+                bar.lostFocus();
+                break;
+            case 23:
+                test.check(bar.pillState === "hidden" && test.app.pillSuppressed && bar.mask.regions.length === 0, "Focus dismissal must restore manual hiding");
+                test.app.gesture("visibility", "180");
+                break;
+            case 24:
                 test.check(bar.pillState === "compact" && bar.mask.regions.length === 1, "Second visibility shortcut must restore the pill");
-                console.warn("PILL PASS: stationary clock, frozen closing content, fixed radius/left inset, hidden inactive indicator, hover date, launcher search/launch, menu switching, holds, timestamp wraparound, and fullscreen hide/restore, and manual visibility across Super gestures without input interception");
+                test.app.fixtureData = Object.assign({}, test.app.fixtureData, {fullscreen: true});
+                test.app.gesture("tap", "190");
+                break;
+            case 25:
+                test.check(bar.pillState === "launcher" && bar.wantsFocusGrab && bar.mask.regions.length === 1, "Super must open an interactive launcher over fullscreen");
+                test.app.gesture("tap", "200");
+                break;
+            case 26:
+                test.check(bar.pillState === "hidden" && bar.mask.regions.length === 0 && bar.WlrLayershell.keyboardFocus === WlrKeyboardFocus.None, "Closing the launcher must restore fullscreen hiding and release input");
+                test.app.fixtureData = Object.assign({}, test.app.fixtureData, {fullscreen: false});
+                break;
+            case 27:
+                test.check(bar.pillState === "compact", "Leaving fullscreen must restore the idle pill");
+                test.check(test.hiddenLauncherFrames > 10, "Hidden-pill launcher transitions were not sampled");
+                test.check(test.hiddenOpeningFrames >= 2 && test.hiddenClosingFrames >= 2,
+                    "Hidden-pill launcher must animate both opening and closing");
+                test.check(test.hiddenSlidingFrames >= 2, "Hidden-pill launcher must slide during its fade");
+                console.warn("PILL PASS: stationary clock, frozen closing content, fixed radius/left inset, hidden inactive indicator, hover date, launcher search/launch, menu switching, holds, timestamp wraparound, fullscreen hide/restore, and interactive launcher access without a compact-pill flash while manually hidden or fullscreen");
                 Qt.quit();
             }
         }
@@ -169,6 +213,22 @@ Scope {
             test.check(test.clockText.mapToItem(bar.contentItem, 0, 0).x === test.clockX, "Clock shook during morph");
             test.check(bar.pillRadius === 20 && bar.workspaceInset === 20, "Corner radius or workspace inset changed during morph");
             test.check(Number.isInteger(bar.pillGeometry.x) && Number.isInteger(bar.pillGeometry.width), "Fractional pill geometry");
+            if (test.app.pillSuppressed || bar.fullscreen) {
+                const body = test.findItem(bar.contentItem, item => item.objectName === "floatingPill");
+                if (body.opacity > 0 && !test.app.pillHidden) {
+                    test.hiddenLauncherFrames++;
+                    test.check(bar.pillGeometry.height === bar.targetHeight && bar.pillGeometry.width === bar.targetWidth,
+                        "Hidden-pill launcher flashed compact geometry: " + bar.pillGeometry);
+                    const header = test.findItem(bar.contentItem, item => item.objectName === "pillHeader");
+                    test.check(!header.visible || header.opacity === 0,
+                        "Hidden-pill launcher revealed the idle header: step=" + test.step + ", reveal=" + body.opacity);
+                    if (body.opacity < 1) {
+                        if (test.app.panel) test.hiddenOpeningFrames++;
+                        else test.hiddenClosingFrames++;
+                        if (body.mapToItem(bar.contentItem, 0, 0).y < body.y) test.hiddenSlidingFrames++;
+                    }
+                }
+            }
             if (test.watchClosing && bar.activePane) {
                 test.closingFrames++;
                 test.check(bar.paneGeometry === test.closingGeometry, "Closing content was resized or moved");

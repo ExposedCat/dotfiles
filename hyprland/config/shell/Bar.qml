@@ -12,7 +12,21 @@ PanelWindow {
     required property var theme
     readonly property var monitorInfo: shell.fixture ? null : Hyprland.monitorFor(screen)
     readonly property bool fullscreen: shell.fixture ? !!shell.fixtureData.fullscreen : !!(monitorInfo && monitorInfo.activeWorkspace && monitorInfo.activeWorkspace.hasFullscreen)
-    readonly property bool hidden: shell.pillHidden || shell.pillSuppressed || fullscreen
+    readonly property bool idleHidden: shell.pillSuppressed || fullscreen
+    // Explicitly opened views remain available while the idle pill is hidden.
+    // Super holds still hide the current view until the modifier is released.
+    readonly property bool hidden: shell.pillHidden || (!shell.panel && idleHidden)
+    // Standalone views fade and slide at full size when there is no idle pill.
+    // Keep their geometry and content until the closing animation finishes.
+    property real hiddenPanelReveal: idleHidden && !!shell.panel ? 1 : 0
+    Behavior on hiddenPanelReveal {
+        enabled: bar.idleHidden
+        NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+    }
+    readonly property bool hiddenPanelVisible: idleHidden && (!!shell.panel || hiddenPanelReveal > 0)
+    onHiddenPanelRevealChanged: {
+        if (idleHidden && !shell.panel && hiddenPanelReveal === 0) { shownPanel = ""; launcherDragged = false; }
+    }
     // The pill stays on the main screen; its workspace controls follow the
     // focused monitor. Feedback retains the monitor that emitted the switch.
     readonly property string workspaceOutput: !expanded && shell.osd.visible && shell.osd.kind === "workspace" && shell.osd.output
@@ -62,7 +76,7 @@ PanelWindow {
     property point dragOrigin: Qt.point(0, 0)
     property bool dragPressed: false
     property var focusGrab: null
-    readonly property bool pinnedLauncher: shell.panel === "launcher" && launcherDragged
+    readonly property bool pinnedLauncher: (shell.panel === "launcher" || (hiddenPanelVisible && shownPanel === "launcher")) && launcherDragged
     readonly property bool wantsFocusGrab: !!shell.panel && !hidden && !shell.captureActive && (!pinnedLauncher || dragPressed) && !centerFocus.editing
     readonly property bool nativeActive: !!bar.contentItem.Window.window && bar.contentItem.Window.window.active
     function beginLauncherDrag(x, y) {
@@ -120,17 +134,17 @@ PanelWindow {
     // for the matching right spacer too, without measuring its own stretched width.
     readonly property real rightNeed: trayItems.count ? 2 * Math.ceil(rightContentWidth) - Math.floor(leftContentWidth) : rightContentWidth + groupSpacing
     readonly property real controlsWidth: Math.ceil(Math.max(600, 2 * Math.max(leftNeed, rightNeed)) / 2) * 2
-    readonly property real targetWidth: Math.min(width - 24, shell.panel ? paneWidth : expanded ? controlsWidth : compactWidth + feedbackLeft + feedbackRight)
-    readonly property real targetHeight: shell.panel ? paneHeight : headerHeight
+    readonly property real targetWidth: Math.min(width - 24, shell.panel || hiddenPanelVisible ? paneWidth : expanded ? controlsWidth : compactWidth + feedbackLeft + feedbackRight)
+    readonly property real targetHeight: shell.panel || hiddenPanelVisible ? paneHeight : headerHeight
     // Animate position and size together, including the return from a drag.
-    // Only an active pointer gesture bypasses the animation.
+    // Standalone views use the reveal animation instead of the compact morph.
     // Snap all painted coordinates to whole pixels to avoid text shimmer.
     readonly property rect targetGeometry: Qt.rect(
-        pinnedLauncher ? launcherPosition.x : (width - targetWidth) / 2 + (feedbackRight - feedbackLeft + (!expanded ? notificationSpace : 0)) / 2,
+        pinnedLauncher ? launcherPosition.x : (width - targetWidth) / 2 + (hiddenPanelVisible ? 0 : (feedbackRight - feedbackLeft + (!expanded ? notificationSpace : 0)) / 2),
         pinnedLauncher ? launcherPosition.y : theme.panelGap, targetWidth, targetHeight)
     property rect animatedGeometry: targetGeometry
     Behavior on animatedGeometry {
-        enabled: !bar.dragPressed
+        enabled: !bar.dragPressed && !bar.idleHidden
         PropertyAnimation { duration: 220; easing.type: Easing.InOutCubic }
     }
     readonly property rect pillGeometry: Qt.rect(pill.x, pill.y, pill.width, pill.height)
@@ -228,7 +242,8 @@ PanelWindow {
         height: Math.round(bar.animatedGeometry.height)
         x: Math.round(bar.animatedGeometry.x)
         y: Math.round(bar.animatedGeometry.y)
-        opacity: bar.hidden ? 0 : 1
+        transform: Translate { y: bar.idleHidden ? Math.round(-12 * (1 - bar.hiddenPanelReveal)) : 0 }
+        opacity: bar.shell.pillHidden ? 0 : bar.idleHidden ? bar.hiddenPanelReveal : 1
         onHeightChanged: { if (height === bar.headerHeight && !bar.shell.panel) { bar.shownPanel = ""; bar.launcherDragged = false; } }
         PillBackground { anchors.fill: parent; theme: colors; radius: bar.pillRadius }
         Item {
@@ -239,9 +254,10 @@ PanelWindow {
                 id: header
                 objectName: "pillHeader"
                 width: parent.width; height: bar.headerHeight
-                opacity: bar.shownPanel ? 0 : 1
+                visible: !bar.idleHidden
+                opacity: bar.idleHidden || bar.shownPanel ? 0 : 1
                 enabled: opacity > 0.95
-                Behavior on opacity { NumberAnimation { duration: 100 } }
+                Behavior on opacity { enabled: !bar.idleHidden; NumberAnimation { duration: 100 } }
                 Item {
                     id: timeButton
                     width: Math.ceil(clockMetrics.width) + 2; height: bar.headerHeight
@@ -393,7 +409,7 @@ PanelWindow {
                         required property string modelData
                         anchors.fill: parent
                         active: !!bar.retained[modelData]
-                        opacity: modelData === bar.shownPanel && bar.shell.panel && pill.height > bar.headerHeight + 30 ? 1 : 0
+                        opacity: modelData === bar.shownPanel && (bar.shell.panel || bar.hiddenPanelVisible) && pill.height > bar.headerHeight + 30 ? 1 : 0
                         visible: opacity > 0
                         enabled: modelData === bar.shell.panel
                         // Fade the notification stack as one image so its back
