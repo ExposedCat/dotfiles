@@ -39,14 +39,51 @@ Scope {
     property var recordSelection: ({ monitor: "", x: 0, y: 0, width: 0, height: 0 })
     readonly property string helper: decodeURIComponent(Qt.resolvedUrl("capture.py").toString().replace(/^file:\/\//, ""))
     property string shellConfig: Quickshell.shellDir + "/../shell/shell.qml"
+    readonly property string defaultShellConfig: Quickshell.shellDir + "/../shell/shell.qml"
+    property bool handoffPending: false
+    property bool handoffValue: false
+    property int handoffId: 0
+    property var shellConnection: null
+    readonly property bool handoffReady: !!shellConnection?.connected
+
+    function connectShell() {
+        const old = shellConnection;
+        shellConnection = null;
+        if (old) old.destroy();
+        // Recreate after connection failure: older Quickshell releases cannot
+        // reconnect the same Socket after ServerNotFoundError.
+        shellConnection = shellConnectionFactory.createObject(root);
+    }
 
     function handoff(active) {
-        shellHandoff.command = ["/usr/bin/quickshell", "ipc", "--path", shellConfig, "call", "shell", "capture", String(active)];
+        handoffValue = active;
+        handoffId++;
+        handoffPending = true;
+        if (shellConfig !== defaultShellConfig) { legacyHandoff(); return; }
+        if (handoffReady) { handoffTimeout.restart(); sendHandoff(); }
+        else { legacyHandoff(); connectShell(); }
+    }
+    function sendHandoff() {
+        if (!handoffPending) return;
+        shellConnection.write(JSON.stringify({action: "capture", active: handoffValue, id: handoffId}) + "\n");
+        shellConnection.flush();
+    }
+    function legacyHandoff() {
+        if (!handoffPending) return;
+        handoffPending = false;
+        handoffTimeout.stop();
+        shellHandoff.command = ["/usr/bin/quickshell", "ipc", "--path", shellConfig, "call", "shell", "capture", String(handoffValue)];
         shellHandoff.running = true;
+    }
+    function handoffComplete() {
+        handoffPending = false;
+        handoffTimeout.stop();
+        if (root.opening) { root.opening = false; root.active = true; }
+        else if (root.finishing) root.finishSession();
     }
 
     function openSession(directory) {
-        if (active || opening || finishing || shellHandoff.running || exporter.running || recorder.running || !directory) return false;
+        if (active || opening || finishing || handoffPending || shellHandoff.running || exporter.running || recorder.running || !directory) return false;
         sessionDirectory = directory;
         try {
             sessionFile.reload();
@@ -108,20 +145,28 @@ Scope {
         data = {outputs: [], mode: "region", selection: null};
         resultFile.setText(JSON.stringify({done: true, completedAt: Date.now(), session: sessionDirectory}));
     }
-    function keyPressed(key, modifiers, repeat) {
+    function logicalKey(key) { return [Qt.Key_Super_L, Qt.Key_Super_R].includes(key) ? Qt.Key_Meta : key; }
+    function keyIdentity(key, scanCode) { return scanCode ? "scan:" + scanCode : "key:" + logicalKey(key); }
+    function keyPressed(key, modifiers, repeat, scanCode = 0) {
         if (repeat) return;
         const next = Object.assign({}, heldKeys);
-        next[key] = true;
+        // A layout/group switch can change the symbol before key release.
+        // Keep the physical identity so it cannot leave the selector stuck.
+        next[keyIdentity(key, scanCode)] = logicalKey(key);
         // Modifiers may already be held when the screenshot overlay opens.
         for (const [flag, code] of [[Qt.ControlModifier, Qt.Key_Control], [Qt.ShiftModifier, Qt.Key_Shift],
-                                   [Qt.AltModifier, Qt.Key_Alt], [Qt.MetaModifier, Qt.Key_Meta]])
-            if (modifiers & flag) next[code] = true;
+                                   [Qt.AltModifier, Qt.Key_Alt], [Qt.MetaModifier, Qt.Key_Meta],
+                                   [Qt.GroupSwitchModifier, Qt.Key_AltGr]])
+            if ((modifiers & flag) && !Object.values(next).includes(code)) next[keyIdentity(code, 0)] = code;
         heldKeys = next;
     }
-    function keyReleased(key, repeat) {
+    function keyReleased(key, repeat, scanCode = 0) {
         if (repeat) return;
         const next = Object.assign({}, heldKeys);
-        delete next[key]; heldKeys = next;
+        delete next[keyIdentity(key, scanCode)];
+        // Also release a modifier inferred from the first event's flags.
+        delete next[keyIdentity(key, 0)];
+        heldKeys = next;
         if (closePending || recordPending) Qt.callLater(finishInput);
     }
     function finishInput() {
@@ -181,6 +226,7 @@ Scope {
     }
     FileView { id: resultFile; path: root.sessionDirectory ? root.sessionDirectory + "/result.json" : ""; preload: false; blockWrites: true; atomicWrites: true; printErrors: false }
     Component.onCompleted: {
+        connectShell();
         if (!persistent && !openSession(Quickshell.env("DOTFILES_CAPTURE_SESSION"))) Qt.quit();
     }
     IpcHandler {
@@ -188,15 +234,44 @@ Scope {
         function open(directory: string): bool { return root.openSession(directory) }
         function cancel(): void { if (root.active && !root.recording) root.closeSession() }
         function recordingStopped(): void { if (root.recording) { root.active = false; root.recording = false; } }
-        function status(): string { return JSON.stringify({active: root.active || root.opening || root.finishing || recorder.running, ready: !root.persistent || root.warmed, outputs: root.data.outputs.length, frames: root.firstFrames}) }
+        function status(): string { return JSON.stringify({active: root.active || root.opening || root.finishing || recorder.running, ready: !root.persistent || root.warmed, fastHandoff: root.handoffReady, outputs: root.data.outputs.length, frames: root.firstFrames}) }
     }
+    CaptureEndpoint {
+        endpoint: root.persistent ? "dotfiles-capture.sock" : ""
+        onRequest: (message, client) => {
+            if (message.action !== "open" || typeof message.directory !== "string") return;
+            const accepted = root.openSession(message.directory);
+            reply(client, {accepted: accepted, pid: Quickshell.processId});
+        }
+    }
+    Component {
+        id: shellConnectionFactory
+        Socket {
+            id: connection
+            path: Quickshell.env("XDG_RUNTIME_DIR") + "/dotfiles-capture-shell.sock"
+            connected: true
+            onConnectionStateChanged: {
+                if (root.shellConnection !== connection) return;
+                if (connected) root.sendHandoff();
+                else if (root.handoffPending) root.legacyHandoff();
+            }
+            onError: { if (root.shellConnection === connection) root.legacyHandoff(); }
+            parser: SplitParser {
+                onRead: line => {
+                    if (root.shellConnection !== connection) return;
+                    try {
+                        const result = JSON.parse(line);
+                        if (root.handoffPending && result.id === root.handoffId && result.accepted) root.handoffComplete();
+                    } catch (error) { root.legacyHandoff(); }
+                }
+            }
+        }
+    }
+    Timer { id: handoffTimeout; interval: 200; onTriggered: root.legacyHandoff() }
     Process {
         id: shellHandoff
-        onExited: {
-            // Standalone captures also work when the desktop shell is absent.
-            if (root.opening) { root.opening = false; root.active = true; }
-            else if (root.finishing) root.finishSession();
-        }
+        // Standalone captures also work when the desktop shell is absent.
+        onExited: root.handoffComplete()
     }
     // Initialize the scene graph once at login, rather than on the first Print.
     // The single transparent pixel has no input region or keyboard focus and
@@ -236,11 +311,14 @@ Scope {
         }
     }
     Variants {
-        model: root.data.outputs
+        // Build the controls once per connected screen, including while idle.
+        // Replacing session output objects used to rebuild every surface on Print.
+        model: Quickshell.screens
         delegate: CaptureSurface {
             required property var modelData
             controller: root
-            display: modelData
+            display: root.data.outputs.find(o => o.name === modelData.name)
+                || ({name: modelData.name, x: 0, y: 0, width: 0, height: 0, scale: 1, plain: "", cursor: ""})
         }
     }
     Variants {

@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-ColumnLayout {
+RowLayout {
     id: root
     required property var shell
     required property var theme
@@ -21,36 +21,15 @@ ColumnLayout {
     signal focused(var slider)
     signal toggleRequested()
     signal deviceSelected(int index)
-    implicitWidth: 220; implicitHeight: 200
+    implicitWidth: 472; implicitHeight: 40
     function openDevices() {
         if (!devices.length) return;
         deviceChoice.forceActiveFocus();
         deviceChoice.popup.open();
     }
-    spacing: 4
-    PillSlider {
-        id: fader
-        objectName: "fader:" + root.controlId
-        Layout.alignment: Qt.AlignHCenter
-        Layout.preferredWidth: 32; Layout.preferredHeight: 132
-        theme: root.theme; emberShell: root.shell
-        orientation: Qt.Vertical
-        backendValue: root.backendValue; enabled: root.available
-        wheelEnabled: true
-        onMoved: { root.focused(this); root.moved(value); }
-        onHoveredChanged: { if (hovered) root.focused(this); }
-        onActiveFocusChanged: { if (activeFocus) root.focused(this); }
-        onPressedChanged: { if (pressed) root.focused(this); else root.released(value); }
-        Accessible.name: root.hint
-    }
-    Text {
-        Layout.alignment: Qt.AlignHCenter; Layout.preferredHeight: 24
-        text: root.available ? Math.round(fader.value * 100) + "%" : "—"
-        color: root.theme.text; opacity: root.shell.emberTarget === fader.emberSlot ? 1 : 0.75
-        font: root.theme.textFont
-    }
+    spacing: 12
     Item {
-        Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 36; Layout.preferredHeight: 32
+        Layout.preferredWidth: 36; Layout.preferredHeight: 36
         // Keep the standard picker behavior, with its visual field replaced by
         // the mute icon. Device names appear only in the open dropdown.
         PillComboBox {
@@ -92,5 +71,26 @@ ColumnLayout {
             function onPanelChanged() { if (root.shell.panel !== "mixer") deviceChoice.popup.close(); }
             function onPillHiddenChanged() { if (root.shell.pillHidden) deviceChoice.popup.close(); }
         }
+    }
+    PillSlider {
+        id: fader
+        objectName: "fader:" + root.controlId
+        Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: 40
+        theme: root.theme; emberShell: root.shell
+        orientation: Qt.Horizontal; thickTrack: true; muted: root.muted
+        backendValue: root.backendValue; enabled: root.available
+        wheelEnabled: true
+        onMoved: { root.focused(this); root.moved(value); }
+        onHoveredChanged: { if (hovered) root.focused(this); }
+        onActiveFocusChanged: { if (activeFocus) root.focused(this); }
+        onPressedChanged: { if (pressed) root.focused(this); else root.released(value); }
+        Accessible.name: root.hint
+    }
+    Text {
+        Layout.preferredWidth: 44
+        horizontalAlignment: Text.AlignRight
+        text: root.available ? Math.round(fader.value * 100) + "%" : "—"
+        color: root.theme.text; opacity: root.shell.emberTarget === fader.emberSlot ? 1 : 0.75
+        font: root.theme.textFont
     }
 }

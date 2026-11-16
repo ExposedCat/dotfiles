@@ -11,6 +11,9 @@ Scope {
     property var capture: null
     property var desktop: null
     property var events: []
+    property int clicks: 0
+    property bool watchSizes: false
+    property var resizeEvents: []
     TestResult { id: objects }
     function surface() { return objects.findChild(capture, "captureSurface:" + capture.current); }
     function textField() { const view = surface(); return view ? objects.findChild(view, "captureAnnotationInput") : null; }
@@ -20,6 +23,7 @@ Scope {
         title: "Capture input observer"
         Item {
             anchors.fill: parent; focus: true
+            MouseArea { anchors.fill: parent; onClicked: test.clicks++; }
             Keys.onPressed: event => { test.events = test.events.concat(["press:" + event.key]); event.accepted = true; }
             Keys.onReleased: event => { test.events = test.events.concat(["release:" + event.key]); event.accepted = true; }
         }
@@ -29,6 +33,18 @@ Scope {
         if (component.status !== Component.Ready) throw Error(component.errorString());
         capture = component.createObject(test, {persistent: true});
         if (!capture) throw Error("Could not create capture controller");
+    }
+    Variants {
+        model: Quickshell.screens
+        Scope {
+            required property var modelData
+            readonly property var surface: test.capture ? objects.findChild(test.capture, "captureSurface:" + modelData.name) : null
+            Connections {
+                target: surface
+                function onWidthChanged() { if (test.watchSizes) test.resizeEvents = test.resizeEvents.concat(["width:" + modelData.name]); }
+                function onHeightChanged() { if (test.watchSizes) test.resizeEvents = test.resizeEvents.concat(["height:" + modelData.name]); }
+            }
+        }
     }
     IpcHandler {
         target: "captureInputTest"
@@ -59,11 +75,14 @@ Scope {
                 // while exercising the real Bar and capture handoff over IPC.
                 test.desktop.pill.WlrLayershell.keyboardFocus = Qt.binding(() =>
                     test.desktop.panel && !test.desktop.captureActive ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None);
-                test.capture.shellConfig = Quickshell.env("DOTFILES_CAPTURE_TEST_CONFIG");
+                test.capture.connectShell();
             }
             test.desktop.gesture("tap");
             return test.desktop.panel === "launcher";
         }
+        function useLegacyHandoff(): void { test.capture.shellConfig = Quickshell.env("DOTFILES_CAPTURE_TEST_CONFIG"); }
+        function connectHandoff(): void { test.capture.connectShell(); }
+        function watchSurfaceSizes(): void { test.resizeEvents = []; test.watchSizes = true; }
         function toolbarPoint(name: string): string {
             const view = test.surface();
             test.capture.current = view.display.name;
@@ -94,9 +113,15 @@ Scope {
             const view = test.surface(), field = test.textField();
             const scene = objects.findChild(test.capture, "captureScene:" + test.capture.current);
             const search = test.desktop?.pill.activePane?.children.find(c => c.objectName === "pillSearch");
-            return JSON.stringify({active: test.capture.active, exporting: test.capture.exporting,
-                finishing: test.capture.finishing, sceneFocused: !!scene?.activeFocus, dragging: test.capture.dragging, closePending: test.capture.closePending, tool: test.capture.tool, selection: test.capture.selection, current: test.capture.current, cursor: test.capture.includeCursor, preferences: test.capture.preferences, frames: test.capture.firstFrames,
-                recordPending: test.capture.recordPending, recording: test.capture.recording,
+            const idleSurfaces = Quickshell.screens.every(screen => {
+                const surface = objects.findChild(test.capture, "captureSurface:" + screen.name);
+                return surface && surface.width === screen.width && surface.height === screen.height && !surface.showing
+                    && surface.mask.width === 0 && surface.mask.height === 0
+                    && surface.WlrLayershell.keyboardFocus === WlrKeyboardFocus.None;
+            });
+            return JSON.stringify({active: test.capture.active, exporting: test.capture.exporting, idleSurfaces: idleSurfaces, resizeEvents: test.resizeEvents, clicks: test.clicks,
+                finishing: test.capture.finishing, handoffPending: test.capture.handoffPending, handoffReady: test.capture.handoffReady, sceneFocused: !!scene?.activeFocus, dragging: test.capture.dragging, closePending: test.capture.closePending, tool: test.capture.tool, selection: test.capture.selection, current: test.capture.current, cursor: test.capture.includeCursor, preferences: test.capture.preferences, frames: test.capture.firstFrames,
+                recordPending: test.capture.recordPending, recording: test.capture.recording, heldKeys: test.capture.heldKeys,
                 toolbars: test.capture.data.outputs.map(output => {
                     const surface = objects.findChild(test.capture, "captureSurface:" + output.name);
                     const toolbar = surface ? objects.findChild(surface, "captureToolbar") : null;

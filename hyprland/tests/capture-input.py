@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Real key press/release regression test; run through the isolated-gui helper."""
 import json
+import ctypes
 import os
 from pathlib import Path
 import subprocess
@@ -22,10 +23,37 @@ def wait_for(check, message, timeout=8):
     raise AssertionError(message)
 
 
+class PhysicalKeyboard:
+    """XTest keycodes without xdotool's keysym-to-Latin-layout translation."""
+    def __init__(self):
+        subprocess.run(['/usr/bin/setxkbmap', '-layout', 'us,ru,ara', '-option', '',
+                        '-option', 'lv3:ralt_switch'], check=True)
+        self.x11 = ctypes.CDLL('libX11.so.6')
+        self.xtst = ctypes.CDLL('libXtst.so.6')
+        self.x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        self.x11.XOpenDisplay.restype = ctypes.c_void_p
+        self.x11.XkbLockGroup.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint]
+        self.x11.XSync.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        self.xtst.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+        self.display = self.x11.XOpenDisplay(None)
+        assert self.display, 'No private X11 keyboard connection'
+
+    def group(self, index):
+        assert self.x11.XkbLockGroup(self.display, 0x0100, index), 'Cannot set private XKB group'
+        self.x11.XSync(self.display, False)
+
+    def key(self, code, down):
+        assert self.xtst.XTestFakeKeyEvent(self.display, code, down, 0), 'Cannot send private physical key'
+        self.x11.XSync(self.display, False)
+
+
+keyboard = PhysicalKeyboard()
 with tempfile.TemporaryDirectory(prefix='capture-input-', dir=os.environ['XDG_RUNTIME_DIR']) as temporary:
     root = Path(temporary)
     runtime = Path(os.environ['XDG_RUNTIME_DIR'])
-    (root / 'sway.conf').write_text('output * mode 1280x800\nseat * hide_cursor 10000\n')
+    (root / 'sway.conf').write_text('output * mode 1280x800\nseat * hide_cursor 10000\n'
+                                  'input type:keyboard xkb_layout "us,ru,ara"\n'
+                                  'input type:keyboard xkb_options "lv3:ralt_switch"\n')
     env = dict(os.environ, WLR_BACKENDS='x11', WLR_RENDERER='pixman', WLR_LIBINPUT_NO_DEVICES='1')
     with (root / 'sway.log').open('w') as compositor_log, (root / 'qml.log').open('w') as qml_log:
         compositor = subprocess.Popen(['/usr/bin/sway', '--unsupported-gpu', '--config', str(root/'sway.conf')],
@@ -35,6 +63,7 @@ with tempfile.TemporaryDirectory(prefix='capture-input-', dir=os.environ['XDG_RU
             socket = wait_for(lambda: next((p for p in runtime.glob('wayland-*') if p.is_socket()), None),
                               'No private Wayland display')
             env.update(QT_QPA_PLATFORM='wayland', WAYLAND_DISPLAY=socket.name,
+                       SWAYSOCK=str(wait_for(lambda: next(runtime.glob('sway-ipc.*.sock'), None), 'No private Sway IPC')),
                        DOTFILES_CAPTURE_SOURCE=str(SOURCE), DOTFILES_CAPTURE_SESSION=str(root),
                        DOTFILES_CAPTURE_TEST_CONFIG=str(QML),
                        DOTFILES_SHELL_FIXTURE=str(root/'empty.json'),
@@ -71,10 +100,44 @@ with tempfile.TemporaryDirectory(prefix='capture-input-', dir=os.environ['XDG_RU
             def key(action, name):
                 subprocess.run(['/usr/bin/xdotool', action, name], check=True)
 
+            def files():
+                return sorted((root/'pictures/Screenshots').glob('*.png'))
+
+            def poison_clipboard():
+                subprocess.run(['/usr/bin/wl-copy', '--type', 'text/plain'], input=b'before capture', env=env, check=True)
+
+            def verify_export(previous):
+                saved = files()
+                assert len(saved) == previous + 1, ('Export repeated or missing', saved)
+                image = saved[-1].read_bytes()
+                assert image.startswith(b'\x89PNG\r\n\x1a\n'), 'Saved image is not PNG'
+                clipboard = subprocess.check_output(['/usr/bin/wl-paste', '--type', 'image/png', '--no-newline'], env=env, timeout=3)
+                assert clipboard == image, 'Clipboard image differs from saved screenshot'
+
+            def layout(index):
+                keyboard.group(index)
+                subprocess.run(['/usr/bin/swaymsg', 'input', 'type:keyboard', 'xkb_switch_layout', str(index)],
+                               env=env, check=True, capture_output=True)
+                def switched():
+                    inputs = json.loads(subprocess.check_output(['/usr/bin/swaymsg', '-t', 'get_inputs', '-r'], env=env))
+                    keyboards = [device for device in inputs if device['type'] == 'keyboard']
+                    return keyboards and all(device['xkb_active_layout_index'] == index for device in keyboards)
+                wait_for(switched, 'Private keyboard layout did not change')
+
             wait_for(lambda: state() and state()['observerFocused'], 'Observer did not receive initial focus')
-            for keys in (['Escape'], ['Return'], ['Control_L', 'c'], ['a'], ['space']):
-                assert ipc('open') is True
+            wait_for(lambda: state()['idleSurfaces'], 'Idle surfaces are not ready and input-free')
+            ipc('watchSurfaceSizes')
+            subprocess.run(['/usr/bin/xdotool', 'mousemove', '640', '400', 'click', '1'], check=True)
+            wait_for(lambda: state()['clicks'] == 1, 'Idle surfaces intercepted a click')
+            export_keys = (['Escape'], ['Return'], ['Control_L', 'c'], ['a'], ['space'], ['z'],
+                           ['Control_L', 'z'], ['Tab'], ['Left'], ['F6'],
+                           ['Shift_L'], ['Control_L'], ['Alt_L'], ['Super_L'], ['Alt_R'])
+            for keys in export_keys:
+                previous = len(files())
+                poison_clipboard()
+                assert ipc('open') is True, state()
                 wait_for(lambda: state()['active'] and not state()['observerFocused'], 'Overlay did not take focus')
+                assert state()['resizeEvents'] == [], ('Opening resized the warm surface', state())
                 time.sleep(.15)
                 for name in keys:
                     key('keydown', name)
@@ -88,13 +151,19 @@ with tempfile.TemporaryDirectory(prefix='capture-input-', dir=os.environ['XDG_RU
                         time.sleep(.15)
                         assert state()['active'], 'Overlay closed before modifier release'
                 wait_for(lambda: not state()['active'] and state()['observerFocused'], 'Overlay did not dismiss after release')
+                wait_for(lambda: state()['idleSurfaces'], 'Dismissed surfaces still cover the desktop')
+                assert state()['resizeEvents'] == [], ('Closing resized the warm surface', state())
                 time.sleep(.15)
                 assert state()['events'] == [], (keys, 'Key release escaped to underlying window', state())
-            assert len(list((root/'pictures/Screenshots').glob('*.png'))) == 4, 'Export was repeated or failed'
+                if keys == ['Escape']:
+                    assert len(files()) == previous, 'Escape exported a screenshot'
+                else:
+                    verify_export(previous)
+            assert len(files()) == len(export_keys) - 1, 'Export was repeated or failed'
 
             # Alt/Shift/Ctrl can predate the overlay, e.g. Alt+Print.
             key('keydown', 'Shift_L'); time.sleep(.1)
-            assert ipc('open') is True
+            assert ipc('open') is True, state()
             wait_for(lambda: not state()['observerFocused'], 'Overlay did not take focus')
             key('keydown', 'Escape'); key('keyup', 'Escape'); time.sleep(.15)
             assert state()['active'], 'Previously held modifier was released to the observer'
@@ -102,9 +171,45 @@ with tempfile.TemporaryDirectory(prefix='capture-input-', dir=os.environ['XDG_RU
             wait_for(lambda: not state()['active'] and state()['observerFocused'], 'Modifier release did not dismiss')
             assert state()['events'] == [], state()
 
+            # Feed physical X11 keys to the nested compositor's actual layouts,
+            # then verify the non-Latin symbols reached Qt and copied/saved once.
+            for index, low, high in ((1, 0x0400, 0x0500), (2, 0x0600, 0x0700)):
+                layout(index)
+                previous = len(files())
+                poison_clipboard()
+                assert ipc('open') is True, state()
+                wait_for(lambda: state()['active'] and state()['sceneFocused'], 'Non-Latin overlay did not take focus')
+                keyboard.key(38, True)  # Physical A position: Cyrillic ф / Arabic ش.
+                time.sleep(.3)
+                held = state()
+                assert held['active'] and any(low <= value < high for value in held['heldKeys'].values()), held
+                assert any(identity.startswith('scan:') for identity in held['heldKeys']), held
+                if index == 1:
+                    layout(2)  # Release the same physical key with a different symbol.
+                keyboard.key(38, False)
+                wait_for(lambda: not state()['active'] and state()['observerFocused'], 'Non-Latin key release left selector open')
+                assert state()['events'] == [], state()
+                verify_export(previous)
+
+                # Exceptions keep their meaning in each layout and never export.
+                layout(index)
+                previous = len(files())
+                assert ipc('open') is True, state()
+                wait_for(lambda: state()['active'] and state()['sceneFocused'], 'Exception overlay did not take focus')
+                for code in (22, 119):  # Backspace and Delete in every layout.
+                    ipc('paintAcross')
+                    assert len(state()['strokes']) == 1, state()
+                    keyboard.key(code, True); keyboard.key(code, False)
+                    wait_for(lambda: state()['strokes'] == [], 'Undo exception failed')
+                    assert state()['active'] and not state()['exporting'], state()
+                keyboard.key(9, True); keyboard.key(9, False)
+                wait_for(lambda: not state()['active'] and state()['observerFocused'], 'Non-Latin Escape failed')
+                assert len(files()) == previous and state()['events'] == [], state()
+            layout(0)
+
             # Text editing keeps its own Return/Ctrl+C behavior; held Escape
             # cancels just the label, without repeating into whole-session cancel.
-            assert ipc('open') is True
+            assert ipc('open') is True, state()
             wait_for(lambda: not state()['observerFocused'], 'Overlay did not take focus')
             assert ipc('edit') is True
             subprocess.run(['/usr/bin/xdotool', 'type', 'label'], check=True)
@@ -117,10 +222,26 @@ with tempfile.TemporaryDirectory(prefix='capture-input-', dir=os.environ['XDG_RU
             assert state()['active'] and state()['editing'] and not state()['exporting'], 'Text copy exported the image'
             key('keydown', 'Return'); key('keyup', 'Return'); time.sleep(.1)
             assert state()['active'] and state()['strokes'][0]['text'] == 'label', state()
-            subprocess.run(['/usr/bin/xdotool', 'key', 'ctrl+z'], check=True)
-            assert state()['strokes'] == [], 'Undo shortcut stopped working'
+            subprocess.run(['/usr/bin/xdotool', 'key', 'BackSpace'], check=True)
+            assert state()['strokes'] == [], 'Backspace undo stopped working'
             key('keydown', 'Escape'); key('keyup', 'Escape')
             wait_for(lambda: not state()['active'] and state()['observerFocused'], 'Overlay did not dismiss')
+            assert state()['events'] == [], state()
+
+            # An IPC cancellation can close an unfinished label. Reusing the
+            # surface must start with clean editing state and keyboard focus.
+            assert ipc('open') is True, state()
+            wait_for(lambda: not state()['observerFocused'], 'Overlay did not take focus')
+            assert ipc('edit') is True
+            subprocess.run(['/usr/bin/xdotool', 'type', 'discarded'], check=True)
+            subprocess.run(['/usr/bin/quickshell', 'ipc', '--path', str(QML), 'call', 'capture', 'cancel'],
+                           env=env, check=True)
+            wait_for(lambda: not state()['active'] and state()['observerFocused'], 'IPC cancel did not restore focus')
+            assert ipc('open') is True, state()
+            wait_for(lambda: state()['sceneFocused'] and not state()['observerFocused'], 'Reused surface did not take focus')
+            assert not state()['editing'] and state()['text'] == '', state()
+            key('keydown', 'Escape'); key('keyup', 'Escape')
+            wait_for(lambda: not state()['active'] and state()['observerFocused'], 'Reused surface did not dismiss')
             assert state()['events'] == [], state()
 
             # Recording must also keep the selector mapped while Enter is held.
@@ -162,15 +283,20 @@ with tempfile.TemporaryDirectory(prefix='capture-input-', dir=os.environ['XDG_RU
             assert state()['events'] == [], state()
 
             for gesture in ('Escape', 'Return'):
+                if gesture == 'Return':
+                    ipc('useLegacyHandoff')
                 assert ipc('launcher') is True
                 wait_for(lambda: state()['panel'] == 'launcher' and state()['wantsGrab'], 'Launcher did not open')
                 time.sleep(.35)  # Let the opening animation and Loader activation finish.
+                if gesture == 'Escape':
+                    ipc('connectHandoff')
+                    wait_for(lambda: state()['handoffReady'], 'Direct shell handoff did not connect')
                 ipc('query')
                 wait_for(lambda: state()['query'] == 'te', 'Launcher query was not set')
                 ipc('choose')
                 before = state()
                 assert before['query'] == 'te' and before['selected'], before
-                assert ipc('open') is True
+                assert ipc('open') is True, state()
                 wait_for(lambda: state()['active'] and state()['captureActive'], 'Capture did not suspend shell dismissal')
                 ipc('loseFocus')  # The Hyprland focus-grab cleared callback.
                 during = state()
@@ -183,13 +309,13 @@ with tempfile.TemporaryDirectory(prefix='capture-input-', dir=os.environ['XDG_RU
                 assert after['selected'] == before['selected'] and after['wantsGrab'], after
                 ipc('loseFocus')
                 assert state()['panel'] == '', 'Ordinary focus-loss dismissal was not restored'
-            print('CAPTURE INPUT PASS: warm/cold Escape, repeats, Return, Ctrl+C, modifiers, text/undo, recording, launcher/query/selection preservation and normal dismissal')
+            print('CAPTURE INPUT PASS: copy/save for letters, Ctrl+Z, modifiers, navigation/function keys, Cyrillic/Arabic, layout change while held, Escape/Backspace/Delete exceptions, repeats, text editing, warm/cold, recording, launcher/query/selection preservation and normal dismissal')
         except Exception:
             print((root/'qml.log').read_text())
             print((root/'sway.log').read_text()[-2000:])
             raise
         finally:
-            for name in ('Escape', 'Return', 'c', 'Control_L', 'Shift_L'):
+            for name in ('Escape', 'Return', 'a', 'c', 'z', 'Control_L', 'Shift_L', 'Alt_L', 'Alt_R', 'Super_L', 'Tab', 'Left', 'F6', 'BackSpace', 'Delete'):
                 subprocess.run(['/usr/bin/xdotool', 'keyup', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if cold and cold.poll() is None:
                 cold.terminate(); cold.wait(timeout=5)

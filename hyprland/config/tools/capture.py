@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -170,8 +171,40 @@ def select(mode):
             run("quickshell", "--path", str(HERE / "capture.qml"), env=env)
 
 
+def request_warm_capture(directory):
+    """Contact the worker without starting a systemctl/Qt IPC client pair."""
+    with socket.socket(socket.AF_UNIX) as client:
+        client.settimeout(2)
+        try:
+            client.connect(str(Path(os.environ["XDG_RUNTIME_DIR"]) / "dotfiles-capture.sock"))
+        except (FileNotFoundError, ConnectionRefusedError):
+            return None
+        # Once sent, a failed reply is ambiguous: do not launch a second UI.
+        client.sendall((json.dumps({"action": "open", "directory": str(directory)}) + "\n").encode())
+        with client.makefile("rb") as stream:
+            reply = stream.readline(65536)
+        if not reply.endswith(b"\n"):
+            raise RuntimeError("The capture UI disconnected before acknowledging the session.")
+        return json.loads(reply)
+
+
 def open_warm_capture(directory):
     """Use the already-loaded Qt UI; retain a cold fallback outside the session."""
+    reply = request_warm_capture(directory)
+    if reply is not None:
+        if not reply.get("accepted"):
+            raise RuntimeError("The capture UI is already busy.")
+        pid = int(reply["pid"])
+        if pid <= 0:
+            raise RuntimeError("The capture UI returned an invalid process ID.")
+    else:
+        return open_legacy_capture(directory)
+    wait_warm_capture(directory, pid)
+    return True
+
+
+def open_legacy_capture(directory):
+    """Support an older worker until the configuration has been reloaded."""
     pid_result = subprocess.run(["systemctl", "--user", "show", CAPTURE_UNIT, "--property=MainPID", "--value"],
                                 capture_output=True, text=True)
     pid_text = pid_result.stdout.strip()
@@ -182,6 +215,11 @@ def open_warm_capture(directory):
                              "call", "capture", "open", str(directory)], capture_output=True, text=True, timeout=2)
     if result.returncode or result.stdout.strip() != "true":
         return False
+    wait_warm_capture(directory, pid)
+    return True
+
+
+def wait_warm_capture(directory, pid):
     polls = 0
     while not (directory / "result.json").is_file():
         try:
@@ -195,10 +233,9 @@ def open_warm_capture(directory):
                                     "call", "capture", "status"], capture_output=True, text=True, timeout=2)
             try:
                 if state.returncode == 0 and json.loads(state.stdout).get("active") is False:
-                    return True
+                    return
             except ValueError:
                 pass
-    return True
 
 
 def session():

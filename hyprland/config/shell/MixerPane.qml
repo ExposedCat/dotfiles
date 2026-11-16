@@ -8,14 +8,14 @@ Item {
     property var focusedSlider: null
     readonly property Item emberTarget: (focusedSlider || volume.slider).enabled ? (focusedSlider || volume.slider).emberSlot : null
     readonly property var audio: shell.audio
-    implicitHeight: 200
+    implicitHeight: 96
     function follow(slider) { focusedSlider = slider; }
-    RowLayout {
-        anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
-        width: Math.min(parent.width, 472); height: 200; spacing: 32
+    ColumnLayout {
+        anchors { verticalCenter: parent.verticalCenter; horizontalCenter: parent.horizontalCenter }
+        width: parent.width; spacing: 16
         MixerFader {
             id: volume
-            Layout.fillWidth: true; Layout.preferredWidth: 220; Layout.minimumWidth: 0; Layout.maximumWidth: Infinity; Layout.preferredHeight: 200
+            Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: 40
             shell: root.shell; theme: root.theme
             controlId: "Output"; selectorName: "audioOutput"; hint: "Output volume"
             icon: root.audio.muted ? "volume-x" : "volume-2"
@@ -30,7 +30,7 @@ Item {
         }
         MixerFader {
             id: mic
-            Layout.fillWidth: true; Layout.preferredWidth: 220; Layout.minimumWidth: 0; Layout.maximumWidth: Infinity; Layout.preferredHeight: 200
+            Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: 40
             shell: root.shell; theme: root.theme
             controlId: "Input"; selectorName: "audioInput"; hint: "Microphone volume"
             icon: root.audio.micMuted ? "mic-off" : "mic"

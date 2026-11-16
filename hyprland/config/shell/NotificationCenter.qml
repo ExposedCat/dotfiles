@@ -89,7 +89,7 @@ RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true
             clip: true; spacing: 14
             model: groupModel
-            HoverHandler { onHoveredChanged: { root.shell.notifications.centerHovered = hovered; if (hovered) root.notificationMode = true; } }
+            HoverHandler { onHoveredChanged: { if (hovered) root.notificationMode = true; } }
             boundsBehavior: Flickable.StopAtBounds
             ScrollBar.vertical: ScrollBar {}
             PillWheel { flickable: notificationList }

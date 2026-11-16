@@ -45,6 +45,7 @@ Item {
     function sendReply() { store.sendReply(entry.id) }
     readonly property bool removing: !!(store.removing && store.removing[entry.id])
     property real appearance: 0
+    property real arrival: 1
     property real groupReveal: 1
     property real groupOffset: 0
     property bool retiring: false
@@ -68,8 +69,11 @@ Item {
         retiring = false; dismissProgress = 0; heldHeight = 0;
     }
     Component.onCompleted: appearance = 1
-    opacity: inCenter ? appearance * (retiring ? exitReveal * (1 - dismissProgress) : groupReveal) : 1
-    transform: Translate { y: (root.retiring ? root.exitOffset : root.groupOffset) - 24 * root.dismissProgress }
+    opacity: inCenter ? appearance * arrival * (retiring ? exitReveal * (1 - dismissProgress) : groupReveal) : 1
+    transform: [
+        Translate { y: (root.retiring ? root.exitOffset : root.groupOffset) - 24 * root.dismissProgress - 24 * (1 - root.arrival) },
+        Rotation { origin.x: root.width * 0.7; origin.y: 0; angle: -3 * (1 - root.arrival) }
+    ]
     implicitHeight: retiring ? layoutHeight : content.implicitHeight + 24
     Behavior on implicitHeight { enabled: root.geometryReady && !root.inCenter; NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
     SequentialAnimation {

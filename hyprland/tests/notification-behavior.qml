@@ -57,9 +57,6 @@ Scope {
             test.check(store.deadlines[test.firstId] === undefined, "Consumed banner retained an expiry timer");
 
             store.dnd = true;
-            store.centerHovered = true;
-            store.receive(third);
-            test.check(store.entries[0].id === test.secondId, "Center notifications rearranged under the pointer");
             release.start();
         }
     }
@@ -69,6 +66,10 @@ Scope {
             test.check(store.popups.length === 1 && store.popups[0].id === test.secondId && store.queuedPopups.length === 0, "Queued arrival did not appear after leaving");
             store.hidePopup(test.secondId);
             second.setBody("An update must not resurrect a hidden banner");
+            store.centerOpen = true;
+            store.receive(third);
+            test.check(store.entries[0].id === store.generation + ":3", "Open-center arrival was not inserted newest first");
+            store.centerOpen = false;
             followup.start();
         }
     }
@@ -85,7 +86,7 @@ Scope {
         id: finish; interval: 220
         onTriggered: {
             test.check(!store.entries.some(e => e.id === test.firstId), "Animated dismissal did not finish");
-            store.dnd = false; store.centerHovered = false;
+            store.dnd = false;
             fourth = message(4); fourth.expireTimeout = 0; store.receive(fourth);
             test.check(store.popups.length === 1, "Fresh notifications stopped presenting");
             store.centerOpen = true;

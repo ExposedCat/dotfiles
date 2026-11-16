@@ -121,6 +121,14 @@ ShellRoot {
     PillTheme { id: overlayColors }
     Overlays { id: overlays; shell: root; theme: overlayColors; showOsd: false }
     Authentication { id: authentication; shell: root; theme: overlayColors }
+    CaptureEndpoint {
+        endpoint: "dotfiles-capture-shell.sock"
+        onRequest: (message, client) => {
+            if (message.action !== "capture" || typeof message.active !== "boolean") return;
+            root.captureActive = message.active;
+            reply(client, {id: message.id, accepted: true});
+        }
+    }
     IpcHandler {
         target: "shell"
         function toggle(panel: string): void { if (["launcher", "notifications", "power", "connections", "ethernet", "bluetooth", "media", "mixer", "system"].includes(panel)) root.toggle(panel); }

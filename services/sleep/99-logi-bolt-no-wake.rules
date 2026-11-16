@@ -1,0 +1,3 @@
+# Disable Bolt remote wake on the branch identified by GP17 / IRQ 30.
+# Match the receiver, not its USB port; keep normal input operation unchanged.
+ACTION=="add|bind|change", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="046d", ATTR{idProduct}=="c548", TEST=="power/wakeup", ATTR{power/wakeup}="disabled"

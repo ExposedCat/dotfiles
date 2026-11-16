@@ -229,10 +229,11 @@ tool selected, left-drag inside the selection to move it. Left-drag outside it
 to select a new region; right-drag anywhere always selects a new region, even
 with an annotation tool active. Movement keeps the region inside desktop bounds.
 The opacity icon applies heavy blur with 8px rounded corners, including earlier
-annotations; later annotations remain sharp. Ctrl+Z undoes each blur patch.
+annotations; later annotations remain sharp. Backspace/Delete undo each blur patch.
 There are no selection, copy/save, undo, or close buttons. Escape cancels.
-Outside text entry, any non-modifier key copies and saves a screenshot; Escape
-cancels, and Ctrl+Z or Backspace/Delete undo annotations. Text entry retains its normal
+Outside text entry, every key (including modifiers and non-Latin layouts) copies
+and saves a screenshot except Escape, which cancels, and Backspace/Delete, which
+undo annotations. Text entry retains its normal
 editing and clipboard behavior; Enter commits a label. The image is copied to
 the clipboard and saved as PNG under the XDG Pictures directory's `Screenshots/`.
 Selection borders, dimming, and controls are excluded. Mixed-scale captures use
@@ -243,7 +244,7 @@ Restored regions are clipped to the currently connected desktop.
 
 Alt+Print immediately captures the active window's visible rectangle across
 all intersecting displays and copies/saves it, without opening a selector.
-For recording, choose a region and cursor option, then press a non-modifier key
+For recording, choose a region and cursor option, then press any key except Escape/Backspace/Delete
 or the video-camera button. Ctrl+Shift+Alt+R is the only stop control. Recording
 borders remain outside the encoded rectangle; dimming passes input through.
 Single-output regions retain direct wl-screenrec capture. Spanning regions
@@ -258,8 +259,13 @@ The selector keeps input captured until held keys and modifiers are released,
 so cancellation/export does not reach the restored app. It suspends shell
 focus-loss dismissal while open, preserving an open launcher and its query and
 selection. Startup uses parallel raw pixmaps and a preloaded worker with its
-graphics context warmed at login. No selection window remains visible while
-idle, and a cold fallback is available if the worker is absent.
+graphics context and per-monitor controls prepared at login. Idle surfaces stay
+full-size and transparent with empty input regions and no keyboard focus,
+keeping rendering resources ready without a startup resize flash. Frozen images share
+decoded pixels across the overlay, selection, and blur layers. Direct local
+sockets avoid launching IPC clients for opening the selector and suspending
+shell focus dismissal; older workers and standalone use retain the IPC/cold
+fallbacks.
 
 The clipboard picker preserves text and image bytes and renders previews as
 plain text. Cliphist respects selections marked sensitive by the source
@@ -329,8 +335,9 @@ The mixer controls PipeWire output/input
 selection and output and microphone levels/mute.
 Search uses compact result rows with icons, names, and secondary descriptions.
 All sections use the full surface without the clock header.
-Sound has two vertical faders for the output and microphone.
-Left-click each bottom icon to toggle mute; right-click it to
+Sound has two horizontal sliders for the output and microphone, with thick rounded
+tracks matching the collapsed pill. The active control's entire filled portion turns orange.
+Left-click each leading icon to toggle mute; right-click it to
 choose a device. Device names appear only in that dropdown. Brightness remains on the hardware
 keys with feedback in the pill; opening Sound does not query monitor brightness.
 Notification cards use subtle glass fills in the center and brown glass for
@@ -349,7 +356,7 @@ its application index and provider caches warm.
 The small terracotta marker adapts the idea of [Ricelin's Ame](https://github.com/Gakuseei/Ricelin/blob/main/configs/quickshell/pill/Ame.qml):
 one shape pulls out into a dot, jumps in an arc, then unfolds on landing into
 the active workspace indicator, notification action background,
-launcher caret, slider handle, selected calendar date, notification accent strip,
+launcher caret, sound slider fill, media seek handle, selected calendar date, notification accent strip,
 selected metric value, connection status, Bluetooth thumb/device selection,
 and focused power action. It docks beneath each control’s text and replaces its
 normal highlight or handle, without an outer glow. Fuzzy matching retains Ricelin's MIT
@@ -457,9 +464,11 @@ inset surfaces in the center and slim glass stack edges.
 Arrivals queue during banner hover/reply. Opening the center consumes visible and
 queued banners; arrivals while it is open go directly into the center. Those
 messages, including later updates, do not replay as banners after it closes.
-Banner actions reveal in one height animation. Center notifications retain
-their order during pointer interaction, and the marker stays on its last target
-when the pointer moves through gaps between messages.
+Banner actions reveal in one height animation. New center messages drop and fade
+onto the top of their group immediately, including during hover and inline reply;
+expanding a group or moving the pointer away does not trigger a delayed reorder.
+Existing cards retain their identity and reply drafts. The marker stays on its
+last target when the pointer moves through gaps between messages.
 
 Notification arrivals never request keyboard focus. A reply editor requests it
 only after an explicit Reply click. Mixer and media controls accept keyboard
@@ -513,8 +522,15 @@ ordering. `hyprland/tests/notification-banners.qml` checks tilted drop/fade entr
 last-banner retirement, exit reversal, center toggling, and input-region cleanup.
 `hyprland/tests/notification-grouping.qml` checks app/title matching, stack expansion,
 member replies, title changes, group limits, hover consumption, dismissal, and expiry.
+`hyprland/tests/notification-input.py` runs real pointer input on a private nested
+compositor, checking banner bottoms, expanded actions, reply footers, lower group
+members, neighbor reflow, and click-through outside banners. Run it through the
+isolated GUI helper; it starts its own compositor and test-local state.
 `hyprland/tests/notification-center-controls.qml` checks first-card controls,
 single-message dismissal, circular hold progress, cancellation, and group dismissal.
+`hyprland/tests/notification-center-arrivals.qml` checks immediate newest-first
+stacking, drop/fade entrances, collapsed and expanded arrivals, bursts, stable
+cards, and reply drafts without delayed reordering.
 `hyprland/tests/notification-dismissal.qml` checks upward exits, retained card and
 group delegates, collapsed-stack handoff, and last-member retirement.
 `hyprland/tests/popup-behavior.qml` checks matched popup timing, geometry morphs,
@@ -542,6 +558,11 @@ and checks real held/repeated Escape, Enter, Ctrl+C, modifier releases, annotati
 editing, and the cold fallback against an underlying key-event observer.
 It also checks the capture/shell handoff with the real launcher, preserving its
 query and selection through cancel/export and restoring focus-loss dismissal.
+`hyprland/tests/capture-startup.py` measures first and repeated shortcut-to-frame
+latency on two private outputs through the isolated helper, including the real
+Python shortcut, frame capture, shell handoff, and full-size overlay rendering.
+Its `--source` option accepts another tools directory for comparisons.
+Software-rendered timings do not predict live Hyprland performance.
 `hyprland/tests/notification-layout.qml` checks card separation and stable delegates
 through reordering, variable body heights, width changes, and inline reply/cancel.
 `hyprland/tests/notification-center-layout.qml` checks spacing between groups on
@@ -711,6 +732,14 @@ stops instead of trying the `freeze` / `s2idle` fallback. Requires systemd 256+
 and hardware with deep sleep support; this is the configuration for the
 TUF GAMING B650-PLUS desktop with AMD graphics.
 
+The Logi Bolt receiver (`046d:c548`) cannot wake the PC from suspend. A udev
+rule applies this when it is connected, and a suspend pre-hook reapplies it
+before every sleep. This targets the only wake-enabled USB device behind the
+GP17 bridge that reported IRQ 30 after a five-second S3 sleep on November 16,
+2026. The logs identify the bridge; the receiver is the suspected downstream
+source. Normal receiver input still works while awake. Use the power button
+to wake the PC.
+
 On October 6, 2026, a pending wake event interrupted deep sleep. Both GPUs
 recovered from that attempt, but the immediate `s2idle` fallback was rejected
 by the integrated GPU and left the dedicated Radeon wedged. The original wake
@@ -734,9 +763,10 @@ From the repository root:
 ./services/sleep/manage install
 ```
 
-The helper installs the two configuration files under `/etc/systemd/` and the
-executable under `/usr/local/sbin/`, restores SELinux labels when available, and
-reloads systemd. It takes effect on the next sleep attempt without rebooting.
+The helper installs configuration under `/etc/systemd/`, helpers under
+`/usr/local/sbin/`, and the receiver rule under `/etc/udev/rules.d/`. It restores
+SELinux labels, reloads systemd and udev, and disables receiver wake immediately.
+It takes effect on the next sleep attempt without rebooting.
 When run from Distrobox, it executes on the host and requests administrator
 authentication there. Installation does not trigger sleep.
 
@@ -756,8 +786,11 @@ To remove this configuration, run on the host:
 ```bash
 sudo rm /etc/systemd/sleep.conf.d/90-deep-only.conf \
     /etc/systemd/system/systemd-suspend.service.d/90-wake-diagnostics.conf \
-    /usr/local/sbin/sleep-wake-diagnostics
+    /usr/local/sbin/sleep-wake-diagnostics \
+    /usr/local/sbin/sleep-disable-receiver-wake \
+    /etc/udev/rules.d/99-logi-bolt-no-wake.rules
 sudo systemctl daemon-reload
+sudo udevadm control --reload-rules
 echo 0 | sudo tee /sys/power/pm_debug_messages
 ```
 

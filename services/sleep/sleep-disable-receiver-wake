@@ -1,0 +1,10 @@
+#!/bin/sh
+# Reapply before sleep in case a driver or device manager changed the policy.
+set -eu
+for device in /sys/bus/usb/devices/*; do
+    [ -r "$device/idVendor" ] && [ -r "$device/idProduct" ] || continue
+    [ "$(cat "$device/idVendor")" = 046d ] && [ "$(cat "$device/idProduct")" = c548 ] || continue
+    [ -f "$device/power/wakeup" ] || continue
+    printf 'disabled\n' > "$device/power/wakeup"
+    printf 'Disabled Logi Bolt suspend wake: %s\n' "${device##*/}"
+done

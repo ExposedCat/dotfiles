@@ -107,17 +107,29 @@ Item {
                 onItemRemoved: root.cardRevision++
                 model: cardModel
                 NotificationCard {
+                    id: centerCard
                     required property string entryId
                     required property int index
                     required property bool wanted
+                    // Keep the previous top card beneath the incoming card
+                    // until it lands, even when the stack is collapsed.
+                    readonly property bool landingUnderlay: !retiring && index === root.frontIndex + 1 && !!root.firstCard && root.firstCard.arrival < 1
                     width: root.width; height: implicitHeight
                     enabled: wanted && (index === root.frontIndex || root.unfold > 0.95)
                     z: cardModel.count - index
-                    groupReveal: index === root.frontIndex ? 1 : root.unfold
-                    groupOffset: index === root.frontIndex ? -y * (1 - root.unfold) : 0
+                    groupReveal: index === root.frontIndex || landingUnderlay ? 1 : root.unfold
+                    groupOffset: index === root.frontIndex || landingUnderlay ? -y * (1 - root.unfold) : 0
                     onRetired: root.retireCard(entryId)
                     theme: root.theme; store: root.store; entry: root.cardData[entryId]
                     inCenter: true; emberShell: root.emberShell
+                    Component.onCompleted: {
+                        if (root.geometryReady) { arrival = 0; memberEntrance.start(); }
+                    }
+                    NumberAnimation {
+                        id: memberEntrance
+                        target: centerCard; property: "arrival"; from: 0; to: 1
+                        duration: 300; easing.type: Easing.OutCubic
+                    }
                     groupControls: index === root.frontIndex && root.activeCount > 1
                     groupCount: root.activeCount
                     groupExpanded: root.expanded

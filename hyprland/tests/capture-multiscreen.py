@@ -290,6 +290,7 @@ with tempfile.TemporaryDirectory(prefix='capture-multi-', dir=os.environ['XDG_RU
         # Dismissal waits for an in-progress RMB drag to release its grab.
         assert ipc('open') is True
         wait_for(lambda:state()['active'],'Drag-cancel selector did not open')
+        wait_for(lambda:len(state()['frames'])==2,'Drag-cancel surfaces did not render')
         cursor('set -150 280');cursor('press button3')
         assert state()['dragging'],state()
         subprocess.run(['/usr/bin/quickshell','ipc','--path',str(QML),'call','capture','cancel'],env=env,check=True)

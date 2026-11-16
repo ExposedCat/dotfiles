@@ -45,7 +45,7 @@ Item {
                     x: modelData.x - root.selection.x; y: modelData.y - root.selection.y
                     width: modelData.width; height: modelData.height
                     source: root.controller.includeCursor ? modelData.cursor : modelData.plain
-                    fillMode: Image.Stretch; cache: false
+                    fillMode: Image.Stretch
                 }
             }
         }

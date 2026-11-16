@@ -11,13 +11,18 @@ PanelWindow {
     required property var controller
     required property var display
     screen: Quickshell.screens.find(s => s.name === display.name) || Quickshell.screens[0]
+    readonly property bool showing: controller.active && !controller.recording && display.width > 0 && display.height > 0
+    // Keep a transparent, input-free surface at its final size while idle.
+    // Resizing a 1px buffer on open can briefly stretch it across the monitor
+    // before the compositor receives the new full-size frame.
     anchors { top: true; bottom: true; left: true; right: true }
+    mask: Region { width: window.showing ? window.width : 0; height: window.showing ? window.height : 0 }
     exclusionMode: ExclusionMode.Ignore
     color: "transparent"
-    visible: controller.active && !controller.recording
+    visible: controller.persistent || showing
     WlrLayershell.namespace: "dotfiles-capture"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: current ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: showing && current ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     readonly property string tool: controller.tool
     readonly property var strokes: controller.strokes
@@ -27,6 +32,18 @@ PanelWindow {
     readonly property bool video: controller.data.mode === "record"
     readonly property var localSelection: Geometry.local(controller.selection, display)
     readonly property bool intersects: localSelection.width > 0 && localSelection.height > 0
+    Connections {
+        target: controller
+        function onOpeningChanged() {
+            if (!controller.opening) return;
+            textInput.visible = false;
+            textInput.focus = false;
+            textInput.text = "";
+            pointer.dragMode = "";
+            pointer.startSelection = null;
+            scene.focus = Qt.binding(() => window.current);
+        }
+    }
     function repaint() { selectionContent.repaint(); }
     function undo() { controller.undo(); }
     function insideSelection(x, y) {
@@ -42,9 +59,7 @@ PanelWindow {
             controller.exportImage(selectionContent, Math.max(...outputs.map(o => o.scale)));
         }
     }
-    function modifier(key) { return [Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt, Qt.Key_Meta, Qt.Key_AltGr, Qt.Key_Super_L, Qt.Key_Super_R].includes(key); }
     function command(event) {
-        if (modifier(event.key)) return false;
         if (textInput.visible) return [Qt.Key_Escape, Qt.Key_Return, Qt.Key_Enter].includes(event.key);
         return true;
     }
@@ -65,12 +80,13 @@ PanelWindow {
     }
     Item {
         id: scene
+        visible: window.showing
         objectName: "captureScene:" + display.name
         anchors.fill: parent
         focus: window.current
         Keys.onShortcutOverride: event => { if (window.command(event)) event.accepted = true; }
         Keys.onPressed: event => {
-            controller.keyPressed(event.key, event.modifiers, event.isAutoRepeat);
+            controller.keyPressed(event.key, event.modifiers, event.isAutoRepeat, event.nativeScanCode);
             if (controller.closePending || controller.recordPending) {
                 event.accepted = true;
                 if (event.key === Qt.Key_Escape && !event.isAutoRepeat) controller.closeSession();
@@ -83,8 +99,7 @@ PanelWindow {
             } else if (textInput.visible && [Qt.Key_Return, Qt.Key_Enter].includes(event.key)) {
                 event.accepted = true;
                 if (!event.isAutoRepeat) textInput.commit();
-            } else if (!textInput.visible && ([Qt.Key_Backspace, Qt.Key_Delete].includes(event.key)
-                       || (event.key === Qt.Key_Z && (event.modifiers & Qt.ControlModifier)))) {
+            } else if (!textInput.visible && [Qt.Key_Backspace, Qt.Key_Delete].includes(event.key)) {
                 event.accepted = true;
                 if (!event.isAutoRepeat) window.undo();
             } else if (window.command(event)) {
@@ -94,11 +109,20 @@ PanelWindow {
         }
         Keys.onReleased: event => {
             const consume = controller.closePending || controller.recordPending || window.command(event);
-            controller.keyReleased(event.key, event.isAutoRepeat);
+            controller.keyReleased(event.key, event.isAutoRepeat, event.nativeScanCode);
             event.accepted = consume;
         }
-        Connections { target: scene.Window.window; function onFrameSwapped() { controller.noteFrame(display.name); } }
-        Image { anchors.fill: parent; source: controller.includeCursor ? display.cursor : display.plain; cache: false; fillMode: Image.Stretch }
+        Connections {
+            target: scene.Window.window
+            function onFrameSwapped() {
+                // Only count a complete overlay at the current output size.
+                if (window.showing && Math.abs(window.width - display.width) < 1 && Math.abs(window.height - display.height) < 1)
+                    controller.noteFrame(display.name);
+            }
+        }
+        // Session URLs are unique. Share the decoded image with the selection
+        // and blur layers rather than decoding each full monitor repeatedly.
+        Image { anchors.fill: parent; source: controller.includeCursor ? display.cursor : display.plain; fillMode: Image.Stretch }
         CaptureContent {
             id: selectionContent
             controller: window.controller

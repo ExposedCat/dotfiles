@@ -17,19 +17,10 @@ Scope {
     property var queuedPopups: []
     property var popupTimeouts: ({})
     property var centerOnly: ({})
-    property bool centerHovered: false
-    property bool centerOrderPending: false
     property real pausedAt: 0
     readonly property bool bannerFrozen: presentationPaused || popups.some(e => !!hovered[e.id] || replying[e.id] === "banner")
-    readonly property bool centerFrozen: centerHovered || centerReplyActive
-    onCenterFrozenChanged: {
-        if (!centerFrozen && centerOrderPending) {
-            centerOrderPending = false;
-            entries = entries.slice().sort((a,b) => b.time - a.time);
-        }
-    }
     onCenterOpenChanged: {
-        if (!centerOpen) { centerHovered = false; return; }
+        if (!centerOpen) return;
         const ids = new Set(entries.concat(popups, queuedPopups).map(e => e.id));
         for (const id of ids) dismissBanner(id);
         // Keep an in-progress banner reply and its draft in the center.
@@ -219,10 +210,10 @@ Scope {
         const next = Object.assign({}, live); next[id] = n; live = next;
         if (!n.transient) {
             if (entries.some(e => e.id === id)) entries = entries.map(e => e.id === id ? entry : e);
-            else {
-                if (centerFrozen) { entries = entries.concat([entry]).slice(-100); centerOrderPending = true; }
-                else entries = [entry].concat(entries).slice(0, 100);
-            }
+            // Insert at the final position immediately, including while the
+            // center is hovered or composing. Deferring the sort puts fresh
+            // members behind a collapsed stack and makes them jump on exit.
+            else entries = [entry].concat(entries).slice(0, 100);
             persist();
         }
         // A content update replaces the existing card in place; it must not

@@ -24,6 +24,28 @@ spec.loader.exec_module(capture)
 
 
 class CaptureTests(unittest.TestCase):
+    def setUp(self):
+        # Never contact a worker on the user's runtime directory in unit tests.
+        worker = patch.object(capture, "request_warm_capture", return_value=None)
+        self.request = worker.start()
+        self.addCleanup(worker.stop)
+
+    def test_direct_worker_does_not_start_ipc_clients(self):
+        self.request.return_value = {"accepted": True, "pid": 123}
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "result.json").write_text('{"done":true}')
+            with patch.object(capture.subprocess, "run") as run:
+                self.assertTrue(capture.open_warm_capture(directory))
+            run.assert_not_called()
+
+    def test_rejected_direct_request_does_not_start_second_overlay(self):
+        self.request.return_value = {"accepted": False, "pid": 123}
+        with patch.object(capture.subprocess, "run") as run:
+            with self.assertRaisesRegex(RuntimeError, "busy"):
+                capture.open_warm_capture(Path("/unused"))
+        run.assert_not_called()
+
     def test_warm_capture_returns_when_ui_signals_completion(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

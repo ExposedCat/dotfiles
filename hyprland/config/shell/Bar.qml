@@ -176,7 +176,7 @@ PanelWindow {
         // Retain this geometry until the closing fade has finished. The popup's
         // layout must not be resized to the compact pill while still visible.
         paneWidth = Math.min(width - 24, name === "launcher" ? 560 : name === "mixer" ? 520 : name === "notifications" ? 1080 : 620);
-        paneHeight = Math.min(height - 24, name === "launcher" ? 428 : name === "mixer" ? 240 : name === "notifications" ? 680 : name === "bluetooth" ? 500 : name === "ethernet" ? 270 : name === "media" ? mediaHeight : name === "system" ? 440 : 220);
+        paneHeight = Math.min(height - 24, name === "launcher" ? 428 : name === "mixer" ? 136 : name === "notifications" ? 680 : name === "bluetooth" ? 500 : name === "ethernet" ? 270 : name === "media" ? mediaHeight : name === "system" ? 440 : 220);
         retain(name); shownPanel = name;
     }
     onWidthChanged: { if (shell.panel) selectPanel(shell.panel); }

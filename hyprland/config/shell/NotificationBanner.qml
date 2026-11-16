@@ -71,7 +71,16 @@ Item {
         function onFrameSwapped() { root.ready = true; entrance.start(); root.animate(); }
     }
     // Follow the visible card all the way out; retire the region with its item.
-    Region { id: input; item: root }
+    onArrivalChanged: input.changed()
+    Region {
+        id: input; item: root
+        // Dynamically assigned region lists can lose child change forwarding.
+        // Invalidate the native mask as well so it follows expansion and motion.
+        onChanged: {
+            const window = root.QsWindow.window;
+            if (window?.mask && window.mask !== input) window.mask.changed();
+        }
+    }
     function syncCards() {
         if (!group) return;
         const data = Object.assign({}, cardData);
