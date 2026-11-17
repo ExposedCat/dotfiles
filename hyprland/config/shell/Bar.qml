@@ -35,6 +35,7 @@ PanelWindow {
         ? (shell.fixtureData.workspacesByMonitor?.[workspaceOutput] || shell.fixtureData.workspaces || [{id: 1, active: true}, {id: 2, active: false}, {id: 3, active: false}])
         : Hyprland.workspaces.values.filter(w => w.id > 0 && w.monitor && w.monitor.name === workspaceOutput).sort((a,b) => a.id - b.id)
     readonly property bool expanded: hoverExpanded || shell.panel.length > 0 || trayMenu.visible
+    readonly property point pointerPosition: hover.point.position
     readonly property string pillState: hidden ? "hidden" : shell.panel || feedbackKind || (expanded ? "expanded" : "compact")
     readonly property bool hasNotifications: shell.notifications.entries.length > 0
     // Track the pointer on the fixed native surface, not the animated header.
@@ -193,6 +194,10 @@ PanelWindow {
         onWheel: event => event.accepted = false
     }
     function dismiss() { endLauncherDrag(); shell.panel = ""; }
+    function handleEscape() {
+        if (shell.panel === "credentials" && shell.credentials.active) shell.credentials.finish({response: 1});
+        else dismiss();
+    }
     function openPanel(name) { trayMenu.visible = false; shell.toggle(name); }
     property var portalPane: null
     property var credentialPane: null
@@ -221,7 +226,7 @@ PanelWindow {
     }
     onWidthChanged: { if (shell.panel) selectPanel(shell.panel); }
     onHeightChanged: { if (shell.panel) selectPanel(shell.panel); }
-    Shortcut { sequence: "Escape"; enabled: !!bar.shell.panel && !bar.shell.captureActive; context: Qt.WindowShortcut; onActivated: bar.dismiss() }
+    Shortcut { sequence: "Escape"; enabled: !!bar.shell.panel && !bar.shell.captureActive; context: Qt.WindowShortcut; onActivated: bar.handleEscape() }
     Connections {
         target: bar.shell
         function onCaptureActiveChanged() {
@@ -425,7 +430,7 @@ PanelWindow {
                         ShellButton { emberShell: bar.shell; theme: colors; icon: bar.shell.audio.muted ? "volume-x" : "volume-2"; hint: "Sound"; selected: bar.shell.panel === "mixer"; onClicked: bar.openPanel("mixer"); onScrolled: delta => bar.shell.audio.adjust(delta > 0 ? 0.05 : -0.05) }
                         ShellButton { emberShell: bar.shell; theme: colors; icon: "activity"; hint: "System statistics"; selected: bar.shell.panel === "system"; onClicked: bar.openPanel("system") }
                         ShellButton { emberShell: bar.shell; theme: colors; icon: "ethernet-port"; hint: "Network"; selected: bar.shell.panel === "ethernet"; onClicked: bar.openPanel("ethernet") }
-                        ShellButton { emberShell: bar.shell; theme: colors; icon: "bluetooth"; hint: "Bluetooth"; selected: bar.shell.panel === "bluetooth"; onClicked: bar.openPanel("bluetooth") }
+                        ShellButton { objectName: "pillBluetoothButton"; emberShell: bar.shell; theme: colors; icon: bar.shell.bluetooth.enabled ? "bluetooth" : "bluetooth-off"; hint: "Bluetooth"; selected: bar.shell.panel === "bluetooth"; onClicked: bar.openPanel("bluetooth") }
                         ShellButton { emberShell: bar.shell; theme: colors; icon: "power"; hint: "Power"; selected: bar.shell.panel === "power"; onClicked: bar.openPanel("power") }
                     }
                 }
@@ -463,7 +468,7 @@ PanelWindow {
             }
 
         }
-        Keys.onEscapePressed: bar.dismiss()
+        Keys.onEscapePressed: bar.handleEscape()
     }
     PillWing {
         id: workspaceWing; objectName: "workspaceWing"

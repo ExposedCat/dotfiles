@@ -17,8 +17,9 @@ ShellRoot {
     property real panelOriginWidth: 56
     property alias bluetooth: bluetoothController
     property var panelScreen: null
-    property string layout: "English (US)"
-    property string keyboard: ""
+    property alias layout: keyboardLayoutController.layout
+    property alias keyboard: keyboardLayoutController.keyboard
+    property alias keyboardLayout: keyboardLayoutController
     readonly property bool screenSharing: sharing.active
     property bool captureActive: false
     property string actionError: ""
@@ -102,6 +103,7 @@ ShellRoot {
         mixerOpen: root.panel === "mixer"
         onOsdRequested: microphone => osd.showAudio(microphone, microphone ? micVolume : volume, microphone ? micMuted : muted)
     }
+    KeyboardLayout { id: keyboardLayoutController; shell: root }
     Applications { id: appIndex; shell: root }
     Media { id: players; shell: root }
     ScreenSharing { id: sharing; fixture: root.fixture; fixtureData: root.fixtureData }
@@ -170,23 +172,6 @@ ShellRoot {
                 osd.showWorkspace(comma >= 0 ? event.data.slice(comma + 1) : event.data,
                     workspace?.monitor?.name || root.focusedScreen?.name || "", identity);
                 return;
-            }
-            if (event.name !== "activelayout") return;
-            const comma = event.data.indexOf(",");
-            if (comma >= 0 && (!root.keyboard || event.data.slice(0, comma) === root.keyboard)) root.layout = event.data.slice(comma + 1);
-        }
-    }
-    Process {
-        id: sessionInfo
-        command: [root.backend, "shell", "session-info"]
-        running: !root.fixture
-        stdout: SplitParser {
-            onRead: line => {
-                try {
-                    const data = JSON.parse(line);
-                    if (data.layout !== undefined) root.layout = data.layout;
-                    if (data.keyboard !== undefined) root.keyboard = data.keyboard;
-                } catch (e) { console.warn("Invalid desktop status:", e); }
             }
         }
     }

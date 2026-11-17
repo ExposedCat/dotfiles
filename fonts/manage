@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+script=$(realpath "${BASH_SOURCE[0]}")
+if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
+    exec distrobox-host-exec bash "$script" "$@"
+fi
+source_dir=$(dirname "$script")
+[[ ${1:-install} = install && $# -le 1 ]] || { echo "Usage: $0 [install]" >&2; exit 2; }
+
+font_dir=${XDG_DATA_HOME:-$HOME/.local/share}/fonts/nerd-symbols
+cache_dir=${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/fonts
+config_dir=${XDG_CONFIG_HOME:-$HOME/.config}/fontconfig/conf.d
+state_dir=${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/fonts
+mkdir -p "$font_dir" "$cache_dir" "$config_dir" "$state_dir/backups"
+backup=$(mktemp -d "$state_dir/backups/$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
+changed=false
+
+install_font() {
+    local font_name=$1 font_hash=$2 download
+    if printf '%s  %s\n' "$font_hash" "$font_dir/$font_name" | sha256sum --check --status 2>/dev/null; then
+        return
+    fi
+    if ! printf '%s  %s\n' "$font_hash" "$cache_dir/$font_name" | sha256sum --check --status 2>/dev/null; then
+        download=$(mktemp "$cache_dir/.nerd-symbols-XXXXXX")
+        trap 'rm -f "$download"' EXIT
+        curl --fail --location --silent --show-error --max-time 60 \
+            "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/NerdFontsSymbolsOnly/$font_name" \
+            --output "$download"
+        printf '%s  %s\n' "$font_hash" "$download" | sha256sum --check --status
+        mv "$download" "$cache_dir/$font_name"
+        trap - EXIT
+    fi
+    install -m 644 "$cache_dir/$font_name" "$font_dir/$font_name"
+    changed=true
+}
+
+install_font SymbolsNerdFont-Regular.ttf 71db104aa66567d0efe0b98758f9dfc1895573a453fe85fb53d1c38544a55106
+install_font SymbolsNerdFontMono-Regular.ttf f0f624d9b474bea1662cf7e862d44aebe1ae1f6c7f9cb7a0ca5d0e5ac9561c60
+if "$changed"; then fc-cache -f "$font_dir"; fi
+font_config=$config_dir/60-nerd-symbols.conf
+if [[ -f "$font_config" ]]; then cp -a "$font_config" "$backup/"; fi
+install -m 644 "$source_dir/60-nerd-symbols.conf" "$font_config"
+# The terminal used to install its own Adwaita Mono-only fallback rule.
+old_config=$config_dir/60-adwaita-mono-nerd.conf
+if [[ -f "$old_config" ]]; then mv "$old_config" "$backup/"; fi
+echo "Nerd icon fallback installed for Adwaita and system font defaults."

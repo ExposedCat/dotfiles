@@ -17,6 +17,19 @@ ColumnLayout {
     }))
     readonly property Item emberTarget: powerSelected ? powerSlot : rowItems[selectedAddress]?.emberSlot || null
     function selectDevice(address) { selectedAddress = address; powerSelected = false; }
+    function followPointer() {
+        // Follow actual pointer movement, not hover events synthesized when
+        // the pairing prompt morphs back into a row beneath a stationary mouse.
+        const position = shell.pill.pointerPosition;
+        const power = powerSwitch.mapFromItem(shell.pill.contentItem, position.x, position.y);
+        if (powerSwitch.enabled && power.x >= 0 && power.y >= 0 && power.x < powerSwitch.width && power.y < powerSwitch.height) { powerSelected = true; return; }
+        for (const address of Object.keys(rowItems)) {
+            const row = rowItems[address];
+            if (!row.visible || !row.enabled) continue;
+            const point = row.mapFromItem(shell.pill.contentItem, position.x, position.y);
+            if (point.x >= 0 && point.y >= 0 && point.x < row.width && point.y < row.height) { selectDevice(address); return; }
+        }
+    }
     function deviceIcon(device) {
         const icon = device.icon || "";
         if (icon.includes("head")) return "headphones";
@@ -60,11 +73,12 @@ ColumnLayout {
     ListModel { id: deviceModel }
     Connections { target: root.bluetooth; function onEnabledChanged() { Qt.callLater(root.syncDevices); } }
     Connections { target: root.shell; function onPanelChanged() { if (root.shell.panel === "bluetooth") Qt.callLater(root.restoreFocus); } }
+    Connections { target: root.shell.pill; function onPointerPositionChanged() { if (root.shell.panel === "bluetooth") root.followPointer(); } }
     Component.onCompleted: syncDevices()
     spacing: 20
     RowLayout {
         Layout.fillWidth: true; spacing: 10
-        ShellIcon { name: "bluetooth"; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
+        ShellIcon { objectName: "bluetooth-header-icon"; name: root.bluetooth.enabled ? "bluetooth" : "bluetooth-off"; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
         Text { text: "Bluetooth"; color: root.theme.text; font: root.theme.textFont; Layout.fillWidth: true }
         Spinner { running: root.bluetooth.searching; visible: running; Layout.preferredWidth: 16; Layout.preferredHeight: 16 }
         Switch {
@@ -75,9 +89,8 @@ ColumnLayout {
             checked: root.bluetooth.enabled
             enabled: root.shell.fixture || !!root.bluetooth.adapter
             Accessible.name: "Bluetooth power"
-            onHoveredChanged: { if (hovered) root.powerSelected = true; }
             onActiveFocusChanged: { if (activeFocus) root.powerSelected = true; }
-            onToggled: { if (checked !== root.bluetooth.enabled) root.bluetooth.togglePower(); }
+            onToggled: { root.powerSelected = true; if (checked !== root.bluetooth.enabled) root.bluetooth.togglePower(); }
             indicator: Rectangle {
                 implicitWidth: 46; implicitHeight: 26; radius: 13; color: root.theme.surface
                 y: Math.round((powerSwitch.height - height) / 2)
@@ -150,7 +163,6 @@ ColumnLayout {
                     Spinner { objectName: "bluetooth-pending:" + deviceRow.address; running: deviceRow.pending; visible: running; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
                     ShellIcon { objectName: "bluetooth-connected:" + deviceRow.address; name: "bluetooth-connected"; visible: root.bluetooth.enabled && !!deviceRow.device.connected && !deviceRow.pending; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
                 }
-                HoverHandler { onHoveredChanged: { if (hovered) root.selectDevice(deviceRow.address); } }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { button.forceActiveFocus(Qt.MouseFocusReason); button.activate(); } }
             }
             Text {
@@ -162,7 +174,7 @@ ColumnLayout {
     }
     Text {
         Layout.fillWidth: true; font: root.theme.textFont; color: root.theme.secondary; wrapMode: Text.Wrap
-        visible: !root.bluetooth.enabled || list.count === 0
-        text: !root.bluetooth.enabled ? (root.shell.fixture || root.bluetooth.adapter ? "Bluetooth is off" : "Bluetooth unavailable") : "No devices found"
+        visible: (!root.shell.fixture && !root.bluetooth.adapter) || (root.bluetooth.enabled && list.count === 0)
+        text: !root.shell.fixture && !root.bluetooth.adapter ? "Bluetooth unavailable" : "No devices found"
     }
 }

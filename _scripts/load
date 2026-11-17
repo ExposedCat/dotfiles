@@ -33,6 +33,9 @@ cp ./fastfetch/* ~/.config/fastfetch/
 # Fish
 sudo cp fish/* /etc/fish/conf.d
 
+# System font fallback
+./fonts/manage install
+
 # Ptyxis
 ./ptyxis/manage install
 

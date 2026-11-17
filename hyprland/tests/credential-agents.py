@@ -77,6 +77,7 @@ def network(section, name, extra, hints=()):
 
 logs = [(work / name).open('w') for name in ('sway.log', 'shell.log', 'agents.log')]
 compositor = shell = backend = recorder = None
+record_started = None
 try:
     compositor = subprocess.Popen(['/usr/bin/sway', '--unsupported-gpu', '-c', str(work / 'sway.conf')], env=env, stdout=logs[0], stderr=logs[0])
     display = wait(lambda: next((p for p in runtime.glob('wayland-*') if p.is_socket()), None), 'No private Wayland socket')
@@ -97,6 +98,7 @@ try:
     if os.environ.get('DOTFILES_CREDENTIAL_RECORD'):
         recorder = subprocess.Popen(['/usr/bin/ffmpeg', '-y', '-loglevel', 'error', '-f', 'x11grab', '-framerate', '24',
                                      '-video_size', '1280x800', '-i', os.environ['DISPLAY'], '-c:v', 'ffv1', str(work / 'pill-morph.mkv')], stdout=subprocess.DEVNULL, stderr=(work / 'recording.log').open('w'))
+        record_started = time.monotonic()
     def shown(kind, fields=0):
         wait(lambda: state().get('panel') == 'credentials' and state().get('kind') == kind and state().get('fields') == fields, 'Credential pill did not open')
         time.sleep(.45)
@@ -106,14 +108,19 @@ try:
         wait(lambda: not state().get('active') and state().get('height') == 40, 'Credential pill did not collapse')
         time.sleep(.25)
 
-    def pointer(control, click=False):
-        point = ipc('controlPoint', control, 0)
+    def move_point(point, click=False):
         outer = subprocess.check_output(['/usr/bin/xdotool', 'getactivewindow'], env=env, text=True).strip()
         geometry = subprocess.check_output(['/usr/bin/xdotool', 'getwindowgeometry', '--shell', outer], env=env, text=True)
         geometry = dict(line.split('=', 1) for line in geometry.splitlines() if '=' in line)
         command = ['/usr/bin/xdotool', 'mousemove', str(round(point['x']) + int(geometry['X'])),
                    str(round(point['y']) + int(geometry['Y']))]
         subprocess.run(command + (['click', '1'] if click else []), env=env, check=True)
+
+    def pointer(control, click=False):
+        move_point(ipc('controlPoint', control, 0), click)
+
+    def bluetooth_pointer(address, click=False):
+        move_point(ipc('bluetoothPoint', address), click)
 
     def dock(name):
         expected = 'credential-' + name
@@ -201,6 +208,90 @@ try:
                     GLib.Variant('(sa{sv}as)', ('org.bluez.Device1', {'Paired': GLib.Variant('b', True)}, [])))
     closed()
     print('PASS: display-only passkeys close when pairing completes', flush=True)
+    # The real BlueZ Agent1 protocol interrupts a retained Bluetooth panel,
+    # then returns directly to it without collapsing to the compact pill.
+    ipc('bluetooth')
+    wait(lambda: state().get('panel') == 'bluetooth' and len(state().get('btRows', [])) == 3, 'Bluetooth list did not open')
+    time.sleep(.6)
+    assert state()['width'] == 460 and state()['btSearching'], state()
+    assert [row['remembered'] for row in state()['btRows']] == [True, True, False], state()
+    flow_start = time.monotonic()
+    bluetooth_pointer('headphones'); time.sleep(.5)
+    bluetooth_pointer('gap'); time.sleep(.5)
+    assert state()['ember'] == 'bluetooth-row:headphones', state()
+    bluetooth_pointer('mouse', click=True)
+    wait(lambda: 'mouse' in state()['btPending'], 'Connect did not start')
+    time.sleep(.55); capture('bluetooth-connecting')
+    wait(lambda: 'mouse' not in state()['btPending'], 'Fixture connection did not complete')
+    assert state()['btSelected'] == 'mouse', state()
+    old_order = [row['address'] for row in state()['btRows']]
+    ipc('bluetoothChurn')
+    wait(lambda: len(state()['btRows']) == 4, 'New device did not appear')
+    assert [row['address'] for row in state()['btRows']][:3] == old_order, state()
+    assert state()['ember'] == 'bluetooth-row:mouse', state()
+    ipc('bluetoothFocus', 'headphones')
+    bluetooth_pointer('mouse')
+    subprocess.run(['/usr/bin/xdotool', 'key', 'shift+Tab'], env=env, check=True)
+    wait(lambda: state()['ember'] == 'bluetooth-power-slot', 'Keyboard did not select power while pointer stayed over a row')
+    subprocess.run(['/usr/bin/xdotool', 'key', 'Tab'], env=env, check=True)
+    wait(lambda: state()['ember'] == 'bluetooth-row:headphones', 'Keyboard did not return to the first device')
+    print('PASS: paired/nearby partition, stable discovery order, gap-sticky indicator, keyboard priority, inline connecting spinner', flush=True)
+
+    flow_start = time.monotonic()
+    capture('bluetooth-list'); time.sleep(.5)
+    bluetooth_pointer('AA:BB:CC:DD:EE:FF', click=True)
+    wait(lambda: 'AA:BB:CC:DD:EE:FF' in state()['btPending'], 'Pairing did not start from the row')
+    time.sleep(.5); capture('bluetooth-pairing-connecting')
+    ipc('bluetoothFlow')
+    paired = request('bt', 'RequestConfirmation', GLib.Variant('(ou)', (device, 482916)))
+    shown('bluetooth'); capture('bluetooth-pairing'); time.sleep(.6)
+    assert state()['heading'] == 'Keychron K2', state()
+    pointer('connect', click=True)
+    wait(lambda: paired.get('done'), 'Pairing response did not finish')
+    assert 'error' not in paired, paired
+    wait(lambda: state().get('panel') == 'bluetooth' and not state().get('active'), 'Pairing did not restore Bluetooth')
+    ipc('bluetoothComplete')
+    wait(lambda: not state()['btPending'], 'Completed pair remained pending')
+    time.sleep(.8); capture('bluetooth-returned')
+    ipc('stopBluetoothFlow')
+    assert state()['btSelected'] == 'AA:BB:CC:DD:EE:FF', state()
+    assert state()['flowPanels'] == ['bluetooth', 'credentials', 'bluetooth'], state()
+    assert state()['flowMinHeight'] > 100, state()
+    print('PASS: device list morphs into real pairing prompt and directly back to the retained selected row', flush=True)
+    if record_started is not None:
+        (work / 'bluetooth-flow.json').write_text(json.dumps({'start': flow_start - record_started, 'duration': time.monotonic() - flow_start}))
+
+    ipc('bluetoothPower'); wait(lambda: not state()['btEnabled'], 'Power did not turn off')
+    assert not state()['btSearching'] and all(row['remembered'] for row in state()['btRows']), state()
+    ipc('bluetoothPower'); wait(lambda: state()['btEnabled'] and state()['btSearching'], 'Discovery did not resume')
+    ipc('bluetoothUnpair')
+    time.sleep(.3)
+    bluetooth_pointer('AA:BB:CC:DD:EE:FF', click=True)
+    denied = request('bt', 'RequestPinCode', GLib.Variant('(o)', (device,)))
+    shown('bluetooth', 1)
+    pointer('cancel', click=True)
+    wait(lambda: denied.get('done') and state().get('panel') == 'bluetooth' and not state().get('active'), 'Pairing cancellation did not return to devices')
+    assert 'error' in denied and not state()['btPending'], state()
+    time.sleep(.3)
+    denied = request('bt', 'RequestConfirmation', GLib.Variant('(ou)', (device, 222222)))
+    shown('bluetooth')
+    subprocess.run(['/usr/bin/xdotool', 'key', 'Escape'], env=env, check=True)
+    time.sleep(.1)
+    wait(lambda: denied.get('done') and state().get('panel') == 'bluetooth' and not state().get('active'), 'Escape did not return to Bluetooth: ' + str(state()))
+    assert 'error' in denied
+    time.sleep(.3)
+    denied = request('bt', 'RequestConfirmation', GLib.Variant('(ou)', (device, 222222)))
+    shown('bluetooth')
+    request('bt', 'Cancel', None)
+    wait(lambda: denied.get('done') and state().get('panel') == 'bluetooth' and not state().get('active'), 'Service cancellation did not return to Bluetooth')
+    assert 'error' in denied
+    time.sleep(.3)
+    denied = request('bt', 'RequestConfirmation', GLib.Variant('(ou)', (device, 222222)))
+    shown('bluetooth'); ipc('cancel')
+    wait(lambda: denied.get('done'), 'Outside dismissal did not cancel')
+    closed()
+    print('PASS: off preserves paired devices; cancel, Escape and service cancellation restore Bluetooth; outside dismissal stays closed', flush=True)
+
     pending = request('bt', 'RequestConfirmation', GLib.Variant('(ou)', (device, 654321)))
     shown('bluetooth')
     backend.terminate(); backend.wait(timeout=5)

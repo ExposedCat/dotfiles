@@ -544,11 +544,14 @@ and increasing payload sizes. It measures the current path to Cloudflare, so
 results can vary with routing, congestion, VPNs, and other traffic. No bandwidth
 test runs automatically. The previous successful result and timestamp are cached
 in `$XDG_CACHE_HOME/dotfiles/hyprland/internet-speed.json`, including across restarts;
-failed tests keep the previous measurement. Bluetooth scans
-while open, placing connected devices first and other devices below a divider.
-Click a device to connect or disconnect; a spinner marks pending operations.
-Unpaired devices are paired before connection, with failures shown beside the device.
-Bluetooth can be enabled or disabled with the menu’s power icon.
+failed tests keep the previous measurement. Bluetooth scans while open, keeping
+paired devices above a divider and nearby devices below it. Device order stays
+stable during discovery, and the orange marker stays on the last row across gaps.
+Click a device to connect or disconnect; a spinner marks pending operations and
+a Bluetooth connection icon marks connected devices. Unpaired devices are paired
+before connection, with failures shown beside the device. Pairing prompts morph
+within the same pill and return to the selected device list after confirmation
+or cancellation. The power switch keeps paired devices visible while Bluetooth is off.
 
 The notification center follows the GNOME layout: notifications on the left,
 calendar on the right, then events for the selected day and world clocks below it.
@@ -742,13 +745,28 @@ helper's X11 display and private bus remain isolated from the user's desktop.
 
 
 <h2 align="center">
-  <p>Ptyxis terminal</p>
+  <p>System fonts and GTK</p>
 </h2>
+
+`fonts/manage install` adds Nerd Fonts 3.4.0 symbol fallbacks for Adwaita Sans,
+Adwaita Mono, and the generic sans-serif, serif, monospace, and system-ui
+families. The UI keeps Adwaita Sans and its existing sizes; missing icon glyphs
+use Symbols Nerd Font (or Symbols Nerd Font Mono for monospace text). The
+configuration applies to this user’s applications, including Quickshell.
+`_scripts/load` installs it, and Ptyxis installation also ensures it is present.
+Fonts are cached, verified by SHA-256, and installed under
+`~/.local/share/fonts/nerd-symbols/`; fontconfig rules go under
+`~/.config/fontconfig/conf.d/`. Restart existing applications to refresh their
+font fallback.
 
 `gtk/gtk.css` removes GTK 3/4 client-side window outlines and shadows, including
 the thin edge drawn by libadwaita. `_scripts/load` installs it for both versions;
 GTK applications pick it up when opened again. It leaves control and menu
 styling to the application.
+
+<h2 align="center">
+  <p>Ptyxis terminal</p>
+</h2>
 
 Super+Return opens a new Ptyxis window. Its native graphical header provides
 upper tabs and the container/profile menu, without a separate popup process.
@@ -768,10 +786,9 @@ Appearance and capture it with `./ptyxis/manage dump`.
 The helper runs on the host when called from Distrobox, resolves the current
 `dev` container ID, and saves the previous preferences under
 `~/.local/state/dotfiles/ptyxis/backups/`. The committed `@DEV_CONTAINER_ID@`
-placeholder is substituted during installation. The helper installs the
-Nerd Fonts 3.4.0 symbol font into the user's font directory, verifying its
-SHA-256 hash, plus an Adwaita Mono fallback rule. The first installation needs
-network access if that font is not cached. No OS font package is required.
+placeholder is substituted during installation. The helper also invokes the
+shared system font installer described above. The first installation needs
+network access if the symbol fonts are not cached. No OS font package is required.
 It also sets the legacy GNOME terminal preference and the XDG terminal list
 to Ptyxis. The Hyprland launcher command is in `modules/programs.lua`.
 

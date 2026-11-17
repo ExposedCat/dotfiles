@@ -7,14 +7,14 @@
     "icon": ""
   },
   "title": "Allow microphone access?",
-  "subtitle": "Sele would like to use your microphone.",
+  "subtitle": "This application would like to use your microphone.",
   "body": "Your microphone will be available to this application. You can stop recording at any time.",
   "denyLabel": "Deny",
   "grantLabel": "Allow",
   "choices": [
     {
       "id": "remember",
-      "name": "Remember my decision",
+      "name": "Remember",
       "values": [],
       "selected": "false"
     }

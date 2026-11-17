@@ -7,7 +7,6 @@ Item {
     required property var theme
     property var requestData: ({kind: "apps", apps: []})
     property bool submitting: false
-    property bool details: false
     property string error: ""
     property string selected: ""
     property var selections: ({})
@@ -18,6 +17,9 @@ Item {
     readonly property bool fixture: !!requestData.fixture
     readonly property bool sharing: requestData.kind === "share"
     readonly property bool permission: requestData.kind === "access"
+    readonly property string permissionHeading: permissionTitle(requestData)
+    readonly property string permissionDescription: [requestData.subtitle || "", requestData.body || ""].filter(text => text.length > 0).join("\n\n")
+    readonly property var permissionRememberChoice: (requestData.choices || []).find(choice => choice.id === "remember" && choice.values.length === 0) || null
     readonly property var results: appPicker.results
     readonly property var sources: tab === "screen" ? (requestData.outputs || []) : tab === "window" ? (requestData.windows || []) : (requestData.workspaces || [])
     readonly property int columns: tab === "screen" ? 2 : 3
@@ -28,13 +30,27 @@ Item {
                         : permission ? Math.min(620, permissionContent.implicitHeight + 108) : 428
     signal responded(var response)
     enabled: !submitting
+    // AccessDialog supplies free text, not a microphone/camera resource field.
+    // Rewrite only this simple question; preserve all other supplied wording.
+    function permissionTitle(request) {
+        const title = (request.title || "Allow access?").trim();
+        const app = request.app?.name || request.app?.id || "";
+        if (!app || title.startsWith(app + ":") || title.startsWith(app + " ")) return title;
+        const access = /^Allow (.+) access\?$/i.exec(title);
+        if (access) {
+            if (access[1].toLowerCase().startsWith(app.toLowerCase() + " ")) return title;
+            return "Allow " + app + " " + access[1] + " access?";
+        }
+        if (/^Allow access\?$/i.test(title)) return "Allow " + app + " access?";
+        return app + ": " + title;
+    }
     function focusSearch() {
         if (sharing) tabs.forceActiveFocus();
         else if (permission) cancel.forceActiveFocus();
         else appPicker.focusSearch();
     }
     function activate() {
-        details = false; error = ""; selected = ""; tab = "screen"; regionMode = false; region = null;
+        error = ""; selected = ""; tab = "screen"; regionMode = false; region = null;
         remember = !!requestData.remember;
         const values = {};
         for (const choice of requestData.choices || []) values[choice.id] = choice.selected;
@@ -112,11 +128,14 @@ Item {
             ColumnLayout {
                 id: permissionContent
                 width: parent.width; spacing: 12
-                Text { Layout.fillWidth: true; text: root.requestData.app ? root.requestData.app.name : "Application"; textFormat: Text.PlainText; color: "#999999"; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; elide: Text.ElideRight }
-                Text { Layout.fillWidth: true; text: root.requestData.title || "Allow access?"; textFormat: Text.PlainText; color: portalTheme.text; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; wrapMode: Text.Wrap }
-                Text { Layout.fillWidth: true; visible: root.details; text: [root.requestData.subtitle || "", root.requestData.body || ""].filter(s => s.length > 0).join("\n\n"); textFormat: Text.PlainText; color: portalTheme.secondary; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; wrapMode: Text.Wrap }
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 10
+                    ShellIcon { name: "shield-check"; Layout.preferredWidth: 26; Layout.preferredHeight: 26; Layout.alignment: Qt.AlignTop }
+                    Text { Layout.fillWidth: true; objectName: "permissionHeading"; text: root.permissionHeading; textFormat: Text.PlainText; color: portalTheme.text; font: portalTheme.textFont; wrapMode: Text.Wrap }
+                }
+                Text { objectName: "permissionDescription"; Layout.fillWidth: true; visible: text.length > 0; text: root.permissionDescription; textFormat: Text.PlainText; color: portalTheme.secondary; font: portalTheme.textFont; wrapMode: Text.Wrap }
                 Repeater {
-                    model: root.requestData.choices || []
+                    model: (root.requestData.choices || []).filter(choice => choice.id !== root.permissionRememberChoice?.id)
                     RowLayout {
                         id: optionRow
                         required property var modelData
@@ -209,9 +228,20 @@ Item {
         RowLayout {
             visible: root.sharing || root.permission
             Layout.fillWidth: true; spacing: 8
-            PortalCheckBox { visible: root.sharing; theme: portalTheme; text: "Remember"; checked: root.remember; onToggled: root.remember = checked }
+            PortalCheckBox {
+                objectName: "portalRemember"
+                visible: root.sharing || (root.permission && !!root.permissionRememberChoice)
+                theme: portalTheme; text: "Remember"
+                checked: root.permission && root.permissionRememberChoice ? root.selections[root.permissionRememberChoice.id] === "true" : root.remember
+                onToggled: {
+                    if (root.permission && root.permissionRememberChoice) {
+                        const values = Object.assign({}, root.selections);
+                        values[root.permissionRememberChoice.id] = checked ? "true" : "false";
+                        root.selections = values;
+                    } else root.remember = checked;
+                }
+            }
             PortalCheckBox { visible: root.sharing && root.tab === "screen" && !!root.chosenSource; theme: portalTheme; text: "Region"; checked: root.regionMode; onToggled: { root.regionMode = checked; root.region = null } }
-            ShellButton { visible: root.permission && !!(root.requestData.body || root.requestData.subtitle); theme: portalTheme; text: "…"; hint: "Request details"; selected: root.details; implicitWidth: 32; Accessible.name: "Request details"; onClicked: root.details = !root.details }
             Item { Layout.fillWidth: true }
             PortalButton { id: cancel; visible: !root.sharing; theme: portalTheme; text: root.permission ? root.requestData.denyLabel || "Deny" : "Cancel"; enabled: !root.submitting; onClicked: root.decide(1) }
             PortalButton { theme: portalTheme; text: root.sharing ? "Share" : root.permission ? root.requestData.grantLabel || "Allow" : "Open"; primary: true; enabled: root.canAccept && !root.submitting; onClicked: root.decide(0) }
