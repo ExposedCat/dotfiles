@@ -19,10 +19,10 @@ Rectangle {
         spacing: 8
         Item {
             Layout.preferredWidth: 34; Layout.preferredHeight: 36
-            Image {
+            SystemImage {
                 id: resultIcon; anchors.centerIn: parent; width: 32; height: 32
-                source: root.modelData.icon ? (root.modelData.icon.startsWith("/") ? "file://" + root.modelData.icon : Quickshell.iconPath(root.modelData.icon, true)) : ""
-                visible: status === Image.Ready
+                iconSource: root.modelData.icon || ""
+                symbolicColor: root.theme.text
                 sourceSize.width: 64; sourceSize.height: 64; fillMode: Image.PreserveAspectFit
             }
             Text {

@@ -1,8 +1,10 @@
+//@ pragma IconTheme MacTahoe-blue
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import "../shell" as Shell
 
 Scope {
     id: root
@@ -94,9 +96,12 @@ Scope {
                         anchors.fill: parent
                         anchors.margins: 10
                         spacing: 12
-                        Image {
+                        Shell.SystemImage {
                             Layout.preferredWidth: 32; Layout.preferredHeight: 32
-                            source: modelData.icon ? (modelData.icon.startsWith("/") ? "file://" + modelData.icon : Quickshell.iconPath(modelData.icon)) : ""
+                            iconSource: modelData.icon || ""
+                            fallbackIcon: "application-x-executable"
+                            fallbackSource: Qt.resolvedUrl("../shell/icons/grid-2x2.svg")
+                            symbolicColor: "#cdd6f4"
                             sourceSize.width: 32; sourceSize.height: 32
                             fillMode: Image.PreserveAspectFit
                         }

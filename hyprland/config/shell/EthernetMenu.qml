@@ -8,7 +8,19 @@ ColumnLayout {
     required property var shell
     required property var theme
     property var devices: []
+    property Item hoveredButton: null
+    property Item focusedButton: null
+    property Item interactionButton: null
+    function follow(button, pointer, entered) {
+        if (pointer) hoveredButton = entered ? button : hoveredButton === button ? null : hoveredButton;
+        else focusedButton = entered ? button : focusedButton === button ? null : focusedButton;
+        if (entered) interactionButton = button;
+        else if (interactionButton === button) interactionButton = hoveredButton || focusedButton;
+    }
     readonly property Item emberTarget: {
+        const button = interactionButton || hoveredButton || focusedButton;
+        if (button && button.visible && (button.enabled || button.pending)) return button.emberSlot;
+        if (testing) return measure.emberSlot;
         const count = connections.count;
         for (let i = 0; i < count; i++) if (devices[i].connected) return connections.itemAt(i)?.statusSlot || null;
         return null;
@@ -19,10 +31,11 @@ ColumnLayout {
     property string testError: ""
     readonly property bool testing: testProcess.running || fixtureTest.running
     readonly property string resultPath: (Quickshell.env("XDG_CACHE_HOME") || Quickshell.env("HOME") + "/.cache") + "/dotfiles/hyprland/internet-speed.json"
-    function speed(value) {
+    function rateNumber(value) {
         if (value === undefined || value === null) return "—";
-        return value >= 1000 ? (value / 1000).toFixed(2) + " Gb/s" : value.toFixed(1) + " Mb/s";
+        return value >= 1000 ? (value / 1000).toFixed(2) : value.toFixed(1);
     }
+    function rateUnit(value) { return value === undefined || value === null ? "" : value >= 1000 ? "Gb/s" : "Mb/s"; }
     function update(data) {
         const status = data.devices.map(d => ({name: d.name, state: d.state, speed: d.speed, connected: d.connected}));
         // Quiet status polling must not rebuild controls or animate refresh.
@@ -47,59 +60,72 @@ ColumnLayout {
             if (data.version === 1 && value && Number.isFinite(value.download) && Number.isFinite(value.upload) && value.measuredAt > 0) result = value;
         } catch (e) { /* No previous measurement yet. */ }
     }
-    spacing: 16
+    spacing: 20
     Repeater {
         id: connections
-        model: root.devices
-        ColumnLayout {
+        model: root.unavailable ? [] : root.devices
+        RowLayout {
             required property var modelData
             property alias statusSlot: statusSlot
-            Layout.fillWidth: true; spacing: 12
-            RowLayout {
-                Layout.fillWidth: true; spacing: 12
-                ShellIcon { name: "ethernet-port"; Layout.preferredWidth: 24; Layout.preferredHeight: 24 }
-                Item {
-                    implicitWidth: statusLabel.implicitWidth + 20; implicitHeight: 32
-                    Rectangle { anchors.fill: parent; radius: 16; color: root.theme.surface; visible: !statusSlot.occupied }
-                    EmberSlot { id: statusSlot; shell: root.shell; anchors.fill: parent; shapeOpacity: 0.45 }
-                    Text { id: statusLabel; anchors.centerIn: parent; font: root.theme.textFont; text: modelData.state; color: root.theme.text }
-                }
-                Item { Layout.fillWidth: true }
-                Text { font: root.theme.textFont; visible: root.devices.length > 1; text: modelData.name; color: root.theme.secondary }
+            Layout.fillWidth: true; spacing: 10
+            Item {
+                implicitWidth: statusLabel.implicitWidth + 20; implicitHeight: 32
+                Rectangle { anchors.fill: parent; radius: 16; color: root.theme.surface; visible: !statusSlot.occupied }
+                EmberSlot { id: statusSlot; shell: root.shell; anchors.fill: parent; shapeOpacity: 0.45 }
+                Text { id: statusLabel; anchors.centerIn: parent; font: root.theme.textFont; text: modelData.state; color: root.theme.text }
             }
-            Text { font: root.theme.textFont; text: "Ethernet link  " + (modelData.speed > 0 ? root.speed(modelData.speed) : "—"); color: root.theme.secondary }
+            Text { Layout.fillWidth: true; visible: root.devices.length > 1; text: modelData.name; textFormat: Text.PlainText; elide: Text.ElideRight; color: root.theme.secondary; font: root.theme.textFont }
+            Item { Layout.fillWidth: true; visible: root.devices.length === 1 }
+            Text { font: root.theme.textFont; text: modelData.speed > 0 ? Number(modelData.speed / (modelData.speed >= 1000 ? 1000 : 1)) + (modelData.speed >= 1000 ? " Gb/s link" : " Mb/s link") : ""; color: root.theme.secondary }
         }
     }
-    ColumnLayout {
-        Layout.fillWidth: true; spacing: 4
-        Text { font: root.theme.textFont; text: "Internet speed"; color: root.theme.secondary }
-        RowLayout {
-            Layout.fillWidth: true; spacing: 8
-            Repeater {
-                model: [{label: "↓", key: "download"}, {label: "↑", key: "upload"}]
-                Item {
-                    id: rate
-                    objectName: "network-" + modelData.key
-                    property alias emberSlot: rateSlot
-                    required property var modelData
-                    Layout.preferredWidth: rateLabel.implicitWidth + 20; implicitHeight: 32
-                    activeFocusOnTab: true
-                    EmberSlot { id: rateSlot; shell: root.shell; anchors.fill: parent; shapeOpacity: 0.35 }
-                    Text { id: rateLabel; anchors.centerIn: parent; text: rate.modelData.label + " " + root.speed(root.result ? root.result[rate.modelData.key] : null); color: root.theme.text; font: root.theme.textFont }
+    Text { font: root.theme.textFont; visible: root.unavailable || root.devices.length === 0; text: root.unavailable ? "Connection status unavailable" : reader.running ? "Checking…" : "No Ethernet connection"; color: root.theme.secondary; wrapMode: Text.Wrap; Layout.fillWidth: true }
+    RowLayout {
+        Layout.fillWidth: true; spacing: 24
+        Repeater {
+            model: [{label: "Download", icon: "arrow-down", key: "download"}, {label: "Upload", icon: "arrow-up", key: "upload"}]
+            ColumnLayout {
+                id: rate
+                required property var modelData
+                readonly property var value: root.result ? root.result[modelData.key] : null
+                objectName: "network-" + modelData.key
+                Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; spacing: 8
+                RowLayout {
+                    spacing: 6
+                    ShellIcon { name: rate.modelData.icon; Layout.preferredWidth: 16; Layout.preferredHeight: 16 }
+                    Text { text: rate.modelData.label; color: root.theme.secondary; font: root.theme.textFont }
+                }
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 6
+                    Text { objectName: "network-value-" + rate.modelData.key; text: root.rateNumber(rate.value); color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: 28; font.weight: Font.Medium; font.features: {"tnum": 1}; Layout.alignment: Qt.AlignBaseline }
+                    Text { text: root.rateUnit(rate.value); color: root.theme.secondary; font: root.theme.textFont; Layout.alignment: Qt.AlignBaseline }
+                    Item { Layout.fillWidth: true }
                 }
             }
-            Item { Layout.fillWidth: true }
-            ShellButton { theme: root.theme; icon: "rotate-cw"; pending: root.testing; enabled: !pending; hint: "Measure internet speed"; onClicked: root.testSpeed() }
         }
+    }
+    RowLayout {
+        Layout.fillWidth: true; spacing: 12
         Text {
+            objectName: "network-test-status"
             font: root.theme.textFont
             Layout.fillWidth: true
-            text: root.testing ? (root.phase === "upload" ? "Measuring upload…" : "Measuring download…") : root.testError || (root.result ? "Tested " + Qt.formatDateTime(new Date(root.result.measuredAt), "d MMM hh:mm") : "Press refresh to measure")
+            text: root.testing ? (root.phase === "upload" ? "Measuring upload…" : "Measuring download…") : root.testError || (root.result ? "Tested " + Qt.formatDateTime(new Date(root.result.measuredAt), "d MMM, hh:mm") : "No speed test yet")
             color: root.testError && !root.testing ? root.theme.red : root.theme.secondary
             wrapMode: Text.Wrap
         }
+        ShellButton {
+            id: measure
+            objectName: "network-measure"
+            theme: root.theme; emberShell: root.shell
+            icon: "rotate-cw"; pending: root.testing; enabled: !pending
+            hint: "Measure internet speed"; implicitWidth: 40; implicitHeight: 40; radius: 10
+            border.width: activeFocus && !root.shell.emberEnabled ? 1 : 0
+            onHoveredChanged: root.follow(this, true, hovered)
+            onActiveFocusChanged: root.follow(this, false, activeFocus)
+            onClicked: root.testSpeed()
+        }
     }
-    Text { font: root.theme.textFont; visible: root.unavailable || root.devices.length === 0; text: root.unavailable ? "Connection status unavailable" : reader.running ? "Checking…" : "Ethernet disconnected"; color: root.theme.secondary; wrapMode: Text.Wrap; Layout.fillWidth: true }
     FileView { id: saved; path: root.shell.fixture ? "" : root.resultPath; blockLoading: true; printErrors: false }
     Component.onCompleted: { loadResult(); if (shell.panel === "ethernet") refreshStatus(); }
     Process {

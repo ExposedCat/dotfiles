@@ -11,6 +11,7 @@ Item {
     property var value: null
     property real endTime: 0
     property bool selected: false
+    property bool active: true
     property int inspectionIndex: -1
     readonly property real duration: 60000
     readonly property real startTime: {
@@ -22,7 +23,7 @@ Item {
     readonly property color traceColor: selected ? "#cc7855" : theme.text
     readonly property bool available: valid(value)
     readonly property Item emberSlot: endpoint
-    readonly property var segments: makeSegments()
+    readonly property var segments: active ? makeSegments() : []
     readonly property var inspected: pointer.hovered ? sampleAt(pointer.point.position.x) : inspectionIndex >= 0 ? samples[inspectionIndex] : null
     readonly property bool pointerInside: pointer.hovered
     signal hovered()
@@ -68,13 +69,16 @@ Item {
         if (index >= 0 && index < samples.length) inspectionIndex = index;
     }
     onSamplesChanged: inspectionIndex = -1
-    onSegmentsChanged: plot.requestPaint()
-    onTraceColorChanged: plot.requestPaint()
+    onSegmentsChanged: { if (active) plot.requestPaint(); }
+    onTraceColorChanged: { if (active) plot.requestPaint(); }
     Canvas {
         id: plot
         anchors.fill: parent
+        visible: root.active
         antialiasing: true
+        onVisibleChanged: { if (visible) requestPaint(); }
         onPaint: {
+            if (!root.active) return;
             const ctx = getContext("2d");
             ctx.reset();
             ctx.strokeStyle = Qt.alpha(root.theme.text, 0.10);

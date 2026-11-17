@@ -474,8 +474,9 @@ dividing line. App groups collapse into stacked previews; individual message
 bodies and available actions stay expanded whenever those messages are shown.
 Brightness writes are serialized and the most recent requested setting is kept.
 The system view samples CPU, GPU, memory, temperatures, VRAM, storage, swap,
-network rates, and uptime, with separate labelled 0–100% utilization meters. Its worker runs only
-while that view is visible; unavailable sensor readings show a dash. Storage
+network rates, and uptime, with separate labelled 0–100% utilization meters. Its worker samples
+once per second throughout the session and keeps the latest minute in memory.
+Charts render only while that view is visible; unavailable sensor readings show a dash. Storage
 usage refers to the home filesystem, avoiding Fedora's immutable root image.
 GPU sensors prefer the firmware-primary card, with VRAM capacity as the fallback
 priority; DRM enumeration order does not determine which GPU is tracked.
@@ -534,7 +535,8 @@ reappear immediately when it closes; opening, closing, panel, and workspace
 motion remains animated.
 Ethernet and Bluetooth have separate icon buttons and menus. Ethernet shows
 connection state, the negotiated Ethernet link capacity, and the last measured
-Internet download/upload bandwidth. The refresh icon on the speed row starts an
+Internet download/upload bandwidth in a compact panel with two clear rate columns.
+The footer refresh icon starts an
 on-demand transfer test against [Cloudflare's public speed-test endpoints](https://github.com/cloudflare/speedtest).
 Only that test animates the refresh button; connection status polls silently.
 The test uses synthetic data and bounded parallel transfers, with a small probe
@@ -579,7 +581,11 @@ center. DND preferences alone are saved in
 `~/.local/state`); notification contents are not saved or restored as history.
 Critical notifications bypass Do not disturb.
 Cards show the notification image, summary, body, app actions, and dismiss
-control. Titles are one line with ellipsis. Banner bodies are one line at rest
+control. Quickshell explicitly uses `MacTahoe-blue`, which inherits Adwaita for
+system icons. Notification and launcher images validate themed icon names,
+including notification `image://icon/` URLs, before loading them. Missing images
+collapse or use a bundled fallback; symbolic icons use the foreground color.
+Titles are one line with ellipsis. Banner bodies are one line at rest
 and expand to at most five lines on hover, revealing actions and inline Reply
 when provided by the app. Center bodies are always expanded to at most five lines.
 Clicking a live card invokes its default action and removes the entry. Inline
@@ -650,6 +656,8 @@ The notification regression fixture `hyprland/tests/notification-behavior.qml`
 checks hover-paused expiry, queued arrivals, replacement updates, and stable
 ordering. `hyprland/tests/notification-banners.qml` checks tilted drop/fade entrances,
 last-banner retirement, exit reversal, center toggling, and input-region cleanup.
+`hyprland/tests/notification-icons.qml` checks the USB-drive icon, notification
+image URLs, missing icons, file images, fallbacks, and recovery after updates.
 `hyprland/tests/notification-grouping.qml` checks app/title matching, stack expansion,
 member replies, title changes, group limits, hover consumption, dismissal, and expiry.
 `hyprland/tests/notification-input.py` runs real pointer input on a private nested
@@ -998,29 +1006,6 @@ systemctl --user restart wireplumber
 ```
 
 <h2 align="center">
-  <p>Visual Studio Code</p>
-</h2>
-
-Visual Studio Code user settings for editor, terminal profiles, formatting, and
-Git behavior.
-
-<h3 align="center">
-  <p>Usage</p>
-</h3>
-
-1. Create settings directory if needed:
-
-```bash
-mkdir -p ~/.config/Code/User
-```
-
-2. Download config:
-
-```bash
-wget -O ~/.config/Code/User/settings.json https://raw.githubusercontent.com/ExposedCat/dotfiles/main/vscode/settings.json
-```
-
-<h2 align="center">
   <p>Codex and Claude workflows</p>
 </h2>
 
@@ -1131,10 +1116,9 @@ Fedora-based dev container setup with:
 2. Starship prompt
 3. Node.js
 4. Fastfetch
-5. Visual Studio Code
-6. Codex CLI
-7. Deno
-8. Godot Steam editor
+5. Codex CLI
+6. Deno
+7. Godot Steam editor
 
 <h3 align="center">
   <p>Usage</p>
@@ -1152,10 +1136,12 @@ To apply host command forwarding to an existing `dev` container, run inside it:
 ./containers/dev/setup-host-commands
 ```
 
-Interactive Fish commands use the host's Flatpak through an autoloaded function,
-including in already-open terminals. Scripts and `flatpak-builder` keep using
-the container's native executable. Use `command flatpak` or `/usr/bin/flatpak`
-to explicitly use the container's Flatpak from an interactive shell.
+`flatpak` in both `/usr/bin` and `/usr/local/bin` links to
+`distrobox-host-exec`, so shells, scripts and `flatpak-builder` all use the host's
+Flatpak installations. The Containerfile creates these links after installing
+the build dependencies; the setup script reapplies them to existing containers.
+Build directories must be under the shared home directory so the host can read
+them. No container-native Flatpak CLI is preserved.
 
 This forwards `xdg-open` from both `/usr/local/bin` and `/usr/bin`, so Electron
 apps still use the host browser when Vite+ puts `/usr/bin` first in PATH. The
@@ -1164,7 +1150,8 @@ the terminal's display and desktop environment as well as Wayland activation
 tokens so the browser can come to the foreground. Hyprland follows application
 activation requests to their workspace. The original
 container opener is saved at `/usr/local/libexec/dev-container/xdg-open`.
-Reapply the script after reinstalling or updating the container's `xdg-utils` package.
+Reapply the script after reinstalling or updating the container's `xdg-utils` or
+`flatpak` package, since package updates can replace the links in `/usr/bin`.
 
 <h2 align="center">
   <p>GNOME Dev Container</p>

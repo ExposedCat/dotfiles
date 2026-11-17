@@ -10,11 +10,6 @@ RUN dnf copr enable -y atim/starship
 RUN dnf copr enable -y che/nerd-fonts
 RUN dnf copr enable -y exposedcat/pm3
 RUN curl -fsSL https://rpm.nodesource.com/setup_current.x | sudo bash -
-RUN sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
-RUN echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\nautorefresh=1\ntype=rpm-md\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" | sudo tee /etc/yum.repos.d/vscode.repo > /dev/null
-
-# Flatpak
-RUN flatpak --user remote-add --if-not-exists flatpak https://dl.flatpak.org/flatpak.flatpakrepo
 
 # Packages
 RUN dnf install -y \
@@ -30,7 +25,6 @@ RUN dnf install -y \
     fastfetch \
     jq \
     httpie \
-    code \
     pm3 \
     python3 \
     rpm-build \
@@ -50,6 +44,11 @@ RUN dnf install -y \
     libusb1-devel squashfs-tools flatpak-builder \
     meson ninja-build glib2-devel json-glib-devel fuse3-devel gdk-pixbuf2-devel \
     gstreamer1-plugins-base-devel geoclue2-devel pipewire-devel libgudev-devel flatpak-devel
+
+# The build dependencies pull in Flatpak; use the desktop host's CLI and
+# installations instead. Distrobox supplies the link target on container setup.
+RUN ln -sf /usr/bin/distrobox-host-exec /usr/bin/flatpak \
+    && ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/flatpak
 
 RUN npm install -g corepack@0.34.5
 

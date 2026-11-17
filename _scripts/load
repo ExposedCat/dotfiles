@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 
-# VSCode
-cp ./vscode/settings.json ~/.config/Code/User 
-
 # Codex: install the isolated GUI skill without generated Python caches.
 mkdir -p ~/.codex/skills/isolated-gui/{agents,scripts}
 cp ./codex/skills/isolated-gui/SKILL.md ~/.codex/skills/isolated-gui/

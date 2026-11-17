@@ -199,6 +199,10 @@ pub fn launch(identity: &str) -> Result<()> {
         command(&[
             "uwsm",
             "app",
+            // Scope mode execs the application, so the launch deadline would
+            // kill it. Service mode returns after systemd accepts the launch.
+            "-t",
+            "service",
             "--",
             &app.filename()
                 .context("Missing desktop filename")?

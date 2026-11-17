@@ -6,6 +6,17 @@ Scope {
     property var app: null
     property int step: 0
     property real now: Date.now()
+    property real closedAt: 0
+    property int closedSamples: 0
+    property var hiddenChart: null
+    property var liveStats: null
+    QtObject {
+        id: liveShell
+        readonly property bool fixture: false
+        readonly property string backend: Quickshell.env("DOTFILES_DESKTOP_BINARY")
+        property string panel: ""
+        property bool pillHidden: false
+    }
     function check(value, message) { if (!value) { console.error("SYSTEM HISTORY FAIL:", message); Qt.exit(1); throw Error(message); } }
     function all(item) { let found=[]; for (const child of item.children || []) { found.push(child); found=found.concat(all(child)); } return found; }
     function named(name) { return all(app.pill.activePane).find(child => child.objectName === name); }
@@ -22,6 +33,11 @@ Scope {
         const component=Qt.createComponent("file:"+Quickshell.env("DOTFILES_SHELL_SOURCE")+"/shell.qml");
         check(component.status===Component.Ready,component.errorString());
         app=component.createObject(test); check(!!app,"Shell failed to load");
+        check(!!liveShell.backend,"Native sampler required");
+        const statsComponent=Qt.createComponent("file:"+Quickshell.env("DOTFILES_SHELL_SOURCE")+"/SystemStats.qml");
+        check(statsComponent.status===Component.Ready,statsComponent.errorString());
+        liveStats=statsComponent.createObject(test,{shell:liveShell});
+        check(!!liveStats,"Live sampler failed to load");
         app.toggle("system");
         advance.start();
     }
@@ -101,14 +117,23 @@ Scope {
                 stats.update(Object.assign({},stats.sample,{cpu:0}),test.now+61000);
                 test.check(stats.history.length===1,"Expired history survived a long close/reopen gap");
                 test.check(chart.sampleAt(chart.width-chart.inset)===null,"Empty history was backfilled");
+                stats.history=[]; stats.fixtureUpdate(); test.closedAt=stats.sampleTime;
+                test.hiddenChart=chart;
                 test.app.panel=""; break;
             }
             case 2:
-                test.check(!stats.active,"Statistics kept polling while the popup was closed");
-                test.app.toggle("system"); test.now=Date.now(); test.seed(); break;
+                test.check(!stats.active,"Closed popup still marked visible");
+                test.check(!test.hiddenChart.active && test.hiddenChart.segments.length===0,"Closed chart kept building render geometry");
+                if (stats.sampleTime < test.closedAt+1500) { test.step--; break; }
+                test.check(stats.history.length>=3,"History stopped accumulating while closed");
+                test.check(!test.liveStats.active && test.liveStats.history.length>=3 && !test.liveStats.error,"Native sampler stopped while closed");
+                test.closedSamples=stats.history.length;
+                test.app.toggle("system"); break;
             case 3:
-                test.check(stats.active,"Statistics did not resume after reopening");
-                console.warn("SYSTEM HISTORY PASS: split GPU load/VRAM, capacity scaling, GPU load headline, network spacing, fixed steps, rolling history, inspection, gaps, unified typography, panel fit, polling lifecycle");
+                test.check(stats.active,"Reopened popup not marked visible");
+                test.check(stats.history.length>=test.closedSamples,"Reopening discarded background samples");
+                test.check(test.named("systemHistory:cpu").segments[0].length>=test.closedSamples,"Reopened chart did not immediately show background history");
+                console.warn("SYSTEM HISTORY PASS: split GPU load/VRAM, capacity scaling, GPU load headline, network spacing, fixed steps, rolling history, inspection, gaps, unified typography, panel fit, continuous native sampling, hidden rendering paused, background history on reopen");
                 advance.stop();
                 if (!Quickshell.env("DOTFILES_STATS_PREVIEW")) Qt.quit();
                 break;

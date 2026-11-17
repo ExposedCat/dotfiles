@@ -71,6 +71,7 @@ ColumnLayout {
                         id: history
                         Layout.fillWidth: true; Layout.preferredHeight: 52
                         shell: root.shell; theme: root.theme; metric: meter.modelData.key
+                        active: root.stats.active
                         label: meter.modelData.label + (meter.gpu ? " load" : "")
                         samples: root.stats.history; endTime: root.stats.sampleTime
                         value: root.snapshot[meter.modelData.key] ?? null
@@ -85,6 +86,7 @@ ColumnLayout {
                         id: vramHistory
                         Layout.fillWidth: true; Layout.preferredHeight: 52
                         shell: root.shell; theme: root.theme; metric: "vram"; label: "VRAM"
+                        active: root.stats.active
                         objectName: meter.gpu ? "systemHistory:vram" : ""
                         samples: root.stats.history; endTime: root.stats.sampleTime
                         value: root.stats.vram; selected: root.metric === metric

@@ -33,13 +33,13 @@ Scope {
     function fixtureUpdate() {
         update(shell.fixtureData.stats || {cpu: 23, memory: 48, memoryUsed: 16e9, memoryTotal: 32e9, gpu: 15, gpuTemperature: 49, cpuTemperature: 51, vramUsed: 3e9, vramTotal: 8e9, down: 1500000, up: 230000, disk: 37, diskUsed: 370e9, diskTotal: 1e12, swapUsed: 0, uptime: 14400});
     }
-    onActiveChanged: { if (active && shell.fixture) fixtureUpdate(); }
+    Component.onCompleted: { if (shell.fixture) fixtureUpdate(); }
     Process {
         id: reader
         command: [root.shell.backend, "shell", "stats-watch"]
-        running: root.active && !root.shell.fixture
+        running: !root.shell.fixture
         stdout: SplitParser { onRead: line => { try { root.update(JSON.parse(line)); } catch(e) { root.error = "Could not read system statistics."; } } }
-        onExited: (code, status) => { if (code !== 0 && root.active) root.error = "System statistics are unavailable."; }
+        onExited: (code, status) => { if (code !== 0) root.error = "System statistics are unavailable."; }
     }
-    Timer { interval: 1000; repeat: true; running: root.active && root.shell.fixture; onTriggered: root.fixtureUpdate() }
+    Timer { interval: 1000; repeat: true; running: root.shell.fixture; onTriggered: root.fixtureUpdate() }
 }

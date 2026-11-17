@@ -47,7 +47,8 @@ appropriate command. They do not start a shell or interpreter.
 - The launcher has separate local/file workers and replaces obsolete queued
   queries. It reuses Qalculate, Nautilus search, IBus catalogs and Zen's database.
   Zen database recovery runs on a private DB/WAL snapshot, never the live profile.
-- Statistics run while their panel is open. Appearance uses GSettings change
+- Statistics run once per second throughout the session, keeping a rolling minute
+  in shell memory; chart rendering pauses while their panel is closed. Appearance uses GSettings change
   notifications. Existing Quickshell native integrations stay in Quickshell.
 - The portal backend accepts calls from the real portal frontend only, limits
   pending requests, checks request ownership, cancels disconnected callers,

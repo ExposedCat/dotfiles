@@ -1,3 +1,4 @@
+//@ pragma IconTheme MacTahoe-blue
 import QtQuick
 import Quickshell
 import Quickshell.Io

@@ -71,6 +71,7 @@ PanelWindow {
     property real paneHeight: 480
     property real mediaHeight: 240
     property real systemHeight: 480
+    property real networkHeight: 270
     property bool launcherDragged: false
     property point launcherPosition: Qt.point(0, 0)
     property point dragStart: Qt.point(0, 0)
@@ -120,6 +121,7 @@ PanelWindow {
     onNativeActiveChanged: { if (!nativeActive && shell.panel && !shell.captureActive) focusLoss.restart(); }
     onMediaHeightChanged: { if (shell.panel === "media") selectPanel("media"); }
     onSystemHeightChanged: { if (shell.panel === "system") selectPanel("system"); }
+    onNetworkHeightChanged: { if (shell.panel === "ethernet") selectPanel("ethernet"); }
     readonly property int headerHeight: 40
     readonly property int pillRadius: 20
     readonly property int sideInset: 20
@@ -194,8 +196,8 @@ PanelWindow {
         // Retain this geometry until the closing fade has finished. The popup's
         // layout must not be resized to the compact pill while still visible.
         const portalWidth = portalPane?.desiredWidth || (shell.portal.data.kind === "share" ? 680 : shell.portal.data.kind === "access" ? 440 : 560);
-        paneWidth = Math.min(width - 24, name === "credentials" ? (credentialPane?.desiredWidth || 460) : name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "mixer" ? 520 : name === "notifications" ? 1080 : 620);
-        paneHeight = Math.min(height - 24, name === "credentials" ? (credentialPane?.desiredHeight || 340) : name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? 136 : name === "notifications" ? 680 : name === "bluetooth" ? 500 : name === "ethernet" ? 270 : name === "media" ? mediaHeight : name === "system" ? systemHeight : 220);
+        paneWidth = Math.min(width - 24, name === "credentials" ? (credentialPane?.desiredWidth || 460) : name === "ethernet" ? 460 : name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "mixer" ? 520 : name === "notifications" ? 1080 : 620);
+        paneHeight = Math.min(height - 24, name === "credentials" ? (credentialPane?.desiredHeight || 340) : name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? 136 : name === "notifications" ? 680 : name === "bluetooth" ? 500 : name === "ethernet" ? networkHeight : name === "media" ? mediaHeight : name === "system" ? systemHeight : 220);
         retain(name); shownPanel = name;
     }
     Connections {
@@ -481,7 +483,14 @@ PanelWindow {
     Component { id: portalComponent; PortalPane { shell: bar.shell; theme: colors } }
     Component { id: notificationsComponent; NotificationCenter { shell: bar.shell; theme: colors } }
     Component { id: bluetoothComponent; BluetoothMenu { shell: bar.shell; theme: colors } }
-    Component { id: networkComponent; EthernetMenu { shell: bar.shell; theme: colors } }
+    Component {
+        id: networkComponent
+        EthernetMenu {
+            shell: bar.shell; theme: colors
+            onImplicitHeightChanged: bar.networkHeight = implicitHeight + 40
+            Component.onCompleted: bar.networkHeight = implicitHeight + 40
+        }
+    }
     Component { id: powerComponent; PowerPane { shell: bar.shell; theme: colors } }
     Component {
         id: mediaComponent

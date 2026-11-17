@@ -129,22 +129,26 @@ Item {
         spacing: 8
         RowLayout {
             Layout.fillWidth: true; spacing: 10
-            Image {
-                source: root.entry.image || ""
-                visible: source.toString().length > 0 && status !== Image.Error
+            SystemImage {
+                objectName: "notificationImage"
+                iconSource: root.entry.image || ""
+                symbolicColor: root.theme.text
                 Layout.preferredWidth: root.inCenter ? 40 : 48; Layout.preferredHeight: root.inCenter ? 40 : 48
                 Layout.alignment: Qt.AlignTop
                 sourceSize.width: 112; sourceSize.height: 112
-                fillMode: Image.PreserveAspectCrop
+                fillMode: iconSource.startsWith("image://icon/") ? Image.PreserveAspectFit : Image.PreserveAspectCrop
                 asynchronous: true
             }
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 2
                 RowLayout {
                     Layout.fillWidth: true; spacing: 7
-                    Image {
-                        source: root.entry.icon ? (/^(file:|image:|\/)/.test(root.entry.icon) ? root.entry.icon : Quickshell.iconPath(root.entry.icon, true)) : Quickshell.iconPath("application-x-executable", true)
-                        visible: source.toString().length > 0 && status !== Image.Error
+                    SystemImage {
+                        objectName: "notificationAppIcon"
+                        iconSource: root.entry.icon || ""
+                        fallbackIcon: "application-x-executable"
+                        fallbackSource: Qt.resolvedUrl("icons/bell.svg")
+                        symbolicColor: root.theme.text
                         Layout.preferredWidth: 21; Layout.preferredHeight: 21
                         Layout.alignment: Qt.AlignVCenter
                         sourceSize.width: 42; sourceSize.height: 42
