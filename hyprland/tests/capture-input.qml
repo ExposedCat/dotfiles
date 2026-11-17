@@ -98,6 +98,16 @@ Scope {
         function undoStroke(): void { test.capture.undo(); }
         function finishSelection(): void { test.surface().finish(); }
         function toggleCursor(): void { test.capture.includeCursor = !test.capture.includeCursor; test.capture.remember(); }
+        function toggleRecordingAudio(source: string): bool {
+            const button=objects.findChild(test.surface(), source === "speakers" ? "captureSpeakersButton" : "captureMicButton");
+            if (!button || !button.visible) throw Error("Recording audio toggle is missing");
+            button.clicked(); return button.chosen;
+        }
+        function cycleRecordingFps(): int {
+            const button=objects.findChild(test.surface(), "captureFpsButton");
+            if (!button || !button.visible) throw Error("Recording FPS button is missing");
+            button.clicked(); return test.capture.recordFps;
+        }
         function prepareRecord(): string {
             test.capture.data = Object.assign({}, test.capture.data, {mode:"record"});
             test.capture.keyPressed(Qt.Key_Return, 0, false);
@@ -121,6 +131,7 @@ Scope {
             });
             return JSON.stringify({active: test.capture.active, exporting: test.capture.exporting, idleSurfaces: idleSurfaces, resizeEvents: test.resizeEvents, clicks: test.clicks,
                 finishing: test.capture.finishing, handoffPending: test.capture.handoffPending, handoffReady: test.capture.handoffReady, sceneFocused: !!scene?.activeFocus, dragging: test.capture.dragging, closePending: test.capture.closePending, tool: test.capture.tool, selection: test.capture.selection, current: test.capture.current, cursor: test.capture.includeCursor, preferences: test.capture.preferences, frames: test.capture.firstFrames,
+                recordSpeakers: test.capture.recordSpeakers, recordMic: test.capture.recordMic, recordFps: test.capture.recordFps,
                 recordPending: test.capture.recordPending, recording: test.capture.recording, heldKeys: test.capture.heldKeys,
                 toolbars: test.capture.data.outputs.map(output => {
                     const surface = objects.findChild(test.capture, "captureSurface:" + output.name);

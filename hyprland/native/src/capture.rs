@@ -1,3 +1,5 @@
+use crate::recording_audio::Options as AudioOptions;
+use crate::recording_compose::compose;
 use crate::util::*;
 use anyhow::{Context, Result, bail};
 use image::{
@@ -18,6 +20,40 @@ use std::{
     time::{Duration, Instant},
 };
 const RECORD: &str = "dotfiles-hyprland-record.service";
+#[derive(Debug, PartialEq, Eq)]
+struct RecordingOptions {
+    audio: AudioOptions,
+    fps: u32,
+}
+impl RecordingOptions {
+    fn parse(args: &[String]) -> Result<Self> {
+        let mut fps = 60;
+        let mut audio = vec![];
+        let mut args = args.iter();
+        while let Some(flag) = args.next() {
+            if flag == "--fps" {
+                fps = args
+                    .next()
+                    .context("Missing recording frame rate")?
+                    .parse()?;
+                if ![60, 120, 144, 165].contains(&fps) {
+                    bail!("Recording frame rate must be 60, 120, 144, or 165");
+                }
+            } else {
+                audio.push(flag.clone());
+            }
+        }
+        Ok(Self {
+            audio: AudioOptions::parse(&audio)?,
+            fps,
+        })
+    }
+    fn flags(&self) -> Vec<String> {
+        let mut flags = vec!["--fps".into(), self.fps.to_string()];
+        flags.extend(self.audio.flags().into_iter().map(String::from));
+        flags
+    }
+}
 fn preferences_path() -> PathBuf {
     xdg("XDG_STATE_HOME", ".local/state").join("dotfiles/hyprland/capture.json")
 }
@@ -362,6 +398,7 @@ fn record(dir: &Path, data: &Value, args: &[String]) -> Result<()> {
     let mut w = arg(args, 4)?.parse::<i64>()?;
     let mut h = arg(args, 5)?.parse::<i64>()?;
     let cursor = arg(args, 6)? == "yes";
+    let options = RecordingOptions::parse(&args[7..])?;
     if name != "desktop" {
         let monitor = rows(&data["outputs"])
             .iter()
@@ -387,7 +424,9 @@ fn record(dir: &Path, data: &Value, args: &[String]) -> Result<()> {
     c.arg(format!("--unit={RECORD}")).args([
         "--property=PartOf=graphical-session.target",
         "--property=KillSignal=SIGINT",
-        "--property=TimeoutStopSec=300",
+        // The worker finalizes the join after SIGINT; allow its bounded
+        // duration-based composition budget plus shutdown/probing headroom.
+        "--property=TimeoutStopSec=4200",
         "--property=KillMode=mixed",
         "--property=SuccessExitStatus=SIGINT",
         "--property=UMask=0077",
@@ -396,6 +435,11 @@ fn record(dir: &Path, data: &Value, args: &[String]) -> Result<()> {
         "WAYLAND_DISPLAY",
         "HYPRLAND_INSTANCE_SIGNATURE",
         "XDG_CURRENT_DESKTOP",
+        "PULSE_SERVER",
+        "PULSE_COOKIE",
+        "PULSE_RUNTIME_PATH",
+        "PIPEWIRE_REMOTE",
+        "PIPEWIRE_RUNTIME_DIR",
     ] {
         if let Ok(value) = std::env::var(key) {
             c.arg(format!("--setenv={key}={value}"));
@@ -414,10 +458,11 @@ fn record(dir: &Path, data: &Value, args: &[String]) -> Result<()> {
             "--filename",
         ])
         .arg(&target)
-        .args(["--max-fps", "60"]);
+        .args(["--max-fps", &options.fps.to_string()]);
         if !cursor {
             c.arg("--no-cursor");
         }
+        options.audio.resolve()?.apply(&mut c);
     } else {
         c.arg("--")
             .arg(std::env::current_exe()?)
@@ -428,7 +473,8 @@ fn record(dir: &Path, data: &Value, args: &[String]) -> Result<()> {
                 &rect.to_string(),
                 if cursor { "yes" } else { "no" },
             ])
-            .arg(&target);
+            .arg(&target)
+            .args(options.flags());
     }
     if !c.status()?.success() {
         bail!("Recorder failed; inspect its user-service journal");
@@ -439,100 +485,19 @@ fn record(dir: &Path, data: &Value, args: &[String]) -> Result<()> {
     println!("{}", target.display());
     Ok(())
 }
-fn compose(clips: &[(PathBuf, Value, f64)], rect: &Value, target: &Path) -> Result<()> {
-    let scale = clips
-        .iter()
-        .map(|(_, o, _)| o["scale"].as_f64().unwrap_or(1.))
-        .fold(1., f64::max);
-    let w = (n(rect, "width") * scale).round_ties_even() as u64 / 2 * 2;
-    let h = (n(rect, "height") * scale).round_ties_even() as u64 / 2 * 2;
-    let mut c = command(&[
-        "ffmpeg",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-filter_complex_threads",
-        "1",
-    ]);
-    let mut filters = vec![format!("color=c=black:s={w}x{h}:r=60[base]")];
-    let mut duration = 0f64;
-    for (i, (path, source, offset)) in clips.iter().enumerate() {
-        c.arg("-i").arg(path);
-        let metadata = json(&[
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=width,height:format=duration",
-            "-of",
-            "json",
-            &path.to_string_lossy(),
-        ])?;
-        let stream = &metadata["streams"][0];
-        let part = intersection(rect, source);
-        let sx = n(stream, "width") / n(source, "width");
-        let sy = n(stream, "height") / n(source, "height");
-        let left = ((n(&part, "x") - n(source, "x")) * sx).round_ties_even();
-        let top = ((n(&part, "y") - n(source, "y")) * sy).round_ties_even();
-        let width = n(stream, "width")
-            .min(((n(&part, "x") + n(&part, "width") - n(source, "x")) * sx).round_ties_even())
-            - left;
-        let height = n(stream, "height")
-            .min(((n(&part, "y") + n(&part, "height") - n(source, "y")) * sy).round_ties_even())
-            - top;
-        let tw = (n(&part, "width") * scale).round_ties_even().max(1.);
-        let th = (n(&part, "height") * scale).round_ties_even().max(1.);
-        filters.push(format!("[{i}:v]crop={width}:{height}:{left}:{top}:exact=1,scale={tw}:{th},setsar=1,setpts=PTS-STARTPTS+{offset}/TB[s{i}]"));
-        let previous = if i == 0 {
-            "base".into()
-        } else {
-            format!("v{}", i - 1)
-        };
-        let dx = ((n(&part, "x") - n(rect, "x")) * scale).round_ties_even();
-        let dy = ((n(&part, "y") - n(rect, "y")) * scale).round_ties_even();
-        filters.push(format!(
-            "[{previous}][s{i}]overlay={dx}:{dy}:eof_action=pass:repeatlast=0:format=rgb[v{i}]"
-        ));
-        duration = duration.max(
-            metadata["format"]["duration"]
-                .as_str()
-                .context("Missing clip duration")?
-                .parse::<f64>()?
-                + offset,
-        );
-    }
-    c.args([
-        "-filter_complex",
-        &filters.join(";"),
-        "-map",
-        &format!("[v{}]", clips.len() - 1),
-        "-t",
-        &duration.to_string(),
-        "-an",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-crf",
-        "18",
-        "-pix_fmt",
-        "yuv420p",
-        "-movflags",
-        "+faststart",
-    ])
-    .arg(target);
-    output(c, None, Duration::from_secs(300))?;
-    Ok(())
-}
-fn record_worker(data: &Value, rect: &Value, cursor: bool, target: &Path) -> Result<()> {
+fn record_worker(
+    data: &Value,
+    rect: &Value,
+    cursor: bool,
+    target: &Path,
+    options: RecordingOptions,
+) -> Result<()> {
     use wait_timeout::ChildExt;
     let parts = selected(rect, &data["outputs"]);
     if parts.is_empty() {
         bail!("Recording area is outside the visible displays");
     }
+    let input = options.audio.resolve()?;
     let dir = tempfile::Builder::new()
         .prefix("capture-parts-")
         .tempdir_in(target.parent().context("Missing output directory")?)?
@@ -557,9 +522,12 @@ fn record_worker(data: &Value, rect: &Value, cursor: bool, target: &Path) -> Res
                 s(monitor, "name"),
                 "--filename",
             ]);
-            c.arg(&path).args(["--max-fps", "60"]);
+            c.arg(&path).args(["--max-fps", &options.fps.to_string()]);
             if !cursor {
                 c.arg("--no-cursor");
+            }
+            if i == 0 {
+                input.apply(&mut c);
             }
             let offset = started.elapsed().as_secs_f64();
             children.push(c.spawn()?);
@@ -603,7 +571,7 @@ fn record_worker(data: &Value, rect: &Value, cursor: bool, target: &Path) -> Res
         {
             bail!("A display recorder produced no video");
         }
-        compose(&clips, rect, target)
+        compose(&clips, rect, target, options.audio.enabled(), options.fps)
     });
     if outcome.is_ok() {
         fs::remove_dir_all(&dir)?;
@@ -616,6 +584,9 @@ fn record_worker(data: &Value, rect: &Value, cursor: bool, target: &Path) -> Res
     outcome
 }
 pub fn main(args: &[String]) -> Result<()> {
+    if args.first().is_some_and(|s| s == "audio-input") {
+        return emit(&AudioOptions::parse(&args[1..])?.resolve()?.description());
+    }
     if args.first().is_some_and(|s| s == "select") {
         return select(arg(args, 1)?);
     }
@@ -640,6 +611,7 @@ pub fn main(args: &[String]) -> Result<()> {
             &serde_json::from_str(arg(&args, 1)?)?,
             arg(&args, 2)? == "yes",
             Path::new(arg(&args, 3)?),
+            RecordingOptions::parse(&args[4..])?,
         ),
         x => bail!("Unknown capture action: {x}"),
     }
@@ -647,6 +619,117 @@ pub fn main(args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn recording_rates_are_validated_and_forwarded_with_audio() {
+        assert_eq!(RecordingOptions::parse(&[]).unwrap().fps, 60);
+        for fps in [60, 120, 144, 165] {
+            let options = RecordingOptions::parse(&[
+                "--mic".into(),
+                "--fps".into(),
+                fps.to_string(),
+                "--speakers".into(),
+            ])
+            .unwrap();
+            assert_eq!(options.fps, fps);
+            assert!(options.audio.speakers && options.audio.microphone);
+            assert_eq!(RecordingOptions::parse(&options.flags()).unwrap(), options);
+        }
+        for flags in [
+            vec!["--fps"],
+            vec!["--fps", "0"],
+            vec!["--fps", "240"],
+            vec!["--fps", "oops"],
+            vec!["--unknown"],
+        ] {
+            assert!(
+                RecordingOptions::parse(&flags.into_iter().map(String::from).collect::<Vec<_>>())
+                    .is_err()
+            );
+        }
+    }
+    #[test]
+    #[ignore = "requires FFmpeg with libx264; run on the recording host"]
+    fn spanning_video_retains_one_audio_track_and_can_stay_silent() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = dir.path().join("first.mkv");
+        let second = dir.path().join("second.mkv");
+        for (path, sound) in [(&first, true), (&second, false)] {
+            let mut encoder = command(&[
+                "ffmpeg",
+                "-nostdin",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=red:s=32x32:r=60",
+            ]);
+            if sound {
+                encoder.args(["-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000"]);
+            }
+            encoder.args(["-t", "0.5", "-c:v", "libx264", "-pix_fmt", "yuv420p"]);
+            if sound {
+                encoder.args(["-c:a", "pcm_s16le"]);
+            }
+            encoder.arg(path);
+            output(encoder, None, Duration::from_secs(15)).unwrap();
+        }
+        let clips = vec![
+            (
+                first,
+                json!({"x":-32,"y":0,"width":32,"height":32,"scale":1}),
+                0.08,
+            ),
+            (
+                second,
+                json!({"x":0,"y":0,"width":32,"height":32,"scale":1}),
+                0.02,
+            ),
+        ];
+        let rect = json!({"x":-32,"y":0,"width":64,"height":32});
+        for (audio, fps) in [(true, 60), (false, 60), (true, 165), (false, 165)] {
+            let target = dir.path().join(format!("combined-{audio}-{fps}.mp4"));
+            compose(&clips, &rect, &target, audio, fps).unwrap();
+            let probe = json(&[
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_streams",
+                "-of",
+                "json",
+                &target.to_string_lossy(),
+            ])
+            .unwrap();
+            let streams = probe["streams"].as_array().unwrap();
+            assert_eq!(
+                streams
+                    .iter()
+                    .filter(|s| s["codec_type"] == "audio")
+                    .count(),
+                usize::from(audio)
+            );
+            let video = streams.iter().find(|s| s["codec_type"] == "video").unwrap();
+            assert_eq!(video["r_frame_rate"], format!("{fps}/1"));
+            assert_eq!(
+                (video["width"].as_u64(), video["height"].as_u64()),
+                (Some(64), Some(32))
+            );
+            if audio {
+                let track = streams.iter().find(|s| s["codec_type"] == "audio").unwrap();
+                let start = track["start_time"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap();
+                assert!(
+                    (0.04..0.09).contains(&start),
+                    "Audio lost its display start offset: {start}"
+                );
+                assert!(track["duration"].as_str().unwrap().parse::<f64>().unwrap() > 0.4);
+            }
+        }
+    }
     #[test]
     fn mixed_scale_composition_preserves_gaps() {
         let d = tempfile::tempdir().unwrap();

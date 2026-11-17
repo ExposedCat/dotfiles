@@ -10,6 +10,8 @@ use std::{
 };
 const PREFIX: &str = "dotfiles-hyprland-";
 const BACKGROUND: &[&str] = &[
+    "agents",
+    "automount",
     "clipboard-text",
     "clipboard-image",
     "shell",
@@ -73,6 +75,24 @@ pub fn session_start(refresh: bool) -> Result<()> {
         bail!("Desktop services must be started inside the Hyprland session");
     }
     let _lock = Lock::acquire(&runtime()?.join("dotfiles-hyprland-services.lock"), false)?;
+    if refresh && active("automount") {
+        run(&[
+            "systemctl",
+            "--user",
+            "restart",
+            &format!("{PREFIX}automount"),
+        ])?;
+    } else {
+        service(
+            "automount",
+            &strings(&[
+                &root().join("bin/dotfiles-desktop").to_string_lossy(),
+                "desktop",
+                "automount",
+            ]),
+            true,
+        )?;
+    }
     for kind in ["text", "image"] {
         service(
             &format!("clipboard-{kind}"),
@@ -114,6 +134,29 @@ pub fn session_start(refresh: bool) -> Result<()> {
         } else if active(name) {
             run(&["systemctl", "--user", "stop", &format!("{PREFIX}{name}")])?;
         }
+    }
+    let agents_loaded = Command::new("systemctl")
+        .args([
+            "--user",
+            "show",
+            "--property=LoadState",
+            "--value",
+            &format!("{PREFIX}agents.service"),
+        ])
+        .output()
+        .is_ok_and(|out| out.status.success() && out.stdout == b"loaded\n");
+    if refresh && agents_loaded {
+        run(&["systemctl", "--user", "restart", &format!("{PREFIX}agents")])?;
+    } else {
+        service(
+            "agents",
+            &strings(&[
+                &root().join("bin/dotfiles-desktop").to_string_lossy(),
+                "desktop",
+                "agents",
+            ]),
+            true,
+        )?;
     }
     Ok(())
 }
@@ -285,6 +328,8 @@ pub fn main(args: &[String]) -> Result<()> {
     }
     let args = &args;
     match arg(args, 0)? {
+        "agents" => crate::agents::run(args.iter().any(|s| s == "--test-bus")),
+        "automount" => crate::automount::run(args.iter().any(|s| s == "--check")),
         "session-start" => session_start(args.iter().any(|s| s == "--refresh")),
         "session-stop" => {
             let mut c = command(&["systemctl", "--user", "stop"]);

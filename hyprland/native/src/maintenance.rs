@@ -122,6 +122,8 @@ fn reload_hypr() -> Result<()> {
     } else {
         let mut c = command(&["systemctl", "--user", "stop"]);
         for n in [
+            "agents",
+            "automount",
             "shell",
             "capture",
             "clipboard-text",

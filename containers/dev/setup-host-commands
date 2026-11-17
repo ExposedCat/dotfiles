@@ -13,6 +13,9 @@ for command in dbus-run-session gio podman distrobox systemctl; do
     sudo ln -sf /usr/bin/distrobox-host-exec "/usr/local/bin/$command"
 done
 
+# Forward interactive Fish commands without redirecting flatpak-builder's calls.
+sudo install -D -m 0644 "$SCRIPT_DIR/flatpak.fish" /etc/fish/functions/flatpak.fish
+
 sudo install -D -m 0755 "$SCRIPT_DIR/host-desktop-exec" "$HOST_EXEC"
 if [[ ! /usr/bin/xdg-open -ef /usr/bin/distrobox-host-exec &&
       ! /usr/bin/xdg-open -ef "$HOST_EXEC" ]]; then

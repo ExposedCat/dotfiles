@@ -9,6 +9,23 @@ This user requires agent-owned GUI work to stay off their working desktop. Use t
 
 Use the helper in `scripts/desktop.py`: it creates a named Xvfb display, Openbox window manager, private Xauthority cookie, and private D-Bus session. It wraps the server and every application, input, and capture command in a Bubblewrap mount namespace with a per-session `/tmp`, removes inherited Wayland and desktop-session settings, and forces toolkits to use private X11. Xvfb has both TCP and Linux abstract socket listeners disabled. It does not open a viewer, listen on a network port, or create a system service. A stopped or unhealthy session is an error: repair or restart it; never fall back to the user's display.
 
+## Mandatory socket protection
+
+- For agent-owned GUI work, start display servers only through this helper.
+  Never run bare `Xvfb`, `Xorg`, `Xwayland`, or `xvfb-run`, including for a quick
+  check or a reproduction. Do not copy an older helper into a temporary script.
+- Never use Xvfb `-displayfd`, `-nolock`, or a low display number. A container,
+  private D-Bus session, or different `DISPLAY` alone does not protect the desktop.
+- Do not expose host X11 sockets inside the private `/tmp`, override its mount,
+  export the environment for use outside the helper, or escape to the host using
+  a forwarding command, `nsenter`, or a shell wrapper.
+- The helper must verify its private mount before starting Xvfb. Symlinked or
+  shared temporary/socket directories are errors. If verification fails, stop;
+  fix the helper rather than weakening isolation or launching a server manually.
+- Never delete, rename, replace, or "clean up" host `/tmp/.X11-unix/*` or
+  `/tmp/.X*-lock` during tests. Report missing or changed host endpoints and stop
+  GUI work; desktop repair is a separate task, not test cleanup.
+
 ## This machine
 
 The development environment is the Fedora Toolbx container named `dev`, with shared home `/var/home/kitkat`. Run the helper inside that container. In the current Codex shell:
@@ -69,10 +86,11 @@ After input, inspect a fresh screenshot or application state to verify the resul
 
 ## Isolation boundaries and cleanup
 
-The host and Toolbx ordinarily share `/tmp/.X11-unix` and the network namespace,
-but have different PID namespaces. Never use Xvfb `-displayfd`: it may treat a
-host PID lock as stale and displace the real Xwayland socket. The helper now uses
-both independent layers:
+The host and Toolbx can share `/tmp/.X11-unix` and the network namespace. Never
+use Xvfb `-displayfd`: automatic selection disables the usual server lock and
+probes from display 0; Unix listener creation can unlink an existing socket.
+This risk also exists when the PID namespace is shared. The helper uses both
+independent layers:
 
 - Bubblewrap mounts a session-owned directory over `/tmp` for Xvfb and every GUI
   command. Server socket and lock creation/removal stays in that private directory.
@@ -82,6 +100,9 @@ both independent layers:
   subsequent operations to fail closed.
 
 Before starting, the helper records the identities of existing host X11 endpoints.
+It also checks from inside Bubblewrap that `/tmp` and `/tmp/.X11-unix` have the
+expected private directory identities and that the mount namespace differs from
+the caller's, before any display server is launched.
 It checks those identities before GUI work and after cleanup. It never repairs or
 removes a foreign endpoint automatically. Legacy sessions without private mount
 isolation must be stopped by name before reuse. A private D-Bus session or high
@@ -110,7 +131,8 @@ podman exec --user root dev /usr/bin/dnf install -y bubblewrap xorg-x11-server-X
 
 Verified on this machine: separate concurrent displays; private X11 authentication and D-Bus; GTK window screenshots; real typing and mouse click with visible result; Brevlada's GTK/WebKit viewer diagnostics; timeout and orphan-process cleanup; rejection of foreign application PIDs and backend overrides. Recheck the relevant visible behavior for each task. A working helper is not proof that an application test passed.
 
-Helper regression checks: `python3 scripts/test_runtime.py`. They cover private
-mount wrapping, refusal of legacy sessions/environment escapes, host endpoint
-identity checks, and foreign abstract-listener rejection. Validate actual GUI
+Helper regression checks: `PYTHONDONTWRITEBYTECODE=1 python3 scripts/test_runtime.py`.
+They cover private mount wrapping and preflight failure, symlink/shared-directory
+rejection, refusal of legacy sessions/environment escapes, host endpoint deletion
+and replacement, and foreign abstract-listener rejection. Validate actual GUI
 launch/input/capture and preserve host socket identities whenever the wrapper changes.

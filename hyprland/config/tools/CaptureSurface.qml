@@ -67,15 +67,21 @@ PanelWindow {
         id: button
         property string caption
         property string icon
+        property string label: ""
         property bool chosen: false
+        property bool checkable: false
         signal clicked()
         implicitHeight: 36; implicitWidth: 38
         color: chosen ? "#55423d3a" : "transparent"
         opacity: enabled ? 1 : 0.45
         radius: 10
-        Accessible.role: Accessible.Button
+        Accessible.role: checkable ? Accessible.CheckBox : Accessible.Button
         Accessible.name: caption
-        Image { anchors.centerIn: parent; width: 19; height: 19; sourceSize: Qt.size(19, 19); source: Qt.resolvedUrl("icons/" + button.icon + ".svg") }
+        Accessible.checkable: checkable
+        Accessible.checked: checkable && chosen
+        Accessible.onPressAction: clicked()
+        Image { visible: !button.label; anchors.centerIn: parent; width: 19; height: 19; sourceSize: Qt.size(19, 19); source: button.icon ? Qt.resolvedUrl("icons/" + button.icon + ".svg") : "" }
+        Text { visible: !!button.label; anchors.centerIn: parent; text: button.label; color: "#f4e9e2"; font.family: "Adwaita Sans"; font.pixelSize: 13; font.weight: Font.Medium }
         MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: button.clicked() }
     }
     Item {
@@ -237,9 +243,9 @@ PanelWindow {
             id: toolbar
             objectName: "captureToolbar"
             visible: window.current && window.selected && !controller.dragging
-            readonly property int buttonCount: toolButtons.count + inkButtons.count + 1 + (window.video ? 1 : 0)
+            readonly property int buttonCount: toolButtons.count + inkButtons.count + 1 + (window.video ? 4 : 0)
             readonly property var horizontalSize: ({width: Math.min(scene.width - 16,
-                toolButtons.count * 38 + inkButtons.count * 24 + 38 + (window.video ? 38 : 0) + (buttonCount - 1) * controls.spacing + 20), height: 54})
+                toolButtons.count * 38 + inkButtons.count * 24 + 38 + (window.video ? 152 : 0) + (buttonCount - 1) * controls.spacing + 20), height: 54})
             readonly property var verticalSize: ({width: 58, height: Math.min(scene.height - 16, buttonCount * 36 + (buttonCount - 1) * controls.spacing + 20)})
             readonly property var placement: Geometry.toolbar(window.localSelection, scene.width, scene.height, horizontalSize, verticalSize)
             readonly property bool vertical: placement.vertical
@@ -279,6 +285,9 @@ PanelWindow {
                         }
                     }
                     ActionButton { caption: "Cursor " + (controller.includeCursor ? "On" : "Off"); icon: controller.includeCursor ? "mouse-pointer-2" : "mouse-pointer-2-off"; chosen: controller.includeCursor; onClicked: { controller.includeCursor = !controller.includeCursor; controller.remember(); } }
+                    ActionButton { objectName: "captureSpeakersButton"; visible: window.video; checkable: true; caption: "Record speakers " + (controller.recordSpeakers ? "On" : "Off"); icon: controller.recordSpeakers ? "volume-2" : "volume-x"; chosen: controller.recordSpeakers; onClicked: { controller.recordSpeakers = !controller.recordSpeakers; controller.remember(); } }
+                    ActionButton { objectName: "captureMicButton"; visible: window.video; checkable: true; caption: "Record mic " + (controller.recordMic ? "On" : "Off"); icon: controller.recordMic ? "mic" : "mic-off"; chosen: controller.recordMic; onClicked: { controller.recordMic = !controller.recordMic; controller.remember(); } }
+                    ActionButton { objectName: "captureFpsButton"; visible: window.video; caption: "Frame rate " + controller.recordFps + " FPS"; label: String(controller.recordFps); onClicked: controller.cycleRecordingFps() }
                     ActionButton { objectName: "captureRecordButton"; visible: window.video; caption: "Start recording"; icon: "video"; onClicked: window.finish() }
                 }
             }

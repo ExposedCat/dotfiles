@@ -9,6 +9,9 @@
 - polkit
 - ptyxis
 - nautilus
+- udisks2
+- gvfs and gvfs-fuse (removable-media automount and file-manager volume discovery)
+- gvfs-mtp, gvfs-gphoto2, gvfs-afc (phones and cameras)
 - qalculate (launcher currencies, units, and advanced calculations)
 - ibus (installed emoji/Unicode catalogs and native IBus API for launcher characters)
 - xdg-user-dirs (screenshot directory)
@@ -25,6 +28,7 @@
 - xdg-desktop-portal-gnome (modern Nautilus file chooser)
 - pipewire
 - pipewire-pulseaudio
+- pulseaudio-utils (pactl, recording audio source discovery)
 - wireplumber
 - NetworkManager
 - NetworkManager-wifi
@@ -33,7 +37,7 @@
 - tuned-ppd
 - grim
 - wl-screenrec
-- ffmpeg (including libx264, for cross-screen recording composition)
+- ffmpeg (VA-API decode, scale/overlay and H.264/HEVC encode; libx264 for recording composition recovery)
 - wl-clipboard
 - cliphist
 - gnome-online-accounts

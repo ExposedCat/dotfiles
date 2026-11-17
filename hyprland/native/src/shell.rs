@@ -247,11 +247,24 @@ impl Sampler {
                 break;
             }
         }
-        for card in entries(self.root.join("sys/class/drm")) {
-            let name = card.file_name().unwrap().to_string_lossy();
-            if !name.starts_with("card") || name.contains('-') {
-                continue;
-            }
+        let mut cards = entries(self.root.join("sys/class/drm"));
+        cards.retain(|card| {
+            card.file_name()
+                .and_then(|name| name.to_str())
+                .and_then(|name| name.strip_prefix("card"))
+                .is_some_and(|index| !index.is_empty() && index.bytes().all(|b| b.is_ascii_digit()))
+        });
+        // DRM card numbers reflect enumeration, not which GPU is primary.
+        // Prefer the firmware primary, then the largest VRAM capacity when
+        // no primary is exposed. Keep all metrics on the same selected card.
+        cards.sort_by_cached_key(|card| {
+            let device = card.join("device");
+            std::cmp::Reverse((
+                number(&device.join("boot_vga")) == Some(1.),
+                number(&device.join("mem_info_vram_total")).unwrap_or(0.) as u64,
+            ))
+        });
+        for card in cards {
             let device = card.join("device");
             if let Some(busy) = number(&device.join("gpu_busy_percent")) {
                 result["gpu"] = json!(busy);
@@ -656,5 +669,65 @@ mod tests {
         assert_eq!(sample["gpuTemperature"], 47.);
         assert_eq!(sample["cpuTemperature"], 55.5);
         assert_eq!(sample["vramUsed"], 4096.);
+    }
+    #[test]
+    fn sampler_prefers_primary_gpu_independently_of_card_number() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        write(root, "proc/stat", "cpu 100 0 100 800 0 0 0 0\n");
+        write(
+            root,
+            "proc/meminfo",
+            "MemTotal: 1000 kB\nMemAvailable: 400 kB\n",
+        );
+        write(root, "proc/uptime", "1234.5 999\n");
+        write(root, "proc/net/dev", "header\nheader\n");
+        let mut sampler = Sampler::new(root.into());
+        for primary in ["card1", "card0"] {
+            for card in ["card0", "card1"] {
+                let dedicated = card == primary;
+                let base = format!("sys/class/drm/{card}/device");
+                for (file, value) in [
+                    ("boot_vga", if dedicated { "1" } else { "0" }),
+                    ("gpu_busy_percent", if dedicated { "24" } else { "0" }),
+                    (
+                        "mem_info_vram_total",
+                        if dedicated {
+                            "17179869184"
+                        } else {
+                            "536870912"
+                        },
+                    ),
+                    (
+                        "mem_info_vram_used",
+                        if dedicated { "2147483648" } else { "16777216" },
+                    ),
+                    (
+                        "hwmon/hwmon0/temp1_input",
+                        if dedicated { "47000" } else { "32000" },
+                    ),
+                ] {
+                    write(root, &format!("{base}/{file}"), value);
+                }
+            }
+            let check_dedicated = |sample: Value| {
+                assert_eq!(sample["gpu"], 24.);
+                assert_eq!(sample["gpuTemperature"], 47.);
+                assert_eq!(sample["vramTotal"], 17179869184.);
+                assert_eq!(sample["vramUsed"], 2147483648.);
+            };
+            check_dedicated(sampler.sample().unwrap());
+            // Some drivers do not expose firmware-primary information.
+            for card in ["card0", "card1"] {
+                fs::remove_file(root.join(format!("sys/class/drm/{card}/device/boot_vga")))
+                    .unwrap();
+            }
+            check_dedicated(sampler.sample().unwrap());
+            fs::remove_file(root.join(format!("sys/class/drm/{primary}/device/gpu_busy_percent")))
+                .unwrap();
+            let fallback = sampler.sample().unwrap();
+            assert_eq!(fallback["gpu"], 0.);
+            assert_eq!(fallback["vramTotal"], 536870912.);
+        }
     }
 }

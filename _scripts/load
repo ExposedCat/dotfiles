@@ -44,6 +44,24 @@ mkdir -p ~/.config/gtk-{3,4}.0
 cp ./gtk/gtk.css ~/.config/gtk-3.0/gtk.css
 cp ./gtk/gtk.css ~/.config/gtk-4.0/gtk.css
 
+# PrusaSlicer's bundled GTK chooser needs GVfs to list and mount removable drives.
+prusa_flatpak_host=()
+if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
+    prusa_flatpak_host=(distrobox-host-exec)
+fi
+"${prusa_flatpak_host[@]}" flatpak override --user \
+    '--talk-name=org.gtk.vfs.*' --filesystem=xdg-run/gvfsd \
+    com.prusa3d.PrusaSlicer
+
+# Remove the retired Brevlada entry only after migration to the installed app ID.
+brevlada_old_autostart=${XDG_CONFIG_HOME:-$HOME/.config}/autostart/io.github.ExposedCat.Brevlada.desktop
+if "${prusa_flatpak_host[@]}" flatpak info com.chipichapa.Brevlada >/dev/null 2>&1 \
+    && ! "${prusa_flatpak_host[@]}" flatpak info io.github.ExposedCat.Brevlada >/dev/null 2>&1 \
+    && [[ -f $brevlada_old_autostart ]] \
+    && grep -qx 'X-Flatpak=io.github.ExposedCat.Brevlada' "$brevlada_old_autostart"; then
+    rm -- "$brevlada_old_autostart"
+fi
+
 # Build the pinned local portal release and install its routing and dialogs.
 ./xdg-desktop-portal/manage install
 

@@ -19,6 +19,10 @@ Scope {
     property var data: ({ outputs: [], mode: "region", selection: null })
     property string current: ""
     property bool includeCursor: false
+    property bool recordSpeakers: false
+    property bool recordMic: false
+    property int recordFps: 60
+    readonly property var recordingRates: [60, 120, 144, 165]
     property var selection: ({x: 0, y: 0, width: 0, height: 0})
     property var strokes: []
     property var draft: null
@@ -93,6 +97,9 @@ Scope {
             heldKeys = ({}); closePending = false; recordPending = false;
             preferences = next.preferences || preferences;
             includeCursor = !!preferences.cursor;
+            recordSpeakers = !!preferences.recordSpeakers;
+            recordMic = !!preferences.recordMic;
+            recordFps = recordingRates.includes(preferences.recordFps) ? preferences.recordFps : 60;
             const saved = next.selection || preferences[next.mode];
             let rect = saved;
             if (saved && saved.monitor) {
@@ -112,10 +119,14 @@ Scope {
     }
     function remember() {
         if (!data.outputs.length) return;
-        const next = Object.assign({}, preferences, {cursor: includeCursor});
+        const next = Object.assign({}, preferences, {cursor: includeCursor, recordSpeakers: recordSpeakers, recordMic: recordMic, recordFps: recordFps});
         if (selected) next[data.mode] = selection;
         preferences = next;
         savePreferences();
+    }
+    function cycleRecordingFps() {
+        recordFps = recordingRates[(recordingRates.indexOf(recordFps) + 1) % recordingRates.length];
+        remember();
     }
     function savePreferences() {
         const value = JSON.stringify(preferences);
@@ -186,7 +197,9 @@ Scope {
         remember();
         recordSelection = { x: left, y: top, width: w, height: h };
         recordArguments = [helper, "capture", "--session", sessionDirectory, "record", "desktop",
-                           String(left), String(top), String(w), String(h), includeCursor ? "yes" : "no"];
+                           String(left), String(top), String(w), String(h), includeCursor ? "yes" : "no", "--fps", String(recordFps)];
+        if (recordSpeakers) recordArguments.push("--speakers");
+        if (recordMic) recordArguments.push("--mic");
         if (Object.keys(heldKeys).length) recordPending = true;
         else startRecording();
     }

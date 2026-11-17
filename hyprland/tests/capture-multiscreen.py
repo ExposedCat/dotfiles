@@ -282,16 +282,33 @@ with tempfile.TemporaryDirectory(prefix='capture-multi-', dir=os.environ['XDG_RU
         wait_for(lambda:state()['active'],'Recording test selector did not open')
         assert state()['selection']==data['preferences']['record'],state()
         assert state()['preferences']['region']==selected['selection'],state()
+        assert not state()['recordSpeakers'] and not state()['recordMic'], state()
+        assert state()['recordFps']==60, state()
+        for fps in [120,144,165,60,120,144,165]:
+            assert ipc('cycleRecordingFps')==fps, state()
+        assert ipc('toggleRecordingAudio','speakers') is True
+        assert state()['recordSpeakers'] and not state()['recordMic'], state()
+        assert ipc('toggleRecordingAudio','mic') is True
+        assert state()['recordSpeakers'] and state()['recordMic'], state()
+        if os.environ.get('DOTFILES_RECORDING_PREVIEW'):
+            subprocess.run(['/usr/bin/grim',os.environ['DOTFILES_RECORDING_PREVIEW']],env=env,check=True)
         args=ipc('prepareRecord')
         index=args.index('record')
-        assert args[index+1:index+7]==['desktop','-200','250','400','160','yes'],args
+        assert args[index+1:]==['desktop','-200','250','400','160','yes','--fps','165','--speakers','--mic'],args
         assert state()['recordPending'] and not state()['recording'],state()
         ipc('abortRecord');wait_for(lambda:not state()['active'],'Recording test did not cancel')
+        preferences=root/'state/dotfiles/hyprland/capture.json'
+        wait_for(lambda: preferences.exists() and json.loads(preferences.read_text()).get('recordMic'),'Audio preferences were not saved')
+        data['preferences']=json.loads(preferences.read_text())
+        assert data['preferences']['recordFps']==165, data
+        (root/'session.json').write_text(json.dumps(data))
         # Dismissal waits for an in-progress RMB drag to release its grab.
         assert ipc('open') is True
         wait_for(lambda:state()['active'],'Drag-cancel selector did not open')
         wait_for(lambda:len(state()['frames'])==2,'Drag-cancel surfaces did not render')
         cursor('set -150 280');cursor('press button3')
+        assert state()['recordSpeakers'] and state()['recordMic'], state()
+        assert state()['recordFps']==165, state()
         assert state()['dragging'],state()
         subprocess.run(['/usr/bin/quickshell','ipc','--path',str(QML),'call','capture','cancel'],env=env,check=True)
         assert state()['active'] and state()['closePending'],state()

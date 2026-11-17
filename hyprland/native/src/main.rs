@@ -1,4 +1,6 @@
 mod agenda;
+mod agents;
+mod automount;
 mod calculator;
 mod capture;
 mod dates;
@@ -6,6 +8,8 @@ mod desktop;
 mod launcher;
 mod maintenance;
 mod portals;
+mod recording_audio;
+mod recording_compose;
 mod release;
 mod shell;
 mod sources;

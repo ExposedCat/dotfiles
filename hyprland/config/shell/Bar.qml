@@ -51,7 +51,7 @@ PanelWindow {
     property bool hoverExpanded: false
     property bool suppressHover: false
     property string shownPanel: ""
-    readonly property var paneNames: ["launcher", "portal", "notifications", "bluetooth", "ethernet", "power", "media", "mixer", "system"]
+    readonly property var paneNames: ["launcher", "portal", "credentials", "notifications", "bluetooth", "ethernet", "power", "media", "mixer", "system"]
     property var retained: ({})
     readonly property string feedbackKind: !shell.panel && !expanded && shell.osd.visible ? "osd" : ""
     readonly property bool feedbackVisible: feedbackKind.length > 0
@@ -63,7 +63,7 @@ PanelWindow {
         const next = Object.assign({}, retained); next[name] = true; retained = next;
     }
     function componentFor(name) {
-        return ({launcher: launcherComponent, portal: portalComponent, notifications: notificationsComponent, bluetooth: bluetoothComponent, ethernet: networkComponent, power: powerComponent, media: mediaComponent, mixer: mixerComponent, system: statsComponent})[name];
+        return ({launcher: launcherComponent, portal: portalComponent, credentials: credentialComponent, notifications: notificationsComponent, bluetooth: bluetoothComponent, ethernet: networkComponent, power: powerComponent, media: mediaComponent, mixer: mixerComponent, system: statsComponent})[name];
     }
     Timer { id: warm; interval: 100; onTriggered: { bar.retain("launcher"); bar.retain("media"); bar.retain("mixer"); } }
     Timer { id: unload; interval: 120000; onTriggered: { const keep = {}; for (const name of ["launcher", "media", "mixer"]) if (bar.retained[name]) keep[name] = true; bar.retained = keep; } }
@@ -164,7 +164,7 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "dotfiles-bar"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: hidden || shell.captureActive ? WlrKeyboardFocus.None : ["launcher", "portal", "media", "mixer", "system", "power", "ethernet", "bluetooth"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: hidden || shell.captureActive ? WlrKeyboardFocus.None : ["launcher", "portal", "credentials", "media", "mixer", "system", "power", "ethernet", "bluetooth"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
     Region { id: pillInput; item: pill }
     // A fast pointer can reach the controls before the painted pill does.
     // Keep that destination interactive throughout hover expansion.
@@ -189,18 +189,24 @@ PanelWindow {
     function dismiss() { endLauncherDrag(); shell.panel = ""; }
     function openPanel(name) { trayMenu.visible = false; shell.toggle(name); }
     property var portalPane: null
+    property var credentialPane: null
     function selectPanel(name) {
         // Retain this geometry until the closing fade has finished. The popup's
         // layout must not be resized to the compact pill while still visible.
         const portalWidth = portalPane?.desiredWidth || (shell.portal.data.kind === "share" ? 680 : shell.portal.data.kind === "access" ? 440 : 560);
-        paneWidth = Math.min(width - 24, name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "mixer" ? 520 : name === "notifications" ? 1080 : 620);
-        paneHeight = Math.min(height - 24, name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? 136 : name === "notifications" ? 680 : name === "bluetooth" ? 500 : name === "ethernet" ? 270 : name === "media" ? mediaHeight : name === "system" ? systemHeight : 220);
+        paneWidth = Math.min(width - 24, name === "credentials" ? (credentialPane?.desiredWidth || 460) : name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "mixer" ? 520 : name === "notifications" ? 1080 : 620);
+        paneHeight = Math.min(height - 24, name === "credentials" ? (credentialPane?.desiredHeight || 340) : name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? 136 : name === "notifications" ? 680 : name === "bluetooth" ? 500 : name === "ethernet" ? 270 : name === "media" ? mediaHeight : name === "system" ? systemHeight : 220);
         retain(name); shownPanel = name;
     }
     Connections {
         target: bar.portalPane
         function onDesiredWidthChanged() { if (bar.shell.panel === "portal") bar.selectPanel("portal"); }
         function onDesiredHeightChanged() { if (bar.shell.panel === "portal") bar.selectPanel("portal"); }
+    }
+    Connections {
+        target: bar.credentialPane
+        function onDesiredWidthChanged() { if (bar.shell.panel === "credentials") bar.selectPanel("credentials"); }
+        function onDesiredHeightChanged() { if (bar.shell.panel === "credentials") bar.selectPanel("credentials"); }
     }
     onWidthChanged: { if (shell.panel) selectPanel(shell.panel); }
     onHeightChanged: { if (shell.panel) selectPanel(shell.panel); }
@@ -211,7 +217,7 @@ PanelWindow {
             focusLoss.stop();
             if (!bar.shell.captureActive && bar.shell.panel && !bar.hidden) {
                 if (centerFocus.editing && centerFocus.grab) centerFocus.grab.active = true;
-                if (["launcher", "portal"].includes(bar.shell.panel) && panelLoader.item) panelLoader.item.focusSearch();
+                if (["launcher", "portal", "credentials"].includes(bar.shell.panel) && panelLoader.item) panelLoader.item.focusSearch();
             }
         }
         function onPanelChanged() {
@@ -222,7 +228,7 @@ PanelWindow {
                 unload.stop();
                 bar.selectPanel(bar.shell.panel);
                 trayMenu.visible = false;
-                if (["launcher", "portal"].includes(bar.shell.panel)) { if (panelLoader.item) panelLoader.item.activate(); focusDelay.restart(); }
+                if (["launcher", "portal", "credentials"].includes(bar.shell.panel)) { if (panelLoader.item) panelLoader.item.activate(); focusDelay.restart(); }
             } else {
                 unload.restart();
                 if (bar.launcherDragged) { bar.suppressHover = true; hoverRelease.restart(); }
@@ -237,10 +243,10 @@ PanelWindow {
     }
     onHiddenChanged: {
         if (hidden) { trayMenu.visible = false; collapse.stop(); focusLoss.stop(); }
-        else if (!shell.captureActive && ["launcher", "portal"].includes(shell.panel) && panelLoader.item) panelLoader.item.focusSearch();
+        else if (!shell.captureActive && ["launcher", "portal", "credentials"].includes(shell.panel) && panelLoader.item) panelLoader.item.focusSearch();
     }
     onFullscreenChanged: { if (fullscreen) hoverExpanded = false; }
-    Timer { id: focusDelay; interval: 230; onTriggered: { if (!bar.shell.captureActive && ["launcher", "portal"].includes(bar.shell.panel) && panelLoader.item) panelLoader.item.focusSearch(); } }
+    Timer { id: focusDelay; interval: 230; onTriggered: { if (!bar.shell.captureActive && ["launcher", "portal", "credentials"].includes(bar.shell.panel) && panelLoader.item) panelLoader.item.focusSearch(); } }
     Timer { id: collapse; interval: 240; onTriggered: { if (!bar.pillHovered && !bar.shell.panel && !trayMenu.visible && !bar.hidden) bar.hoverExpanded = false; } }
     TrayMenu { id: trayMenu; theme: colors; onVisibleChanged: { if (!visible && !bar.pillHovered) collapse.restart(); } }
     HoverHandler { id: hover; enabled: !bar.hidden }
@@ -415,9 +421,9 @@ PanelWindow {
             }
             Item {
                 id: panelLoader
-                readonly property int inset: ["launcher", "portal"].includes(bar.shownPanel) ? 12 : 24
+                readonly property int inset: ["launcher", "portal", "credentials"].includes(bar.shownPanel) ? 12 : 24
                 x: bar.launcherDragged ? inset : Math.round((bar.width - bar.paneWidth) / 2) - pill.x + inset
-                y: ["launcher", "portal"].includes(bar.shownPanel) ? 8 : 16
+                y: ["launcher", "portal", "credentials"].includes(bar.shownPanel) ? 8 : 16
                 width: bar.paneWidth - inset * 2; height: bar.paneHeight - y - inset
                 readonly property var item: bar.shownPanel ? paneSlots.itemAt(bar.paneNames.indexOf(bar.shownPanel))?.item || null : null
                 Repeater {
@@ -440,7 +446,7 @@ PanelWindow {
                             NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                         }
                         sourceComponent: bar.componentFor(modelData)
-                        onLoaded: { if (modelData === "portal") bar.portalPane = item; if (["launcher", "portal"].includes(modelData) && bar.shell.panel === modelData) { item.activate(); if (modelData === "portal") Qt.callLater(() => bar.selectPanel("portal")); } }
+                        onLoaded: { if (modelData === "portal") bar.portalPane = item; if (modelData === "credentials") bar.credentialPane = item; if (["launcher", "portal", "credentials"].includes(modelData) && bar.shell.panel === modelData) { item.activate(); if (["portal", "credentials"].includes(modelData)) Qt.callLater(() => bar.selectPanel(modelData)); } }
                     }
                 }
             }
@@ -471,6 +477,7 @@ PanelWindow {
             onDragFinished: bar.endLauncherDrag()
         }
     }
+    Component { id: credentialComponent; CredentialPane { shell: bar.shell; theme: colors } }
     Component { id: portalComponent; PortalPane { shell: bar.shell; theme: colors } }
     Component { id: notificationsComponent; NotificationCenter { shell: bar.shell; theme: colors } }
     Component { id: bluetoothComponent; BluetoothMenu { shell: bar.shell; theme: colors } }

@@ -26,7 +26,7 @@ The same executable supports these command groups:
 
 | Command | Responsibilities |
 |---|---|
-| `desktop` | Session services, shortcuts, application catalog/launching, clipboard, media and brightness keys |
+| `desktop` | Session services, removable-media automount, Bluetooth/network credential agents, shortcuts, application catalog/launching, clipboard, media and brightness keys |
 | `shell` | System statistics, appearance, Ethernet status, speed measurements, brightness controls, power actions |
 | `launcher` | Persistent search/action worker, two bounded queues for local and file results |
 | `agenda` | Existing EDS calendars and GWeather world clocks |
@@ -58,6 +58,11 @@ appropriate command. They do not start a shell or interpreter.
 - External command arguments remain data. Normal requests have deadlines;
   recording lifetime is controlled by the user. Image writes and state/receipt
   updates use atomic replacement with private permissions.
+- `recording_compose.rs` plans display joins once, then tries VA-API decoding,
+  crop metadata, GPU scaling/overlay, and hardware encoding. Wide outputs prefer
+  HEVC; unsupported render nodes/codecs recover through bounded libx264 encoding.
+  Audio and start offsets share the same timeline. Every attempt uses a private
+  staged MP4, published only after successful encoding and synchronization.
 - Calendar and character bindings are contained in `agenda.rs` and `sources.rs`.
   They use public desktop-library C APIs. EDS library ABIs 27 and 28 are supported;
   `dotfiles-desktop agenda --check-libraries` checks host bindings without opening calendars. Libraries are pinned because GObject

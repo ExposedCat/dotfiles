@@ -57,7 +57,7 @@ Scope {
             const directory = message.directory;
             if (message.action !== "open" || typeof directory !== "string" || !directory.startsWith(runtime)
                     || !/^dotfiles-portal-[a-zA-Z0-9_-]+$/.test(directory.slice(runtime.length))
-                    || root.active || writer.running || root.shell.captureActive) {
+                    || root.active || writer.running || root.shell.captureActive || root.shell.credentials.active) {
                 reply(sender, {accepted: false}); return;
             }
             root.client = sender;

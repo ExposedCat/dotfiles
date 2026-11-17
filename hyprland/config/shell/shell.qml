@@ -34,6 +34,7 @@ ShellRoot {
     property alias stats: systemStats
     property alias appearance: systemAppearance
     property alias portal: portalController
+    property alias credentials: credentialController
     property bool emberEnabled: true
     readonly property var emberTarget: bar.emberTarget
     // HP OMEN is the main display. Fall back gracefully if it is disconnected.
@@ -106,6 +107,7 @@ ShellRoot {
     SystemStats { id: systemStats; shell: root }
     Appearance { id: systemAppearance; shell: root }
     PortalController { id: portalController; shell: root }
+    CredentialController { id: credentialController; shell: root }
     Notifications { id: notifications; singlePopup: false; presentationPaused: root.panel === "notifications"; centerOpen: root.panel === "notifications"; statePath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/dotfiles/hyprland/notifications.json" }
     BluetoothController { id: bluetoothController; shell: root }
     Agenda { id: agenda; shell: root }

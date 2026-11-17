@@ -8,6 +8,7 @@ import selectors
 import shutil
 import signal
 import socket
+import stat
 import struct
 import subprocess
 import time
@@ -51,14 +52,28 @@ def namespace():
     return {name: os.readlink(f"/proc/self/ns/{name}") for name in ["pid", "mnt"]}
 
 
+def owned_directory(path, mode=None, create=False):
+    """Reject aliases before chmod or use as a private mount source."""
+    if create:
+        path.mkdir(parents=True, exist_ok=True, mode=mode or 0o700)
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
+        raise RuntimeError(f"Private directory must be owned by this user and cannot be a symlink: {path}")
+    for shared in [Path("/tmp"), Path("/tmp/.X11-unix")]:
+        if shared.exists() and path.samefile(shared):
+            raise RuntimeError(f"Private directory aliases the shared desktop filesystem: {path}")
+    if mode is not None:
+        path.chmod(mode)
+    return path
+
+
 class Session:
     def __init__(self, name):
         if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", name):
             raise RuntimeError("Use a short session name containing lowercase letters, numbers, hyphens or underscores")
         self.name = name
         self.path = Path.home() / ".cache" / "agent-desktops" / name
-        self.path.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self.path.chmod(0o700)
+        owned_directory(self.path, mode=0o700, create=True)
         self.state_path = self.path / "state.json"
         self.state = None
 
@@ -116,10 +131,37 @@ class Session:
     def command(self, command, pass_fds=()):
         if not self.state or self.state.get("isolation_version") != 2:
             raise RuntimeError("Private mount isolation is missing; restart this named session")
-        args = [binary("bwrap"), "--unshare-user", "--bind", "/", "/", "--dev-bind", "/dev", "/dev", "--bind", str(self.path / "tmp"), "/tmp"]
+        private_tmp = self.private_tmp()
+        args = [binary("bwrap"), "--unshare-user", "--bind", "/", "/", "--dev-bind", "/dev", "/dev", "--bind", str(private_tmp), "/tmp"]
         if pass_fds:
             raise RuntimeError("Passing extra descriptors through the private mount wrapper is unsupported")
         return [*args, "--", *command]
+
+    def private_tmp(self, create=False):
+        owned_directory(self.path)
+        private_tmp = owned_directory(self.path / "tmp", mode=0o1777 if create else None, create=create)
+        owned_directory(private_tmp / ".X11-unix", mode=0o1777 if create else None, create=create)
+        return private_tmp
+
+    def verify_mount_isolation(self):
+        private_tmp = self.private_tmp()
+        expected = [[p.stat().st_dev, p.stat().st_ino] for p in [private_tmp, private_tmp / ".X11-unix"]]
+        shared = [[p.stat().st_dev, p.stat().st_ino] if p.exists() else None
+                  for p in [Path("/tmp"), Path("/tmp/.X11-unix")]]
+        probe = '''import json, os, sys
+expected, shared, outer_namespace = json.loads(sys.argv[1])
+actual = [[os.stat(p).st_dev, os.stat(p).st_ino] for p in ["/tmp", "/tmp/.X11-unix"]]
+if actual != expected or any(a == s for a, s in zip(actual, shared)):
+    raise SystemExit("Private /tmp or X11 socket directory is not mounted")
+if os.readlink("/proc/self/ns/mnt") == outer_namespace:
+    raise SystemExit("Mount namespace is shared with the caller")
+'''
+        try:
+            subprocess.run(self.command([binary("python3"), "-c", probe,
+                                          json.dumps([expected, shared, namespace()["mnt"]])]),
+                           check=True, capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError) as error:
+            raise RuntimeError("Private filesystem isolation could not be verified; refusing to start Xvfb") from error
 
     def check_host_sockets(self):
         current = x11_snapshot()
@@ -180,14 +222,9 @@ class Session:
             return
         if self.state:
             self.stop()
-        runtime = self.path / "runtime"
-        runtime.mkdir(mode=0o700, exist_ok=True)
-        runtime.chmod(0o700)
+        runtime = owned_directory(self.path / "runtime", mode=0o700, create=True)
         (runtime / "bus").unlink(missing_ok=True)
-        private_tmp = self.path / "tmp"
-        private_tmp.mkdir(mode=0o1777, exist_ok=True)
-        private_tmp.chmod(0o1777)
-        (private_tmp / ".X11-unix").mkdir(mode=0o1777, exist_ok=True)
+        private_tmp = self.private_tmp(create=True)
         self.state = {"name": self.name, "isolation_version": 2, "host_x11": x11_snapshot(), "namespace": namespace(), "boot": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
                       "display": "", "bus": "", "authority": str(self.path / "Xauthority"), "render": render,
                       "size": size, "token": secrets.token_hex(16), "services": {}, "apps": []}
@@ -195,9 +232,10 @@ class Session:
         cookie = secrets.token_bytes(16)
         self.authority("0", cookie)
         try:
-            # /tmp and the network namespace are shared with the host, while
-            # PIDs are not. Xvfb -displayfd can mistake the host's PID lock for
-            # a stale lock and unlink the real Xwayland socket. Never use it.
+            self.verify_mount_isolation()
+            # Toolbx can share the host's /tmp and network namespace. Xvfb
+            # -displayfd disables locking and probes from display 0; the Unix
+            # listener code can unlink an existing socket. Never use it here.
             with (self.path.parent / "display-allocation.lock").open("a") as allocation:
                 fcntl.flock(allocation, fcntl.LOCK_EX)
                 reserved = set()
