@@ -238,7 +238,7 @@ fn bt_call(
         .and_then(|v| v.get::<String>())
         .unwrap_or_else(|| "Bluetooth device".into());
     let display = method.starts_with("Display");
-    let mut data = json!({"kind":"bluetooth","title":"Pair Bluetooth device","subtitle":label,"body":"Confirm this pairing request.","confirmLabel":"Pair","fields":[]});
+    let mut data = json!({"kind":"bluetooth","devicePath":device,"title":"Pair Bluetooth device","subtitle":label,"body":"Confirm this pairing request.","confirmLabel":"Pair","fields":[]});
     match method {
         "RequestConfirmation" | "DisplayPasskey" => {
             data["code"] = json!(format!(

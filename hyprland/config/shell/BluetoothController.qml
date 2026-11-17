@@ -38,17 +38,23 @@ Scope {
         else if (!device.paired) device.pair();
         else device.connect();
     }
+    function cancelPairing(path) {
+        const device = devices.find(d => d.dbusPath === path);
+        if (!device || !pending[device.address]?.pairing) return;
+        const next = Object.assign({}, pending); delete next[device.address]; pending = next;
+        if (!shell.fixture && device.pairing) device.cancelPair();
+    }
     function loadFixture() {
         fixtureEnabled = shell.fixtureData.bluetoothEnabled !== false;
         fixtureDevices = shell.fixtureData.bluetoothDevices || [
-            {address: "fixture-headphones", name: "Headphones", connected: true, paired: true},
-            {address: "fixture-keyboard", name: "Keyboard", connected: false, paired: true},
-            {address: "fixture-speaker", name: "Living room speaker", connected: false, paired: false}
+            {address: "fixture-headphones", name: "Headphones", icon: "audio-headphones", connected: true, paired: true},
+            {address: "fixture-keyboard", name: "Keyboard", icon: "input-keyboard", connected: false, paired: true},
+            {address: "fixture-speaker", name: "Living room speaker", icon: "audio-card", connected: false, paired: false}
         ];
     }
     Connections { target: root.shell; function onPanelChanged() { root.discover(); } function onFixtureDataChanged() { root.loadFixture(); } }
     onAdapterChanged: discover()
-    onEnabledChanged: discover()
+    onEnabledChanged: { discover(); if (!enabled) { pending = ({}); errors = ({}); } }
     Component.onDestruction: { if (scanAdapter) scanAdapter.discovering = false; }
     Timer {
         interval: 250; repeat: true; running: Object.keys(root.pending).length > 0
@@ -59,7 +65,7 @@ Scope {
                 const job = next[address];
                 const device = root.devices.find(d => d.address === address);
                 if (!device) { delete next[address]; continue; }
-                if (root.shell.fixture && Date.now() - job.started > 1200) {
+                if (root.shell.fixture && Date.now() - job.started > 1200 && !(job.pairing && root.shell.fixtureData.bluetoothManualPairing)) {
                     root.fixtureDevices = root.fixtureDevices.map(d => d.address === address ? Object.assign({}, d, {connected: job.connect, paired: true}) : d);
                     delete next[address];
                 } else if (device.connected === job.connect) delete next[address];

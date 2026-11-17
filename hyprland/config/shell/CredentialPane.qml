@@ -76,6 +76,7 @@ Item {
     }
     Connections { target: root.shell.credentials; function onCleared() { root.clear() } function onDataChanged() { if (root.shell.credentials.active && !root.shell.credentials.submitting) Qt.callLater(root.activate) } }
     enabled: !shell.credentials.submitting
+    Keys.onEscapePressed: event => { root.shell.credentials.finish({response: 1}); event.accepted = true; }
     ColumnLayout {
         id: content
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }

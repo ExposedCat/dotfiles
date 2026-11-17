@@ -35,6 +35,7 @@ ShellRoot {
     property alias stats: systemStats
     property alias appearance: systemAppearance
     property alias portal: portalController
+    property alias authentication: authenticationController
     property alias credentials: credentialController
     property bool emberEnabled: true
     readonly property var emberTarget: bar.emberTarget
@@ -125,7 +126,7 @@ ShellRoot {
     Bar { id: bar; screen: root.mainScreen; shell: root; theme: palette }
     PillTheme { id: overlayColors }
     Overlays { id: overlays; shell: root; theme: overlayColors; showOsd: false }
-    Authentication { id: authentication; shell: root; theme: overlayColors }
+    Authentication { id: authenticationController; shell: root }
     CaptureEndpoint {
         endpoint: "dotfiles-capture-shell.sock"
         onRequest: (message, client) => {
@@ -147,7 +148,7 @@ ShellRoot {
             return JSON.stringify({applications: appIndex.apps.length, players: players.players.length, outputs: sound.outputs.length, inputs: sound.inputs.length, retained: Object.keys(bar.retained), statistics: systemStats.sample, brightness: monitorBrightness.devices});
         }
         function brightness(output: string, current: int, maximum: int): void { osd.showBrightness(output, current, maximum); }
-        function status(): string { return JSON.stringify({pill: bar.pillState, lastGesture: root.lastGesture, pillHidden: root.pillHidden, panel: root.panel, unread: notifications.unread, dnd: notifications.dnd, popups: notifications.popups.length, notifications: notifications.entries.length, volume: sound.volume, muted: sound.muted, osd: osd.visible, osdKind: osd.kind, osdLevel: osd.level, osdOutput: osd.output, layout: root.layout, screenSharing: root.screenSharing, fixture: root.fixture, polkit: !!(authentication.agent && authentication.agent.isRegistered)}); }
+        function status(): string { return JSON.stringify({pill: bar.pillState, lastGesture: root.lastGesture, pillHidden: root.pillHidden, panel: root.panel, unread: notifications.unread, dnd: notifications.dnd, popups: notifications.popups.length, notifications: notifications.entries.length, volume: sound.volume, muted: sound.muted, osd: osd.visible, osdKind: osd.kind, osdLevel: osd.level, osdOutput: osd.output, layout: root.layout, screenSharing: root.screenSharing, fixture: root.fixture, polkit: !!(authenticationController.agent && authenticationController.agent.isRegistered)}); }
     }
     FileView { id: fixtureFile; path: Quickshell.env("DOTFILES_SHELL_FIXTURE") || ""; blockLoading: true; watchChanges: root.fixture; printErrors: false; onFileChanged: reload(); onLoaded: root.loadFixture() }
     Component.onCompleted: { loadFixture(); if (!fixture) appIndex.refresh(); }

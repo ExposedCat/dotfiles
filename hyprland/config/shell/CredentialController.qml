@@ -7,18 +7,21 @@ Scope {
     property var data: ({fields: []})
     property var client: null
     property bool submitting: false
+    property string returnPanel: ""
     readonly property bool active: !!client
     signal cleared()
     function reset() {
         collapse.stop();
-        client = null; submitting = false; data = {fields: []}; cleared();
+        client = null; submitting = false; returnPanel = ""; data = {fields: []}; cleared();
     }
+    function restorePanel() { if (shell.panel === "credentials") shell.panel = returnPanel; }
     function finish(response) {
         if (!active || submitting) return;
         submitting = true;
+        if (data.kind === "bluetooth" && response.response !== 0 && data.devicePath) shell.bluetooth.cancelPairing(data.devicePath);
         endpoint.reply(client, {id: data.id, response: response.response, values: response.values || {}, remember: !!response.remember});
         cleared();
-        if (shell.panel === "credentials") shell.panel = "";
+        restorePanel();
         collapse.restart();
     }
     CaptureEndpoint {
@@ -31,8 +34,13 @@ Scope {
             }
             if (message.action !== "open" || !request || !["bluetooth", "network"].includes(request.kind)
                     || typeof request.id !== "string" || !Array.isArray(request.fields) || request.fields.length > 8
-                    || root.active || collapse.running || root.shell.captureActive || root.shell.portal.active) {
+                    || root.active || collapse.running || root.shell.captureActive || root.shell.authentication.active || root.shell.portal.active) {
                 reply(sender, {accepted: false}); return;
+            }
+            root.returnPanel = request.kind === "bluetooth" && root.shell.panel === "bluetooth" ? "bluetooth" : "";
+            if (root.returnPanel) {
+                const device = root.shell.bluetooth.devices.find(d => d.dbusPath === request.devicePath);
+                if (device) root.shell.pill.activePane?.selectDevice(device.address);
             }
             root.client = sender; root.data = request; root.submitting = false;
             root.shell.pillHidden = false; root.shell.panel = "credentials";
@@ -49,7 +57,7 @@ Scope {
             if (root.client && !root.client.connected) {
                 if (root.submitting) { root.client = null; return; }
                 root.submitting = true;
-                if (root.shell.panel === "credentials") root.shell.panel = "";
+                root.restorePanel();
                 root.reset();
             }
         }
