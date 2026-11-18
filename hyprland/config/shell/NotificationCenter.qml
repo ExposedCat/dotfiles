@@ -82,7 +82,13 @@ RowLayout {
     spacing: 24
     ColumnLayout {
         Layout.fillWidth: true; Layout.fillHeight: true
-        spacing: 14
+        spacing: 6
+        RowLayout {
+            Layout.fillWidth: true
+            ShellButton { theme: root.theme; icon: root.shell.notifications.dnd ? "bell-off" : "bell"; text: "Do not disturb"; selected: root.shell.notifications.dnd; onClicked: root.shell.notifications.dnd = !root.shell.notifications.dnd }
+            Item { Layout.fillWidth: true }
+            ShellButton { theme: root.theme; icon: "list-x"; hint: "Clear notifications"; enabled: root.shell.notifications.entries.length > 0; onClicked: root.shell.notifications.clear() }
+        }
         ListView {
             id: notificationList
             objectName: "notificationList"
@@ -111,12 +117,6 @@ RowLayout {
                 ShellIcon { anchors.horizontalCenter: parent.horizontalCenter; name: "bell-off"; width: 21; height: 21; opacity: 0.6 }
                 Text { font: root.theme.textFont; text: "No notifications"; color: root.theme.secondary }
             }
-        }
-        RowLayout {
-            Layout.fillWidth: true
-            ShellButton { theme: root.theme; icon: root.shell.notifications.dnd ? "bell-off" : "bell"; text: "Do not disturb"; selected: root.shell.notifications.dnd; onClicked: root.shell.notifications.dnd = !root.shell.notifications.dnd }
-            Item { Layout.fillWidth: true }
-            ShellButton { theme: root.theme; icon: "list-x"; hint: "Clear notifications"; enabled: root.shell.notifications.entries.length > 0; onClicked: root.shell.notifications.clear() }
         }
     }
     ScrollView {

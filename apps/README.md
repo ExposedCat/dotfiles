@@ -8,7 +8,7 @@ working clones under `~/Projects`.
 | App | Source and installation |
 | --- | --- |
 | Papers | `Chipi-Chapa-Corp/papers`, document-tabs branch. Build a user Flatpak with the pinned dependency manifest. Install it from `papers-local`, then remove the system Flathub copy without deleting application data. |
-| Bazecor | `Chipi-Chapa-Corp/Bazecor`, keys-configuration-qol branch. Build a user Flatpak bundle with Electron Forge and the native Wayland startup fix. Import the existing profile on first install and archive the old AppImage setup. |
+| Bazecor | `Chipi-Chapa-Corp/Bazecor`, keys-configuration-qol branch. Build a user Flatpak bundle with the fork's Electron Forge recipe. Import the existing profile on first install and archive the old AppImage setup. |
 | OpenLogi | `Chipi-Chapa-Corp/OpenLogi`, branch `feat/gesture-repeat-with-sensitivity`: upstream PRs #2022 and #1245 adopted, plus configurable repeat distance submitted upstream as [#2551](https://github.com/AprilNEA/OpenLogi/pull/2551). Build CLI, desktop and agent together with Rust 1.99.0. Install a versioned directory and enable the agent for graphical sessions. Preserve and back up the existing configuration and mappings. |
 | wl-screenrec | Upstream v0.3.1. Build an RPM in the pinned Fedora 45 container against FFmpeg 9. Install through rpm-ostree if that package version is not already installed; a staged RPM takes effect at the next normal reboot. |
 

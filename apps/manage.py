@@ -20,7 +20,7 @@ STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "
 OPENLOGI_TARGET = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "dotfiles-build/openlogi/target"
 BAZECOR_ID = "com.dygma.bazecor"
 BAZECOR_REF = BAZECOR_ID + "//stable"
-BAZECOR_PATCH = RECIPE.parent / "bazecor/flatpak.patch"
+FLATPAK_BUILD = "/usr/local/libexec/dev-container/flatpak-build"
 FLATHUB_REPO = "https://dl.flathub.org/repo/flathub.flatpakrepo"
 IN_CONTAINER = Path("/run/.containerenv").exists() or Path("/.dockerenv").exists()
 HOST = ["distrobox-host-exec"] if IN_CONTAINER else []
@@ -66,10 +66,10 @@ def build_key(name):
     paths = [RECIPE / "manage.py"]
     if name == "papers":
         paths.append(RECIPE / "papers.json")
-    elif name == "bazecor":
-        paths.append(BAZECOR_PATCH)
     elif name == "wl-screenrec":
         paths.extend(sorted((RECIPE / "wl-screenrec").iterdir()))
+    if name in ("papers", "bazecor"):
+        paths.append(RECIPE.parent / "containers/dev/flatpak-build")
     for path in paths:
         digest.update(path.read_bytes())
     return digest.hexdigest()
@@ -95,8 +95,8 @@ def build(name):
         manifest["modules"][-1]["sources"][0]["commit"] = SOURCES[name]["revision"]
         manifest_path = state / "papers.json"
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-        dev("flatpak-builder", "--user", "--install-deps-from=flathub",
-            "--disable-rofiles-fuse", "--force-clean", "--default-branch=stable",
+        dev(FLATPAK_BUILD, "flatpak-builder", "--user", "--install-deps-from=flathub",
+            "--force-clean", "--default-branch=stable",
             f"--repo={state / 'repo'}", state / "build", manifest_path, cwd=state)
         artifact = state / "repo"
     elif name == "bazecor":
@@ -107,24 +107,15 @@ def build(name):
             temporary = staging / "tmp"
             temporary.mkdir()
             run("git", "clone", "--quiet", "--shared", source, build_source)
-            run("git", "apply", BAZECOR_PATCH, cwd=build_source)
             dev("corepack", "yarn", "install", "--frozen-lockfile", cwd=build_source)
-            # The packager calls the host Flatpak CLI. Its build directory
-            # must be visible from both the host and the build container.
-            dev("env", f"TMPDIR={temporary}", "DEBUG=@malept/flatpak-bundler",
+            dev(FLATPAK_BUILD, "env", f"TMPDIR={temporary}",
+                f"DOTFILES_FLATPAK_RUNTIME_REPO={FLATHUB_REPO}", "DEBUG=@malept/flatpak-bundler",
                 "corepack", "yarn", "make-flatpak", cwd=build_source)
             bundles = list((build_source / "out/make").rglob("*.flatpak"))
             if len(bundles) != 1:
                 raise RuntimeError(f"Expected one Bazecor Flatpak bundle, found {bundles}")
-            # Forge's maker does not forward the runtime repository to build-bundle.
-            bundle_repo = staging / "repo"
-            host("ostree", f"--repo={bundle_repo}", "init", "--mode=archive")
-            host("flatpak", "build-import-bundle", bundle_repo, bundles[0])
-            bundle = staging / "bazecor.flatpak"
-            host("flatpak", "build-bundle", f"--runtime-repo={FLATHUB_REPO}",
-                 bundle_repo, bundle, BAZECOR_ID, "stable")
             artifact = state / f"bazecor-{key[:12]}.flatpak"
-            bundle.replace(artifact)
+            bundles[0].replace(artifact)
     elif name == "openlogi":
         toolchain = SOURCES[name]["toolchain"]
         dev("rustup", "toolchain", "install", toolchain, "--profile", "minimal", cwd=source)

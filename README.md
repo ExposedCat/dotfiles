@@ -570,7 +570,7 @@ card's chevron expands the group; a separate bottom row collapses it. Clicking a
 card's cross dismisses that message. Holding the cross for half a second fills a
 circle and dismisses its group; leaving the control cancels the hold. Visible
 messages show their expanded bodies, available actions, and reply button.
-The clear-all icon sits at the bottom right beside Do not disturb.
+Do not disturb and the clear-all icon sit above the notification list.
 The calendar uses evenly sized rows and larger navigation arrows, with no Today button
 or day-of-week heading. Day highlights are circles inside equally spaced square cells.
 Events are cached by date in `$XDG_CACHE_HOME/dotfiles/hyprland/agenda.json`
@@ -1169,12 +1169,11 @@ To apply host command forwarding to an existing `dev` container, run inside it:
 ./containers/dev/setup-host-commands
 ```
 
-`flatpak` in both `/usr/bin` and `/usr/local/bin` links to
-`distrobox-host-exec`, so shells, scripts and `flatpak-builder` all use the host's
-Flatpak installations. The Containerfile creates these links after installing
-the build dependencies; the setup script reapplies them to existing containers.
-Build directories must be under the shared home directory so the host can read
-them. No container-native Flatpak CLI is preserved.
+`flatpak` in both `/usr/bin` and `/usr/local/bin` forwards to the desktop host.
+`flatpak-builder` and `/usr/local/libexec/dev-container/flatpak-build` use the
+container's private Flatpak binary for build and export commands. App and SDK
+installs, updates, and other Flatpak commands use the desktop host. Keep build
+output under the shared home directory so the host installer can read it.
 
 This forwards `xdg-open` from both `/usr/local/bin` and `/usr/bin`, so Electron
 apps still use the host browser when Vite+ puts `/usr/bin` first in PATH. The

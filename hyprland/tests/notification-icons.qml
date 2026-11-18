@@ -44,7 +44,7 @@ Scope {
         const card = component("NotificationCard");
         const entries = [
             {id: "usb", summary: "Kingston DataTraveler 2.0 can be safely unplugged", body: "Device can be removed.", image: "image://icon/drive-harddisk-usb-symbolic", icon: "org.gnome.Nautilus"},
-            {id: "missing", summary: "Unavailable icon", body: "Use the application fallback without a checkerboard.", image: "image://icon/dotfiles-nonexistent-icon", icon: "dotfiles-nonexistent-icon"},
+            {id: "missing", summary: "Unavailable icon", body: "Hide unavailable notification images.", image: "image://icon/dotfiles-nonexistent-icon", icon: "dotfiles-nonexistent-icon"},
             {id: "file", summary: "File image", body: "Keep file images and their original crop behavior.", image: Quickshell.env("DOTFILES_SHELL_SOURCE") + "/icons/bell.svg", icon: "/dotfiles-nonexistent-icon.png"}
         ];
         cards = entries.map(entry => card.createObject(content, {theme: theme, store: test.store, entry: entry, inCenter: true, width: 560, height: Qt.binding(function() { return this.implicitHeight; })}));
@@ -66,7 +66,7 @@ Scope {
                 check(usb.layer.enabled && usb.symbolicColor.toString() === "#ffffff", "Symbolic icon did not receive the card foreground color");
                 check(missing.source.toString() === "" && !missing.visible, "Missing image provider icon reached the renderer");
                 check(file.status === Image.Ready && file.fillMode === Image.PreserveAspectCrop, "File image was lost or its crop mode changed");
-                for (const card of cards) check(test.named(card, "notificationAppIcon").status === Image.Ready, "Application fallback failed");
+                for (const card of cards) check(!test.named(card, "notificationAppIcon"), "Center card still creates an application icon");
                 const bannerImage = test.named(test.banner, "notificationImage");
                 check(bannerImage.status === Image.Ready, "Banner lost its notification image");
                 check(bannerImage.width === 56 && bannerImage.height === 56, "Banner image did not render at 56 pixels");

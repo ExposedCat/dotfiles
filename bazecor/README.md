@@ -1,11 +1,11 @@
 # Bazecor Flatpak
 
-`./apps/manage install bazecor` builds the pinned fork as a user Flatpak
-and installs its application-menu entry. The bundle stays under
-`~/.local/state/dotfiles/apps/bazecor/` and points to Flathub for its runtime.
-The build applies [the Flatpak patch](flatpak.patch) to a temporary checkout.
-The Flatpak uses software rendering and shows the main window after the
-renderer mounts the UI. It then requests a repaint for Wayland startup.
+`./apps/manage build bazecor` uses the pinned fork's unmodified Electron Forge
+recipe. The bundle stays under `~/.local/state/dotfiles/apps/bazecor/` and points
+to Flathub for its runtime. The recipe exports a menu entry. Its logo stays
+inside the bundle, so desktop launchers may display their default icon.
+
+`./apps/manage install bazecor` installs the bundle as a user Flatpak.
 
 The installer checks `/etc/udev/rules.d/60-dygma.rules` and requests
 administrator authentication if the rule needs to be installed or updated.

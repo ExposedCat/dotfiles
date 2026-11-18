@@ -145,20 +145,6 @@ Item {
                 Layout.fillWidth: true; spacing: 2
                 RowLayout {
                     Layout.fillWidth: true; spacing: 7
-                    Loader {
-                        active: root.inCenter
-                        visible: item?.status === Image.Ready
-                        Layout.preferredWidth: 21; Layout.preferredHeight: 21
-                        Layout.alignment: Qt.AlignVCenter
-                        sourceComponent: SystemImage {
-                            objectName: "notificationAppIcon"
-                            iconSource: root.entry.icon || ""
-                            fallbackIcon: "application-x-executable"
-                            fallbackSource: Qt.resolvedUrl("icons/bell.svg")
-                            symbolicColor: root.theme.text
-                            sourceSize.width: 42; sourceSize.height: 42
-                        }
-                    }
                     Text { font: root.theme.textFont; Layout.fillWidth: true; text: root.entry.summary; textFormat: Text.PlainText; color: root.theme.text; wrapMode: Text.NoWrap; maximumLineCount: 1; elide: Text.ElideRight }
                     ShellButton { objectName: "notificationGroupToggle"; visible: root.groupControls; theme: root.theme; icon: root.groupExpanded ? "chevron-up" : "chevron-down"; hint: root.groupExpanded ? "Collapse notifications" : "Expand notifications"; implicitWidth: 30; implicitHeight: 30; Layout.alignment: Qt.AlignTop; onClicked: root.toggleGroup() }
                     NotificationDismiss {

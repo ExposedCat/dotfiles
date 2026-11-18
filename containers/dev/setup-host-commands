@@ -7,13 +7,26 @@ if [[ ! -f /run/.containerenv ]]; then
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-HOST_EXEC=/usr/local/libexec/dev-container/distrobox-host-exec
+LIBEXEC=/usr/local/libexec/dev-container
+HOST_EXEC="$LIBEXEC/distrobox-host-exec"
+
+if [[ /usr/bin/flatpak -ef /usr/bin/distrobox-host-exec && ! -x "$LIBEXEC/flatpak-native" ]]; then
+    sudo dnf reinstall -y flatpak
+fi
+if [[ ! /usr/bin/flatpak -ef /usr/bin/distrobox-host-exec ]]; then
+    sudo install -D -m 0755 /usr/bin/flatpak "$LIBEXEC/flatpak-native"
+fi
+sudo install -D -m 0755 "$SCRIPT_DIR/flatpak-build" "$LIBEXEC/flatpak-build"
+sudo install -d "$LIBEXEC/flatpak-build-bin"
+sudo ln -sf "$LIBEXEC/flatpak-build" "$LIBEXEC/flatpak-build-bin/flatpak"
+sudo ln -sf "$LIBEXEC/flatpak-build" "$LIBEXEC/flatpak-build-bin/flatpak-builder"
+sudo ln -sf "$LIBEXEC/flatpak-build" /usr/local/bin/flatpak-builder
 
 for command in dbus-run-session gio podman distrobox systemctl flatpak; do
     sudo ln -sf /usr/bin/distrobox-host-exec "/usr/local/bin/$command"
 done
 
-# Vite+ can put /usr/bin before /usr/local/bin. Builds also use host Flatpak.
+# Vite+ can put /usr/bin before /usr/local/bin.
 sudo ln -sf /usr/bin/distrobox-host-exec /usr/bin/flatpak
 
 sudo install -D -m 0755 "$SCRIPT_DIR/host-desktop-exec" "$HOST_EXEC"

@@ -1,0 +1,39 @@
+#!/bin/sh
+set -eu
+
+tools=/usr/local/libexec/dev-container
+case "${0##*/}" in
+    flatpak-build)
+        export PATH="$tools/flatpak-build-bin:$PATH"
+        exec "$@"
+        ;;
+    flatpak-builder)
+        export PATH="$tools/flatpak-build-bin:$PATH"
+        for arg do
+            case "$arg" in
+                --run|--show-deps|--show-manifest) exec /usr/bin/flatpak-builder "$@" ;;
+                --) break ;;
+            esac
+        done
+        exec /usr/bin/flatpak-builder --disable-rofiles-fuse "$@"
+        ;;
+    flatpak)
+        export FLATPAK_SYSTEM_DIR=/run/host/var/lib/flatpak
+        case "${1:-}" in
+            build)
+                # A Toolbox resolver bind can outlive the host file it mounted.
+                exec bwrap --bind / / --dev-bind /dev /dev --ro-bind /run/host/etc /etc \
+                    -- "$tools/flatpak-native" "$@"
+                ;;
+            build-bundle)
+                shift
+                if [ -n "${DOTFILES_FLATPAK_RUNTIME_REPO:-}" ]; then
+                    set -- "--runtime-repo=$DOTFILES_FLATPAK_RUNTIME_REPO" "$@"
+                fi
+                exec "$tools/flatpak-native" build-bundle "$@"
+                ;;
+            build-*) exec "$tools/flatpak-native" "$@" ;;
+            *) exec /usr/bin/distrobox-host-exec flatpak "$@" ;;
+        esac
+        ;;
+esac

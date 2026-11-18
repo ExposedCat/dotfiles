@@ -41,13 +41,13 @@ RUN dnf install -y \
     git gcc gcc-c++ clang make pkgconf-pkg-config rustup \
     systemd-devel fontconfig-devel wayland-devel libxkbcommon-x11-devel \
     libX11-devel libxcb-devel openssl-devel libzstd-devel alsa-lib-devel \
-    libusb1-devel squashfs-tools flatpak-builder \
+    libusb1-devel squashfs-tools flatpak flatpak-builder \
     meson ninja-build glib2-devel json-glib-devel fuse3-devel gdk-pixbuf2-devel \
     gstreamer1-plugins-base-devel geoclue2-devel pipewire-devel libgudev-devel flatpak-devel
 
-# The build dependencies pull in Flatpak; use the desktop host's CLI and
-# installations instead. Distrobox supplies the link target on container setup.
-RUN ln -sf /usr/bin/distrobox-host-exec /usr/bin/flatpak \
+# Preserve the native CLI for builds before setting up host forwarding.
+RUN install -D -m 0755 /usr/bin/flatpak /usr/local/libexec/dev-container/flatpak-native \
+    && ln -sf /usr/bin/distrobox-host-exec /usr/bin/flatpak \
     && ln -sf /usr/bin/distrobox-host-exec /usr/local/bin/flatpak
 
 RUN npm install -g corepack@0.34.5
