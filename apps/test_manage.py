@@ -1,4 +1,4 @@
-"""Check source preservation and the order of replacing the system PDF viewer."""
+"""Check source preservation and migration of installed applications."""
 
 import copy
 import importlib.util
@@ -62,6 +62,64 @@ class SetupTests(unittest.TestCase):
         with patch.object(apps.subprocess, "run", return_value=installed), patch.object(apps, "host") as host:
             apps.install_device_rules("bazecor")
             host.assert_not_called()
+
+    def test_bazecor_archives_appimage_only_after_the_flatpak_is_verified(self):
+        state = self.state / "bazecor"
+        state.mkdir()
+        artifact = state / "bazecor.flatpak"
+        artifact.touch()
+        menu = self.root / ".local/share/applications/bazecor.desktop"
+        menu.parent.mkdir(parents=True)
+        menu.write_text("previous menu entry")
+        image = self.root / "AppImages/bazecor.appimage"
+        image.parent.mkdir()
+        image.write_bytes(b"previous image")
+        config = self.root / ".config/Bazecor"
+        config.mkdir(parents=True)
+        (config / "config.json").write_text('{"settings": {}}')
+        (config / "SingletonLock").symlink_to("old-process")
+        backups = self.root / "Dygma/Backups"
+        backups.mkdir(parents=True)
+        (backups / "layout.json").write_text("backup")
+        profile = self.root / ".var/app/com.dygma.bazecor/config/Bazecor"
+        deployment = self.root / "deployment"
+        exported_menu = deployment / "export/share/applications/com.dygma.bazecor.desktop"
+        exported_menu.parent.mkdir(parents=True)
+        installed_commit = None
+        installs = []
+
+        def host(*args, **kwargs):
+            nonlocal installed_commit
+            if "--show-location" in args:
+                return str(deployment)
+            self.assertIn("--bundle", args)
+            installs.append(args)
+            installed_commit = "local-commit"
+
+        env = {"XDG_CONFIG_HOME": str(config.parent), "XDG_CACHE_HOME": str(self.root / ".cache")}
+        with patch.dict("os.environ", env), patch.object(apps, "host", side_effect=host), \
+                patch.object(apps, "install_device_rules"), \
+                patch.object(apps, "bazecor_bundle_commit", return_value="local-commit"), \
+                patch.object(apps, "installed_bazecor_commit", side_effect=lambda: installed_commit):
+            with self.assertRaisesRegex(RuntimeError, "application-menu entry"):
+                apps.install("bazecor", artifact)
+            self.assertTrue(menu.is_file())
+            self.assertTrue(image.is_file())
+            self.assertFalse(profile.exists())
+
+            exported_menu.touch()
+            apps.install("bazecor", artifact)
+            self.assertFalse(menu.exists())
+            self.assertEqual(next(state.glob("appimage-*/bazecor.appimage")).read_bytes(), b"previous image")
+            self.assertEqual((profile / "config.json").read_text(), (config / "config.json").read_text())
+            self.assertFalse((profile / "SingletonLock").is_symlink())
+            self.assertEqual((backups / "layout.json").read_text(), "backup")
+
+            (profile / "config.json").write_text("settings changed in Flatpak")
+            apps.install("bazecor", artifact)
+            apps.check("bazecor")
+            self.assertEqual((profile / "config.json").read_text(), "settings changed in Flatpak")
+            self.assertEqual(len(installs), 1)
 
     def test_system_papers_is_removed_only_after_the_fork_is_confirmed(self):
         artifact = self.root / "repo"

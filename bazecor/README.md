@@ -1,20 +1,21 @@
-Bazecor bundles Electron 34 and defaults to Xwayland. Its native Wayland
-startup can also leave the main window hidden while waiting for `ready-to-show`.
-The wrapper selects Wayland and makes the main window visible at creation.
+# Bazecor Flatpak
 
-Build and install the pinned fork, including its application-menu entry:
+`./apps/manage install bazecor` builds the pinned fork as a user Flatpak
+and installs its application-menu entry. The bundle stays under
+`~/.local/state/dotfiles/apps/bazecor/` and points to Flathub for its runtime.
+The build applies [the Flatpak patch](flatpak.patch) to a temporary checkout.
+The Flatpak uses software rendering and shows the main window after the
+renderer mounts the UI. It then requests a repaint for Wayland startup.
 
-```bash
-./apps/manage install bazecor
-```
+The installer checks `/etc/udev/rules.d/60-dygma.rules` and requests
+administrator authentication if the rule needs to be installed or updated.
+The Flatpak uses the host rule to access the keyboard and can read and write
+backups in `~/Dygma`.
 
-This backs up the desktop entry under `~/.local/state/dotfiles/bazecor`, installs
-the wrapper under `~/.local/libexec`, and prepares a cached extracted copy. The
-original AppImage and keyboard configuration are preserved. The cache follows
-the AppImage's content hash; an updated image is extracted again. Unknown startup
-code produces an error so the patch can be reviewed for that version.
-Startup output is saved to `~/.local/state/dotfiles/bazecor/startup.log` so a
-failed menu launch has a readable error log.
+On first install, the installer copies the existing Bazecor profile into
+`~/.var/app/com.dygma.bazecor/config/Bazecor`. It archives the AppImage,
+old menu entry and icon, Python wrapper, and extraction cache under
+`~/.local/state/dotfiles/apps/bazecor/appimage-*/`.
 
-The related upstream startup report is
+The original Wayland startup issue is tracked in
 [Dygmalab/Bazecor#1064](https://github.com/Dygmalab/Bazecor/issues/1064).

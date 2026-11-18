@@ -26,6 +26,7 @@ Item {
     }
     EmberSlot { id: unreadSlot; shell: root.emberShell; x: 4; y: 12; width: 3; height: Math.max(4, parent.height - 24); shapeRadius: 1.5 }
     property bool embedded: false
+    readonly property bool isBanner: !inCenter && !embedded
     property bool groupControls: false
     property bool groupExpanded: false
     property int groupCount: 1
@@ -133,8 +134,9 @@ Item {
                 objectName: "notificationImage"
                 iconSource: root.entry.image || ""
                 symbolicColor: root.theme.text
-                Layout.preferredWidth: root.inCenter ? 40 : 48; Layout.preferredHeight: root.inCenter ? 40 : 48
-                Layout.alignment: Qt.AlignTop
+                Layout.preferredWidth: root.inCenter ? 40 : root.isBanner ? 56 : 48
+                Layout.preferredHeight: Layout.preferredWidth
+                Layout.alignment: root.isBanner ? Qt.AlignVCenter : Qt.AlignTop
                 sourceSize.width: 112; sourceSize.height: 112
                 fillMode: iconSource.startsWith("image://icon/") ? Image.PreserveAspectFit : Image.PreserveAspectCrop
                 asynchronous: true
@@ -143,15 +145,19 @@ Item {
                 Layout.fillWidth: true; spacing: 2
                 RowLayout {
                     Layout.fillWidth: true; spacing: 7
-                    SystemImage {
-                        objectName: "notificationAppIcon"
-                        iconSource: root.entry.icon || ""
-                        fallbackIcon: "application-x-executable"
-                        fallbackSource: Qt.resolvedUrl("icons/bell.svg")
-                        symbolicColor: root.theme.text
+                    Loader {
+                        active: root.inCenter
+                        visible: item?.status === Image.Ready
                         Layout.preferredWidth: 21; Layout.preferredHeight: 21
                         Layout.alignment: Qt.AlignVCenter
-                        sourceSize.width: 42; sourceSize.height: 42
+                        sourceComponent: SystemImage {
+                            objectName: "notificationAppIcon"
+                            iconSource: root.entry.icon || ""
+                            fallbackIcon: "application-x-executable"
+                            fallbackSource: Qt.resolvedUrl("icons/bell.svg")
+                            symbolicColor: root.theme.text
+                            sourceSize.width: 42; sourceSize.height: 42
+                        }
                     }
                     Text { font: root.theme.textFont; Layout.fillWidth: true; text: root.entry.summary; textFormat: Text.PlainText; color: root.theme.text; wrapMode: Text.NoWrap; maximumLineCount: 1; elide: Text.ElideRight }
                     ShellButton { objectName: "notificationGroupToggle"; visible: root.groupControls; theme: root.theme; icon: root.groupExpanded ? "chevron-up" : "chevron-down"; hint: root.groupExpanded ? "Collapse notifications" : "Expand notifications"; implicitWidth: 30; implicitHeight: 30; Layout.alignment: Qt.AlignTop; onClicked: root.toggleGroup() }
@@ -175,6 +181,7 @@ Item {
             objectName: "notificationActionReveal"
             Layout.fillWidth: true
             property real reveal: root.detailsExpanded && (root.hasActions || (root.canReply && !root.composing)) ? 1 : 0
+            visible: !root.isBanner || reveal > 0
             Layout.topMargin: -content.spacing * (1 - reveal)
             Layout.preferredHeight: actions.implicitHeight * reveal
             implicitHeight: actions.implicitHeight * reveal

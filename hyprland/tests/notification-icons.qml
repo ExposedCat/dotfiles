@@ -6,6 +6,7 @@ import Quickshell
 Scope {
     id: test
     property var cards: []
+    property var banner
     property var image
     property var store: ({live: {}, replying: {}, removing: {}, drafts: {}, replyErrors: {}, hoverPopup: () => {}})
     function check(condition, message) {
@@ -27,7 +28,7 @@ Scope {
     FloatingWindow {
         id: window
         title: "Notification icon regression"
-        implicitWidth: 620; implicitHeight: 390
+        implicitWidth: 620; implicitHeight: 440
         color: "#303030"; visible: true
         Item {
             id: previewContent; anchors.fill: parent
@@ -46,7 +47,8 @@ Scope {
             {id: "missing", summary: "Unavailable icon", body: "Use the application fallback without a checkerboard.", image: "image://icon/dotfiles-nonexistent-icon", icon: "dotfiles-nonexistent-icon"},
             {id: "file", summary: "File image", body: "Keep file images and their original crop behavior.", image: Quickshell.env("DOTFILES_SHELL_SOURCE") + "/icons/bell.svg", icon: "/dotfiles-nonexistent-icon.png"}
         ];
-        cards = entries.map(entry => card.createObject(content, {theme: theme, store: test.store, entry: entry, width: 560, height: Qt.binding(function() { return this.implicitHeight; })}));
+        cards = entries.map(entry => card.createObject(content, {theme: theme, store: test.store, entry: entry, inCenter: true, width: 560, height: Qt.binding(function() { return this.implicitHeight; })}));
+        banner = card.createObject(content, {theme: theme, store: test.store, entry: entries[0], width: 560, height: Qt.binding(function() { return this.implicitHeight; })});
         image = component("SystemImage").createObject(window.contentItem, {iconSource: "drive-harddisk-usb-symbolic", width: 24, height: 24});
         tick.start();
     }
@@ -65,6 +67,12 @@ Scope {
                 check(missing.source.toString() === "" && !missing.visible, "Missing image provider icon reached the renderer");
                 check(file.status === Image.Ready && file.fillMode === Image.PreserveAspectCrop, "File image was lost or its crop mode changed");
                 for (const card of cards) check(test.named(card, "notificationAppIcon").status === Image.Ready, "Application fallback failed");
+                const bannerImage = test.named(test.banner, "notificationImage");
+                check(bannerImage.status === Image.Ready, "Banner lost its notification image");
+                check(bannerImage.width === 56 && bannerImage.height === 56, "Banner image did not render at 56 pixels");
+                const imageCenter = bannerImage.mapToItem(test.banner, 0, bannerImage.height / 2);
+                check(Math.abs(imageCenter.y - test.banner.height / 2) <= 0.5, "Banner image is off-center");
+                check(!test.named(test.banner, "notificationAppIcon"), "Banner still creates an application icon");
                 check(image.status === Image.Ready, "Plain theme icon name did not resolve");
                 check(image.resolve("image://icon/dotfiles-nonexistent-icon?fallback=drive-harddisk-usb-symbolic") === usb.source.toString(), "Provider fallback was lost");
                 check(image.resolve("image://icon//tmp/example.png") === "/tmp/example.png", "Absolute notification image path was lost");

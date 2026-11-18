@@ -11,13 +11,17 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-import sys
+import tempfile
 
 
 RECIPE = Path(__file__).resolve().parent
 SOURCES = json.loads((RECIPE / "sources.json").read_text())
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "dotfiles/apps"
 OPENLOGI_TARGET = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "dotfiles-build/openlogi/target"
+BAZECOR_ID = "com.dygma.bazecor"
+BAZECOR_REF = BAZECOR_ID + "//stable"
+BAZECOR_PATCH = RECIPE.parent / "bazecor/flatpak.patch"
+FLATHUB_REPO = "https://dl.flathub.org/repo/flathub.flatpakrepo"
 IN_CONTAINER = Path("/run/.containerenv").exists() or Path("/.dockerenv").exists()
 HOST = ["distrobox-host-exec"] if IN_CONTAINER else []
 
@@ -62,12 +66,12 @@ def build_key(name):
     paths = [RECIPE / "manage.py"]
     if name == "papers":
         paths.append(RECIPE / "papers.json")
+    elif name == "bazecor":
+        paths.append(BAZECOR_PATCH)
     elif name == "wl-screenrec":
         paths.extend(sorted((RECIPE / "wl-screenrec").iterdir()))
     for path in paths:
         digest.update(path.read_bytes())
-    if name == "bazecor":
-        digest.update((RECIPE.parent / "bazecor/launch.py").read_bytes())
     return digest.hexdigest()
 
 
@@ -86,7 +90,7 @@ def build(name):
     print(f"Building {name} at {SOURCES[name]['revision']}", flush=True)
     if name == "papers":
         host("flatpak", "--user", "remote-add", "--if-not-exists", "flathub",
-             "https://dl.flathub.org/repo/flathub.flatpakrepo")
+             FLATHUB_REPO)
         manifest = json.loads((RECIPE / "papers.json").read_text())
         manifest["modules"][-1]["sources"][0]["commit"] = SOURCES[name]["revision"]
         manifest_path = state / "papers.json"
@@ -96,19 +100,31 @@ def build(name):
             f"--repo={state / 'repo'}", state / "build", manifest_path, cwd=state)
         artifact = state / "repo"
     elif name == "bazecor":
-        dev("corepack", "yarn", "install", "--frozen-lockfile", cwd=source)
-        dev("corepack", "yarn", "make", "--platform=linux",
-            "--targets=@reforged/maker-appimage", cwd=source)
-        images = list((source / "out/make").rglob("*.AppImage"))
-        if len(images) != 1:
-            raise RuntimeError(f"Expected one Bazecor AppImage, found {images}")
-        artifact = state / "bazecor.AppImage"
-        shutil.copy2(images[0], artifact)
-        artifact.chmod(0o755)
-        # Validate the existing Wayland launcher against this build before replacing it.
-        sys.path.insert(0, str(RECIPE.parent / "bazecor"))
-        import launch
-        launch.prepare(artifact)
+        host("flatpak", "--user", "remote-add", "--if-not-exists", "flathub", FLATHUB_REPO)
+        with tempfile.TemporaryDirectory(prefix=".flatpak-", dir=state) as directory:
+            staging = Path(directory)
+            build_source = staging / "source"
+            temporary = staging / "tmp"
+            temporary.mkdir()
+            run("git", "clone", "--quiet", "--shared", source, build_source)
+            run("git", "apply", BAZECOR_PATCH, cwd=build_source)
+            dev("corepack", "yarn", "install", "--frozen-lockfile", cwd=build_source)
+            # The packager calls the host Flatpak CLI. Its build directory
+            # must be visible from both the host and the build container.
+            dev("env", f"TMPDIR={temporary}", "DEBUG=@malept/flatpak-bundler",
+                "corepack", "yarn", "make-flatpak", cwd=build_source)
+            bundles = list((build_source / "out/make").rglob("*.flatpak"))
+            if len(bundles) != 1:
+                raise RuntimeError(f"Expected one Bazecor Flatpak bundle, found {bundles}")
+            # Forge's maker does not forward the runtime repository to build-bundle.
+            bundle_repo = staging / "repo"
+            host("ostree", f"--repo={bundle_repo}", "init", "--mode=archive")
+            host("flatpak", "build-import-bundle", bundle_repo, bundles[0])
+            bundle = staging / "bazecor.flatpak"
+            host("flatpak", "build-bundle", f"--runtime-repo={FLATHUB_REPO}",
+                 bundle_repo, bundle, BAZECOR_ID, "stable")
+            artifact = state / f"bazecor-{key[:12]}.flatpak"
+            bundle.replace(artifact)
     elif name == "openlogi":
         toolchain = SOURCES[name]["toolchain"]
         dev("rustup", "toolchain", "install", toolchain, "--profile", "minimal", cwd=source)
@@ -179,9 +195,62 @@ def install_device_rules(name):
         host("pkexec", "bash", RECIPE / "install-device-rules", rules)
 
 
+def migrate_bazecor_profile():
+    config = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    source = config / "Bazecor"
+    target = Path.home() / ".var/app" / BAZECOR_ID / "config/Bazecor"
+    if not source.is_dir() or target.exists():
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".migrate-", dir=target.parent) as directory:
+        profile = Path(directory) / "Bazecor"
+        shutil.copytree(source, profile, symlinks=True, ignore=shutil.ignore_patterns(
+            "Singleton*", "Cache", "Code Cache", "GPUCache", "Dawn*Cache", "Crashpad", "logs",
+        ))
+        if not target.exists():
+            profile.rename(target)
+
+
+def bazecor_bundle_commit(artifact):
+    return host("/usr/bin/python3", "-c", """
+import sys
+import gi
+gi.require_version("Flatpak", "1.0")
+from gi.repository import Flatpak, Gio
+bundle = Flatpak.BundleRef.new(Gio.File.new_for_path(sys.argv[1]))
+print(bundle.get_commit())
+""", artifact, capture=True)
+
+
+def installed_bazecor_commit():
+    result = subprocess.run([*HOST, "flatpak", "--user", "info", "--show-commit", BAZECOR_REF],
+                            text=True, capture_output=True)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def archive_bazecor_appimage(applications):
+    cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    legacy = (
+        (applications / "bazecor.desktop", "bazecor.desktop"),
+        (Path.home() / "AppImages/bazecor.appimage", "bazecor.appimage"),
+        (Path.home() / ".local/libexec/dotfiles-bazecor.py", "dotfiles-bazecor.py"),
+        (Path.home() / ".local/share/icons/hicolor/512x512/apps/bazecor.png", "bazecor.png"),
+        (cache / "dotfiles/bazecor", "extracted-cache"),
+    )
+    existing = [(path, name) for path, name in legacy if path.exists()]
+    if not existing:
+        return
+    backup = STATE / "bazecor" / datetime.now(timezone.utc).strftime("appimage-%Y%m%dT%H%M%S.%fZ")
+    backup.mkdir(mode=0o700)
+    for path, name in existing:
+        shutil.move(path, backup / name)
+    print(f"Previous Bazecor launcher and AppImage backed up to {backup}", flush=True)
+
+
 def install(name, artifact):
     applications = Path.home() / ".local/share/applications"
     applications.mkdir(parents=True, exist_ok=True)
+    installed = {"source": SOURCES[name], "artifact": str(artifact)}
     if name == "papers":
         origin = "papers-local"
         remotes = host("flatpak", "--user", "remotes", "--columns=name", capture=True).splitlines()
@@ -203,21 +272,18 @@ def install(name, artifact):
         host("xdg-mime", "default", "org.gnome.Papers.desktop", "application/pdf")
     elif name == "bazecor":
         install_device_rules(name)
-        target = Path.home() / "AppImages/bazecor.appimage"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if target.exists() and target.read_bytes() != artifact.read_bytes():
-            backup = STATE / name / ("previous-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + ".AppImage")
-            shutil.copy2(target, backup)
-        staging = target.with_suffix(".new")
-        shutil.copy2(artifact, staging)
-        staging.chmod(0o755)
-        staging.replace(target)
-        icon = Path.home() / ".local/share/icons/hicolor/512x512/apps/bazecor.png"
-        icon.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(STATE / name / "source/build/logo.png", icon)
-        desktop = applications / "bazecor.desktop"
-        desktop.write_text(f"[Desktop Entry]\nType=Application\nName=Bazecor\nIcon=bazecor\nTryExec={target}\nExec={target} %U\nCategories=Utility;\n")
-        host("python3", RECIPE.parent / "bazecor/launch.py", "install")
+        commit = bazecor_bundle_commit(artifact)
+        if installed_bazecor_commit() != commit:
+            host("flatpak", "--user", "install", "--noninteractive", "--or-update", "--bundle", artifact)
+            if installed_bazecor_commit() != commit:
+                raise RuntimeError("Installed Bazecor Flatpak differs from the local bundle")
+        installed["commit"] = commit
+        location = host("flatpak", "--user", "info", "--show-location", BAZECOR_REF, capture=True)
+        entry = Path(location) / "export/share/applications" / (BAZECOR_ID + ".desktop")
+        if not entry.is_file():
+            raise RuntimeError("Bazecor Flatpak did not export an application-menu entry")
+        migrate_bazecor_profile()
+        archive_bazecor_appimage(applications)
     elif name == "openlogi":
         install_device_rules(name)
         config = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "openlogi/config.toml"
@@ -249,15 +315,14 @@ def install(name, artifact):
             host("systemctl", "--user", "restart", "openlogi-agent.service")
     else:
         nevra = host("rpm", "-qp", "--qf", "%{NEVRA}", artifact, capture=True)
-        installed = subprocess.run([*HOST, "rpm", "-q", "--qf", "%{NEVRA}", "wl-screenrec"],
-                                   capture_output=True, text=True)
-        if installed.returncode == 0 and installed.stdout == nevra:
+        installed_rpm = subprocess.run([*HOST, "rpm", "-q", "--qf", "%{NEVRA}", "wl-screenrec"],
+                                       capture_output=True, text=True)
+        if installed_rpm.returncode == 0 and installed_rpm.stdout == nevra:
             print(f"Already installed: {nevra}")
         else:
             host("rpm-ostree", "install", "--idempotent", artifact)
             print("wl-screenrec staged; reboot normally to activate the RPM.")
-    (STATE / name / "installed.json").write_text(json.dumps({"source": SOURCES[name],
-                                                            "artifact": str(artifact)}, indent=2) + "\n")
+    (STATE / name / "installed.json").write_text(json.dumps(installed, indent=2) + "\n")
 
 
 def check(name):
@@ -276,8 +341,8 @@ def check(name):
         if manifest["modules"][-1]["sources"][0]["commit"] != SOURCES[name]["revision"]:
             raise RuntimeError("Installed Papers manifest has a different source revision")
     elif name == "bazecor":
-        if (Path.home() / "AppImages/bazecor.appimage").read_bytes() != Path(saved["artifact"]).read_bytes():
-            raise RuntimeError("Installed Bazecor AppImage differs from the local build")
+        if not saved.get("commit") or saved["commit"] != installed_bazecor_commit():
+            raise RuntimeError("Installed Bazecor Flatpak differs from the local build")
     elif name == "openlogi":
         current = Path.home() / ".local/opt/openlogi/current"
         if current.resolve().name != "openlogi-" + SOURCES[name]["revision"][:12]:
