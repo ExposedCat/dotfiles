@@ -3,12 +3,15 @@
 local M = {}
 local rules = {}
 local pending = false
+local carried = {}
+local slideSpeed = 2.2
+local carryTimeout = math.ceil(slideSpeed * 100) + 30
 
-hl.animation({ leaf = "workspaces", enabled = true, speed = 2.2, bezier = "easeInOutCubic", style = "slide" })
+hl.animation({ leaf = "workspaces", enabled = true, speed = slideSpeed, bezier = "easeInOutCubic", style = "slide" })
 
 local function setWorkspaceSlide(style)
     for _, leaf in ipairs({ "workspacesIn", "workspacesOut" }) do
-        hl.animation({ leaf = leaf, enabled = true, speed = 2.2, bezier = "easeInOutCubic", style = style })
+        hl.animation({ leaf = leaf, enabled = true, speed = slideSpeed, bezier = "easeInOutCubic", style = style })
     end
 end
 
@@ -136,35 +139,99 @@ local function schedule()
     end, { timeout = 30, type = "oneshot" })
 end
 
-local function target(workspace, move)
-    if not workspace then return end
-    if move then
-        local window = hl.get_active_window()
-        if not window then return end
-        local monitor = workspace.monitor
-        local width = monitor.mode.width
-        local x = window.at.x - monitor.x
-        local visible = math.max(0, math.min(width, x + window.size.x) - math.max(0, x))
-        -- Hyprland slides the carried window in with the destination. Limit
-        -- the travel to a fraction of the window's visible width.
-        local percent = math.max(1, math.min(25, math.floor(100 * visible / (3 * width))))
-        local dispatch = hl.dsp.window.move({ workspace = workspace.id, window = window })
-        setWorkspaceSlide(string.format("slide %d%%", percent))
-        local ok, result = pcall(hl.dispatch, dispatch)
-        setWorkspaceSlide("slide")
-        if not ok then error(result, 0) end
-    else
-        hl.dispatch(hl.dsp.focus({ workspace = workspace.id }))
+local function finishCarry(monitor)
+    local carry = carried[monitor]
+    if not carry then return end
+    carried[monitor] = nil
+    if carry.timer then carry.timer:set_enabled(false) end
+    local window = carry.window
+    if not window.mapped then return end
+    local destination = carry.restoreWorkspace and carry.destination or window.workspace
+    if window.floating and window.pinned then
+        hl.dispatch(hl.dsp.window.pin({ window = window, action = "unset" }))
+    end
+    if destination and destination.id and window.workspace ~= destination then
+        hl.dispatch(hl.dsp.window.move({ window = window, workspace = destination.id, follow = false }))
+    end
+    if carry.retile and window.floating then
+        hl.dispatch(hl.dsp.window.float({ window = window, action = "unset" }))
     end
 end
 
-function M.step(direction, move)
+local function moveWithShortSlide(window, workspace)
+    local monitor = workspace.monitor
+    local width = monitor.mode.width
+    local x = window.at.x - monitor.x
+    local visible = math.max(0, math.min(width, x + window.size.x) - math.max(0, x))
+    local percent = math.max(1, math.min(25, math.floor(100 * visible / (3 * width))))
+    local dispatch = hl.dsp.window.move({ workspace = workspace.id, window = window })
+    setWorkspaceSlide(string.format("slide %d%%", percent))
+    local ok, result = pcall(hl.dispatch, dispatch)
+    setWorkspaceSlide("slide")
+    if not ok then error(result, 0) end
+end
+
+local function target(workspace, move, window)
+    if not workspace then return end
+    local monitor = workspace.monitor.name
+    if not move then
+        finishCarry(monitor)
+        hl.dispatch(hl.dsp.focus({ workspace = workspace.id }))
+        return
+    end
+
+    window = window or hl.get_active_window()
+    if not window or not window.mapped or window.workspace == workspace then return end
+    local carry = carried[monitor]
+    if carry and (carry.window ~= window or carry.restoreWorkspace) then
+        finishCarry(monitor)
+        carry = nil
+    end
+    -- Preserve fullscreen, special-workspace and group behavior when pinning
+    -- would affect the layout or open the window on another output.
+    if window.fullscreen ~= 0 or window.group or window.monitor ~= workspace.monitor
+        or not window.workspace or window.workspace.special then
+        finishCarry(monitor)
+        moveWithShortSlide(window, workspace)
+        return
+    end
+    local dispatch = hl.dsp.window.move({ workspace = workspace.id, window = window })
+    if window.pinned and not carry then
+        hl.dispatch(dispatch)
+        return
+    end
+    if not carry then
+        carry = { window = window, retile = not window.floating, destination = workspace }
+        carried[monitor] = carry
+        -- Keep the pin for the slide duration plus a frame to settle.
+        carry.timer = hl.timer(function() finishCarry(monitor) end, { timeout = carryTimeout, type = "oneshot" })
+        if carry.retile then
+            local position, size = window.at, window.size
+            hl.dispatch(hl.dsp.window.float({ window = window, action = "set" }))
+            hl.dispatch(hl.dsp.window.resize({ window = window, x = size.x, y = size.y }))
+            hl.dispatch(hl.dsp.window.move({ window = window, x = position.x, y = position.y }))
+        end
+        hl.dispatch(hl.dsp.window.pin({ window = window, action = "set" }))
+        if not window.pinned then
+            finishCarry(monitor)
+            moveWithShortSlide(window, workspace)
+            return
+        end
+    else
+        carry.destination = workspace
+        carry.timer:set_timeout(carryTimeout)
+    end
+    hl.dispatch(dispatch)
+    if window.workspace ~= workspace then finishCarry(monitor) end
+end
+
+function M.step(direction, move, window)
     local monitor = hl.get_active_monitor()
     if not monitor or not monitor.active_workspace then return end
     local workspaces = M.list(monitor)
     for index, workspace in ipairs(workspaces) do
         if workspace.id == monitor.active_workspace.id then
-            target(workspaces[index + direction], move)
+            target(workspaces[index + direction], move, window)
             return
         end
     end
@@ -174,9 +241,24 @@ function M.select(index, move)
     target(M.list(hl.get_active_monitor())[index], move)
 end
 
+hl.on("workspace.active", function(workspace)
+    schedule()
+    local carry = workspace.monitor and carried[workspace.monitor.name]
+    if carry and carry.timer and carry.destination ~= workspace then
+        -- The compositor also carries pins during switches from gestures or
+        -- other applications. Restore this window after that switch returns.
+        carry.restoreWorkspace = carry.window.pinned and carry.window.workspace == workspace
+        carry.timer:set_timeout(1)
+    end
+end)
+
+hl.on("config.unload", function()
+    for monitor in pairs(carried) do finishCarry(monitor) end
+end)
+
 for _, event in ipairs({
     "hyprland.start", "config.reloaded", "monitor.added", "monitor.removed",
-    "workspace.created", "workspace.removed", "workspace.active",
+    "workspace.created", "workspace.removed",
     "workspace.move_to_monitor", "window.open", "window.close",
     "window.destroy", "window.move_to_workspace",
 }) do

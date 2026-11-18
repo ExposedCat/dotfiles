@@ -60,23 +60,26 @@ hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:mag
 -- window drag active on wheel events, but ends it on key or button events.
 local openLogiDevices = { "ol-action-injector", "ol-action-injector-1" }
 local wheelSwitchPending = false
+local moveButtonDown = false
+local grabbedWindow
+
+local function windowBeingDragged()
+    -- A tiled window becomes floating once the native move drag starts.
+    if grabbedWindow and grabbedWindow.mapped and grabbedWindow.floating then
+        return grabbedWindow
+    end
+end
+
 for direction, wheel in pairs({ [-1] = "mouse_up", [1] = "mouse_down" }) do
     local function switchWorkspace()
         pill.cancel()
         workspaces.step(direction)
     end
 
-    local function switchWithWheel()
-        if wheelSwitchPending then return end
-        wheelSwitchPending = true
-        hl.timer(function() wheelSwitchPending = false end, { timeout = 300, type = "oneshot" })
-        switchWorkspace()
-    end
-
-    local function moveWorkspace()
+    local function moveWorkspace(window)
         local cursor = hl.get_cursor_pos()
         pill.cancel()
-        workspaces.step(direction, true)
+        workspaces.step(direction, true, window)
         -- Moving and following a window can warp the cursor to its center.
         local current = hl.get_cursor_pos()
         if cursor and current and (cursor.x ~= current.x or cursor.y ~= current.y) then
@@ -84,15 +87,40 @@ for direction, wheel in pairs({ [-1] = "mouse_up", [1] = "mouse_down" }) do
         end
     end
 
+    local function switchWithWheel()
+        if wheelSwitchPending then return end
+        wheelSwitchPending = true
+        hl.timer(function() wheelSwitchPending = false end, { timeout = 300, type = "oneshot" })
+        local window = windowBeingDragged()
+        if window then
+            moveWorkspace(window)
+        else
+            switchWorkspace()
+        end
+    end
+
     hl.bind(mainMod .. " + " .. wheel, switchWithWheel, { device = { inclusive = false, list = openLogiDevices } })
     hl.bind(wheel, switchWorkspace, { device = { list = openLogiDevices } })
     hl.bind("SHIFT + " .. wheel, moveWorkspace, { device = { list = openLogiDevices } })
-    hl.bind(mainMod .. " + " .. wheel, moveWorkspace, { device = { list = openLogiDevices } })
+    hl.bind(mainMod .. " + " .. wheel, function()
+        moveWorkspace(windowBeingDragged())
+    end, { device = { list = openLogiDevices } })
 end
 
 -- Move/resize windows with mainMod + LMB/RMB and dragging
-hl.bind(mainMod .. " + mouse:272", function() pill.cancel(); hl.dispatch(hl.dsp.window.drag()) end, { mouse = true })
-hl.bind(mainMod .. " + mouse:273", function() pill.cancel(); hl.dispatch(hl.dsp.window.resize()) end, { mouse = true })
+hl.bind(mainMod .. " + mouse:272", function()
+    pill.cancel()
+    local result = hl.dispatch(hl.dsp.window.drag())
+    -- The native dispatcher calls this binding again on release.
+    moveButtonDown = not moveButtonDown
+    grabbedWindow = moveButtonDown and result.ok and not result.pass_event and hl.get_active_window() or nil
+end, { mouse = true })
+hl.on("input.keyboard.key", function() grabbedWindow = nil end)
+hl.bind(mainMod .. " + mouse:273", function()
+    grabbedWindow = nil
+    pill.cancel()
+    hl.dispatch(hl.dsp.window.resize())
+end, { mouse = true })
 -- A release within drag_threshold is an ordinary app click, without Super.
 -- Send both states here: click binds run after the physical button is released.
 for _, button in ipairs({ "mouse:272", "mouse:273" }) do

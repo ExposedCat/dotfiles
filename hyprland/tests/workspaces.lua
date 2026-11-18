@@ -1,14 +1,25 @@
 -- Run by test_workspaces.py with a real Lua runtime and a fake compositor.
 local module_path = ...
-local hooks, timers, state, monitors, applied, dispatched, animations, active_window
+local hooks, timers, state, monitors, applied, dispatched, animations, active_window, carry_timer
 local getenv = os.getenv
 os.getenv = function(key)
     if key == "WAYLAND_DISPLAY" then return "workspace-test" end
     return getenv(key)
 end
 
-local function emit(event)
-    if hooks[event] then hooks[event]() end
+local function emit(event, ...)
+    if hooks[event] then hooks[event](...) end
+end
+
+local function activate(workspace)
+    local previous = workspace.monitor.active_workspace
+    if previous then previous.visible = false end
+    if active_window.pinned and active_window.workspace == previous then
+        active_window.workspace = workspace
+    end
+    workspace.visible = true
+    workspace.monitor.active_workspace = workspace
+    emit("workspace.active", workspace)
 end
 
 local function add(id, monitor, windows, visible, special)
@@ -54,7 +65,7 @@ end
 local function setup()
     hooks, timers, state, applied, dispatched = {}, {}, {}, {}, {}
     animations = {}
-    active_window = { at = { x = 0 }, size = { x = 1200 } }
+    carry_timer = nil
     monitors = {
         { name = "DP-1", enabled = true, x = 0, mode = { width = 1600 } },
         { name = "HDMI-1", enabled = true, x = 1600, mode = { width = 1600 } },
@@ -62,7 +73,18 @@ local function setup()
     hl = {
         animation = function(spec) animations[spec.leaf] = spec.style end,
         on = function(event, callback) hooks[event] = callback end,
-        timer = function(callback) table.insert(timers, callback) end,
+        timer = function(callback, spec)
+            if spec.timeout == 30 then
+                table.insert(timers, callback)
+                return
+            end
+            local timer = { timeout = spec.timeout, enabled = true }
+            function timer:set_enabled(enabled) self.enabled = enabled end
+            function timer:set_timeout(timeout) self.timeout = timeout end
+            function timer:fire() if self.enabled then callback() end end
+            carry_timer = timer
+            return timer
+        end,
         get_monitors = function() return monitors end,
         get_workspaces = function() return state end,
         get_active_monitor = function() return monitors.focused or monitors[1] end,
@@ -92,15 +114,49 @@ local function setup()
                 assert(target, "renumbering must keep the existing workspace object")
                 target.id, target.name = command.id, tostring(command.id)
                 emit("workspace.renamed")
+            elseif command.action == "pin" then
+                assert(command.window.floating, "only floating windows can be pinned")
+                command.window.pinned = command.enable
+            elseif command.action == "float" then
+                command.window.floating = command.enable
+                command.window.pinned = false
+                if command.enable then
+                    command.window.at = { x = 100, y = 100 }
+                    command.window.size = { x = 500, y = 400 }
+                end
+            elseif command.action == "position" then
+                command.window.at = { x = command.x, y = command.y }
+            elseif command.action == "resize" then
+                command.window.size = { x = command.x, y = command.y }
+            elseif command.action == "focus" or command.action == "move" then
+                for _, workspace in ipairs(state) do
+                    if workspace.id == command.id then
+                        if command.action == "move" then
+                            command.window.workspace = workspace
+                            command.pinned = command.window.pinned
+                        end
+                        if command.follow ~= false then activate(workspace) end
+                        break
+                    end
+                end
             end
         end,
         dsp = {
             workspace = { change_id = function(spec) return { action = "renumber", from = spec.workspace, id = spec.id } end },
             focus = function(spec) return { action = "focus", id = spec.workspace } end,
-            window = { move = function(spec) return { action = "move", id = spec.workspace, window = spec.window } end },
+            window = {
+                move = function(spec)
+                    return { action = spec.workspace and "move" or "position", id = spec.workspace,
+                             window = spec.window, follow = spec.follow, x = spec.x, y = spec.y }
+                end,
+                float = function(spec) return { action = "float", window = spec.window, enable = spec.action == "set" } end,
+                pin = function(spec) return { action = "pin", window = spec.window, enable = spec.action == "set" } end,
+                resize = function(spec) return { action = "resize", window = spec.window, x = spec.x, y = spec.y } end,
+            },
         },
     }
-    add(1, monitors[1], 2, true)
+    active_window = { at = { x = 0, y = 0 }, size = { x = 1200, y = 800 }, fullscreen = 0,
+                      mapped = true, monitor = monitors[1], workspace = add(1, monitors[1], 2, true) }
     add(2, monitors[2], 3, true)
     local policy = assert(loadfile(module_path))()
     emit("config.reloaded")
@@ -134,11 +190,14 @@ local left, middle, right = edges(policy, monitors[1], 3)
 edges(policy, monitors[2], 3)
 policy.step(-1)
 assert(dispatched[#dispatched].id == left.id, "previous must reach the left edge")
+activate(middle)
 policy.step(1)
 assert(dispatched[#dispatched].id == right.id, "next must reach the right edge")
+active_window.fullscreen = 1
 policy.select(1, true)
 assert(dispatched[#dispatched].id == left.id and dispatched[#dispatched].action == "move"
        and dispatched[#dispatched].window == active_window and dispatched[#dispatched].style == "slide 25%")
+activate(middle)
 active_window.at.x = 1510
 active_window.size.x = 200
 policy.step(1, true)
@@ -147,7 +206,7 @@ assert(dispatched[#dispatched].id == right.id and dispatched[#dispatched].action
 assert(animations.workspacesIn == "slide" and animations.workspacesOut == "slide")
 local dispatch = hl.dispatch
 hl.dispatch = function() error("move failed") end
-local ok = pcall(policy.step, 1, true)
+local ok = pcall(policy.step, -1, true)
 assert(not ok and animations.workspacesIn == "slide" and animations.workspacesOut == "slide",
        "a failed move must restore the slide")
 hl.dispatch = dispatch
@@ -164,11 +223,55 @@ assert(#dispatched == count, "navigation must stop at both edges")
 
 policy = setup()
 left, middle, right = edges(policy, monitors[1], 3)
+policy.step(1, true)
+assert(active_window.workspace == right and active_window.floating and active_window.pinned)
+assert(active_window.at.x == 0 and active_window.at.y == 0
+       and active_window.size.x == 1200 and active_window.size.y == 800,
+       "a tiled window must keep its geometry while pinned")
+assert(dispatched[#dispatched].style == "slide" and dispatched[#dispatched].pinned,
+       "a pinned move must use the full slide")
+local timer = carry_timer
+policy.step(-1, true)
+assert(carry_timer == timer and active_window.workspace == middle and active_window.pinned,
+       "reversing must keep the same window pinned and restart the timer")
+timer:fire()
+assert(active_window.workspace == middle and not active_window.pinned and not active_window.floating)
+
+active_window.floating = true
+local get_active_window = hl.get_active_window
+hl.get_active_window = function() error("drag transfers must use the grabbed window") end
+policy.step(-1, true, active_window)
+hl.get_active_window = get_active_window
+assert(active_window.workspace == left and active_window.pinned)
+activate(middle) -- A workspace switch started elsewhere carries pins with it.
+assert(carry_timer.timeout == 1)
+carry_timer:fire()
+assert(active_window.workspace == left and not active_window.pinned and active_window.floating,
+       "an external workspace switch must leave the window in its intended destination")
+
+policy.select(3, true)
+assert(active_window.pinned)
+emit("config.unload")
+assert(active_window.workspace == right and not active_window.pinned and active_window.floating
+       and not carry_timer.enabled, "reload must clear temporary pins")
+
+policy = setup()
+left, middle, right = edges(policy, monitors[1], 3)
+active_window.floating = true
+policy.step(-1, true)
+active_window.floating, active_window.pinned = false, false -- Native drag release can retile early.
+local before_release_cleanup = #dispatched
+carry_timer:fire()
+assert(active_window.workspace == left and #dispatched == before_release_cleanup,
+       "cleanup must accept a window already retiled by the compositor")
+
+policy = setup()
+left, middle, right = edges(policy, monitors[1], 3)
 local other = ids(policy, monitors[2])
 middle.visible = false
 left.visible = true
 monitors[1].active_workspace = left
-emit("workspace.active")
+emit("workspace.active", left)
 settle()
 edges(policy, monitors[1], 3)
 left.windows = 1
@@ -184,7 +287,7 @@ assert(ids(policy, monitors[2]) == other, "making room must not renumber another
 left.visible = false
 right.visible = true
 monitors[1].active_workspace = right
-emit("workspace.active")
+emit("workspace.active", right)
 settle()
 edges(policy, monitors[1], 4)
 right.windows = 1
@@ -246,4 +349,4 @@ monitors[2].is_mirror = true
 emit("monitor.added")
 settle()
 assert(#policy.list(monitors[2]) == 0)
-print("Two-sided workspace lifecycle, empty-monitor collapse, stable workspace objects, monitor isolation, shortcuts, hotplug, and reload passed")
+print("Workspace lifecycle, monitor isolation, pinned window transfers, reversals, early release, hotplug, and reload passed")
