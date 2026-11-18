@@ -9,11 +9,20 @@ Rectangle {
     required property int index
     property bool selected: false
     property bool favorite: false
+    property var emberShell: null
+    readonly property alias emberSlot: selectionSlot
     signal pointerMoved(real x, real y)
     signal activated()
     height: 52; radius: 10
-    color: selected ? Qt.alpha(theme.hover, 0.58) : "transparent"
-    border.width: selected ? 1 : 0; border.color: Qt.alpha(theme.border, 0.22)
+    color: selected && !selectionSlot.occupied ? Qt.alpha(theme.hover, 0.58) : "transparent"
+    border.width: selected && !selectionSlot.occupied ? 1 : 0; border.color: Qt.alpha(theme.border, 0.22)
+    EmberSlot {
+        id: selectionSlot
+        shell: root.emberShell
+        anchors.fill: parent
+        shapeRadius: root.radius
+        shapeOpacity: 0.42
+    }
     RowLayout {
         anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
         spacing: 8
@@ -42,7 +51,7 @@ Rectangle {
         }
         Text { text: "★"; visible: root.favorite; color: "#cc7855"; font: root.theme.textFont }
     }
-    FocusDot { theme: root.theme; visible: root.selected }
+    FocusDot { theme: root.theme; visible: root.selected && !root.emberShell?.emberEnabled }
     MouseArea {
         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
         onPositionChanged: mouse => root.pointerMoved(mouse.x, mouse.y)

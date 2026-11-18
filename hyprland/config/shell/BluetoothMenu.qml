@@ -156,10 +156,11 @@ ColumnLayout {
                     id: deviceSlot
                     objectName: "bluetooth-row:" + deviceRow.address
                     shell: root.shell
-                    anchors { top: parent.top; right: parent.right; margins: 4 }
-                    width: 6; height: width
+                    anchors.fill: parent
+                    shapeRadius: button.radius
+                    shapeOpacity: 0.42
                 }
-                FocusDot { theme: root.theme; visible: button.activeFocus && !deviceSlot.occupied; z: 1 }
+                FocusDot { theme: root.theme; visible: button.activeFocus && !root.shell.emberEnabled; z: 1 }
                 RowLayout {
                     anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
                     spacing: 12

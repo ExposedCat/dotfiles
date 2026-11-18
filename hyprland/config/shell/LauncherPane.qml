@@ -31,7 +31,11 @@ ColumnLayout {
     signal dragStarted(real x, real y)
     signal dragMoved(real x, real y)
     signal dragFinished()
-    readonly property Item emberTarget: caretSlot
+    readonly property Item emberTarget: {
+        const row = list.currentItem;
+        return selectionExplicit && row && row.y + row.height > list.contentY && row.y < list.contentY + list.height
+            ? row.emberSlot : caretSlot;
+    }
     spacing: 4
     function combine() {
         const rows = [], seen = {};
@@ -51,6 +55,7 @@ ColumnLayout {
         return rows;
     }
     function maintainSelection() {
+        wheel.stop();
         const found = selectionExplicit ? results.findIndex(row => row.id === selectedId) : -1;
         list.currentIndex = found >= 0 ? found : results.length ? 0 : -1;
         if (selected) selectedId = selected.id;
@@ -82,8 +87,8 @@ ColumnLayout {
         Qt.callLater(focusSearch);
     }
     function moveSelection(delta) {
+        wheel.stop();
         choose(Math.max(0, Math.min(list.currentIndex + delta, list.count - 1)));
-        list.positionViewAtIndex(list.currentIndex, ListView.Contain);
     }
     Component.onCompleted: activate()
     TextField {
@@ -95,6 +100,7 @@ ColumnLayout {
         leftPadding: 50; rightPadding: 60; selectByMouse: true
         cursorVisible: !root.shell.emberEnabled
         background: Item {}
+        onPressed: root.selectionExplicit = false
         ShellIcon { x: 13; y: Math.round((parent.height - height) / 2); name: "search"; width: 24; height: 24; opacity: 0.8 }
         EmberSlot { id: caretSlot; shell: root.shell; x: search.cursorRectangle.x; y: search.cursorRectangle.y; width: 3; height: search.cursorRectangle.height || 19; shapeRadius: 1.5; caret: true }
         onTextChanged: {
@@ -143,10 +149,18 @@ ColumnLayout {
         Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 2
         model: root.results; currentIndex: count ? 0 : -1
         boundsBehavior: Flickable.StopAtBounds
-        PillWheel { flickable: list }
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        // Use ListView's animated tracking while the shared dot draws the highlight.
+        highlight: Item {}
+        highlightMoveDuration: 150
+        highlightMoveVelocity: -1
+        PillWheel { id: wheel; flickable: list; duration: 150 }
+        ScrollBar.vertical: ScrollBar {
+            policy: ScrollBar.AsNeeded
+            onPressedChanged: { if (pressed) wheel.stop(); }
+        }
         delegate: LauncherResult {
             theme: root.theme; width: list.width
+            emberShell: root.shell
             selected: ListView.isCurrentItem
             favorite: providers.isFavorite(modelData)
             onPointerMoved: (x, y) => {

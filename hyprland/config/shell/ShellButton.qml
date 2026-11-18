@@ -12,6 +12,7 @@ Rectangle {
     property bool danger: false
     property bool indicator: false
     property var emberShell: null
+    property bool fillFocus: false
     property alias emberSlot: emberSlot
     property alias mouseButtons: pointer.acceptedButtons
     signal clicked(int button)
@@ -35,10 +36,18 @@ Rectangle {
     EmberSlot {
         id: emberSlot
         shell: root.emberShell
-        anchors { top: parent.top; right: parent.right; margins: 4 }
-        width: 6; height: width
+        x: root.fillFocus ? 0 : root.width - width - 4
+        y: root.fillFocus ? 0 : 4
+        width: root.fillFocus ? root.width : 6
+        height: root.fillFocus ? root.height : width
+        shapeRadius: root.fillFocus ? root.radius : width / 2
+        shapeOpacity: root.fillFocus ? 0.42 : 1
     }
-    FocusDot { theme: root.theme; visible: root.activeFocus && !emberSlot.occupied; z: 1 }
+    FocusDot {
+        theme: root.theme
+        visible: root.activeFocus && !emberSlot.occupied && !(root.fillFocus && root.emberShell?.emberEnabled)
+        z: 1
+    }
     RowLayout {
         id: content
         anchors.centerIn: parent

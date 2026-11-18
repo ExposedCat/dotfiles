@@ -111,6 +111,7 @@ PanelWindow {
     }
     function close() {
         if (!opened) return;
+        wheel.stop();
         closingSelection = list.activeFocus ? list.currentIndex : -1;
         animate(geometry, progress, false);
         armFocus.stop();
@@ -247,6 +248,9 @@ PanelWindow {
             keyNavigationEnabled: true
             activeFocusOnTab: true
             model: root.entries
+            PillWheel { id: wheel; flickable: list; duration: 150 }
+            onModelChanged: wheel.stop()
+            onCurrentIndexChanged: { if (root.opened) wheel.stop(); }
             Keys.onReturnPressed: root.accept(currentIndex)
             Keys.onEnterPressed: root.accept(currentIndex)
             Keys.onEscapePressed: root.close()
