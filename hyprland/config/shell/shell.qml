@@ -21,6 +21,7 @@ ShellRoot {
     property alias keyboard: keyboardLayoutController.keyboard
     property alias keyboardLayout: keyboardLayoutController
     readonly property bool screenSharing: sharing.active
+    function stopScreenSharing() { sharing.stop(); }
     property bool captureActive: false
     property string actionError: ""
     property alias audio: sound
@@ -101,12 +102,16 @@ ShellRoot {
     Audio {
         id: sound; fixture: root.fixture; fixtureData: root.fixtureData
         mixerOpen: root.panel === "mixer"
+        onFixtureMicMuteRequested: muted => root.fixtureData = Object.assign({}, root.fixtureData, {micMuted: muted})
         onOsdRequested: microphone => osd.showAudio(microphone, microphone ? micVolume : volume, microphone ? micMuted : muted)
     }
     KeyboardLayout { id: keyboardLayoutController; shell: root }
     Applications { id: appIndex; shell: root }
     Media { id: players; shell: root }
-    ScreenSharing { id: sharing; fixture: root.fixture; fixtureData: root.fixtureData }
+    ScreenSharing {
+        id: sharing; fixture: root.fixture; fixtureData: root.fixtureData
+        onFixtureSharesStopped: remainingSources => root.fixtureData = Object.assign({}, root.fixtureData, {screenSources: remainingSources})
+    }
     Brightness { id: monitorBrightness; shell: root }
     SystemStats { id: systemStats; shell: root }
     Appearance { id: systemAppearance; shell: root }
@@ -127,6 +132,7 @@ ShellRoot {
     }
     Bar { id: bar; screen: root.mainScreen; shell: root; theme: palette }
     PillTheme { id: overlayColors }
+    ClipboardPopup { id: clipboardPopup; shell: root; theme: bar.pillTheme }
     Overlays { id: overlays; shell: root; theme: overlayColors; showOsd: false }
     Authentication { id: authenticationController; shell: root }
     CaptureEndpoint {
@@ -140,6 +146,10 @@ ShellRoot {
     IpcHandler {
         target: "shell"
         function toggle(panel: string): void { if (["launcher", "notifications", "power", "connections", "ethernet", "bluetooth", "media", "mixer", "system"].includes(panel)) root.toggle(panel); }
+        function clipboard(position: string): void {
+            try { clipboardPopup.toggle(JSON.parse(position)); }
+            catch (error) { console.warn("Invalid clipboard position:", error); }
+        }
         function gesture(action: string, timestamp: string): void { root.gesture(action, timestamp); }
         function capture(active: bool): void { root.captureActive = active; }
         function applications(): string {

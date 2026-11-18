@@ -58,8 +58,9 @@ ColumnLayout {
                     Rectangle {
                         anchors.centerIn: parent
                         width: Math.min(42, parent.width); height: width; radius: width / 2
-                        color: day.selected && !dateSlot.occupied ? root.theme.accent : "transparent"
-                    border.width: day.today && !day.selected ? 1 : 0; border.color: root.theme.accent
+                        color: day.selected && !dateSlot.occupied ? root.theme.focusColor : "transparent"
+                        border.width: day.today && !day.selected ? 1 : 0
+                        border.color: Qt.alpha(root.theme.focusColor, 0.5)
                     }
                     EmberSlot { id: dateSlot; shell: root.shell; anchors.centerIn: parent; width: Math.min(42, parent.width); height: width }
                     opacity: modelData.getMonth() === root.month.getMonth() ? 1 : 0.35

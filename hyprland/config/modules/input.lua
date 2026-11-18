@@ -9,6 +9,9 @@ hl.config({
         -- Keep the grab point and wait for movement before starting a drag.
         drag_center_window = false,
         drag_threshold = 5,
+        -- OpenLogi's thumb buttons send wheel events. Accept consecutive taps
+        -- immediately and rate-limit the physical wheel in keybindings.lua.
+        scroll_event_delay = 0,
     },
 
     input = {

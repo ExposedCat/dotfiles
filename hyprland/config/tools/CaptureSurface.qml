@@ -232,7 +232,15 @@ PanelWindow {
             visible: false; width: Math.min(380, scene.width - x)
             color: window.ink
             placeholderText: "Type a label, then Enter"
-            background: Rectangle { color: typography.background; radius: 8; border.color: typography.secondary }
+            background: Rectangle {
+                color: typography.background; radius: 8
+                border.width: 1; border.color: typography.border
+                Rectangle {
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 6 }
+                    height: 2; radius: 1; color: typography.focusColor
+                    visible: textInput.activeFocus
+                }
+            }
             function commit() {
                 if (text.length) controller.strokes = controller.strokes.concat([{type: "text", x: display.x + x + leftPadding, y: display.y + y + topPadding, text: text, color: window.ink.toString()}]);
                 visible = false; scene.forceActiveFocus();
@@ -280,7 +288,7 @@ PanelWindow {
                         Rectangle {
                             required property string modelData
                             width: 24; height: 36; radius: 7; color: modelData
-                            border.width: window.ink.toString() === modelData ? 2 : 0; border.color: typography.text
+                            border.width: window.ink.toString() === modelData ? 2 : 0; border.color: typography.focusColor
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: controller.ink = parent.modelData }
                         }
                     }

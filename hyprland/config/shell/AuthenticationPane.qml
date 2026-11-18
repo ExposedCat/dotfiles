@@ -37,13 +37,14 @@ Item {
                 textFormat: Text.PlainText; wrapMode: Text.Wrap; color: root.theme.text
             }
         }
-        ComboBox {
+        PillComboBox {
             id: identity
-            font: root.theme.textFont; Layout.fillWidth: true
+            theme: root.theme; Layout.fillWidth: true
             visible: !root.authentication.testing && root.flow && root.flow.identities.length > 1
             model: root.flow ? root.flow.identities : []
             currentIndex: root.flow ? root.flow.identities.indexOf(root.flow.selectedIdentity) : -1
-            displayText: currentValue ? String(currentValue.name || currentValue.userName || currentValue.uid || currentValue) : ""
+            optionLabel: value => value ? String(value.name || value.userName || value.uid || value) : ""
+            displayText: optionLabel(currentValue)
             onActivated: { if (root.flow) root.flow.selectedIdentity = currentValue; password.clear(); Qt.callLater(root.focusSearch); }
         }
         Text { font: root.theme.textFont; text: root.authentication.inputPrompt; color: root.theme.secondary; textFormat: Text.PlainText }
@@ -56,7 +57,7 @@ Item {
             inputMethodHints: echoMode === TextInput.Password ? Qt.ImhHiddenText | Qt.ImhNoPredictiveText | Qt.ImhSensitiveData : Qt.ImhNone
             passwordCharacter: "•"; color: root.theme.text; leftPadding: 12; rightPadding: 12
             selectByMouse: true; hoverEnabled: true
-            cursorDelegate: Rectangle { visible: !root.shell.emberEnabled; width: 1; color: root.theme.text }
+            cursorDelegate: Rectangle { visible: !root.shell.emberEnabled; width: 1; color: root.theme.focusColor }
             onHoveredChanged: { if (hovered) root.interactionControl = password; }
             onActiveFocusChanged: { if (activeFocus) root.interactionControl = password; }
             onTextEdited: root.interactionControl = password
@@ -67,7 +68,7 @@ Item {
             }
             background: Rectangle {
                 radius: 10; color: root.theme.surface
-                Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 10 } height: 2; radius: 1; color: "#cc7855"; visible: password.activeFocus && !root.shell.emberEnabled }
+                Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 10 } height: 2; radius: 1; color: root.theme.focusColor; visible: password.activeFocus && !root.shell.emberEnabled }
             }
             onAccepted: root.submit()
         }
@@ -83,7 +84,6 @@ Item {
             ShellButton {
                 id: cancel; theme: root.theme; emberShell: root.shell; text: "Cancel"
                 emberSlot.objectName: "authentication-cancel"
-                border.width: activeFocus && !root.shell.emberEnabled ? 1 : 0
                 onHoveredChanged: { if (hovered) root.interactionControl = cancel; }
                 onActiveFocusChanged: { if (activeFocus) root.interactionControl = cancel; }
                 onClicked: root.authentication.cancel()
@@ -91,7 +91,6 @@ Item {
             ShellButton {
                 id: confirm; theme: root.theme; emberShell: root.shell; text: "Authenticate"; selected: true; enabled: password.enabled
                 emberSlot.objectName: "authentication-confirm"
-                border.width: activeFocus && !root.shell.emberEnabled ? 1 : 0
                 onHoveredChanged: { if (hovered) root.interactionControl = confirm; }
                 onActiveFocusChanged: { if (activeFocus) root.interactionControl = confirm; }
                 onClicked: root.submit()

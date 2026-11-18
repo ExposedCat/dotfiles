@@ -43,7 +43,13 @@ ColumnLayout {
         color: root.theme.text
         placeholderText: "Open with…"; placeholderTextColor: root.theme.secondary
         leftPadding: 50; rightPadding: 12; selectByMouse: true
-        background: Item {}
+        background: Item {
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 50; rightMargin: 12 }
+                height: 2; radius: 1; color: root.theme.focusColor
+                visible: search.activeFocus
+            }
+        }
         Desktop.ShellIcon { x: 13; y: Math.round((parent.height - height) / 2); name: "search"; width: 24; height: 24; opacity: 0.8 }
         onTextChanged: root.pointerPosition = Qt.point(-1, -1)
         Keys.onDownPressed: root.moveSelection(1)

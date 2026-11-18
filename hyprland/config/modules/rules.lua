@@ -11,7 +11,7 @@ hl.window_rule({
 -- Blur only the pill's painted pixels; the surrounding native surface is clear.
 hl.layer_rule({
     name = "floating-pill-glass",
-    match = { namespace = "^dotfiles-bar$" },
+    match = { namespace = "^dotfiles-(bar|clipboard)$" },
     blur = true,
     ignore_alpha = 0.2,
     no_anim = true,
@@ -42,13 +42,6 @@ hl.layer_rule({
 hl.window_rule({
     name = "app-launcher",
     match = { class = "org.quickshell", title = "Applications" },
-    float = true,
-    center = true,
-})
-
-hl.window_rule({
-    name = "clipboard-picker",
-    match = { class = "org.quickshell", title = "Clipboard history" },
     float = true,
     center = true,
 })

@@ -44,7 +44,7 @@ Slider {
         height: root.horizontal ? width : 4
         radius: Math.min(width, height) / 2
         EmberSlot { id: handleSlot; shell: root.emberShell; anchors.fill: parent }
-        color: (root.thickTrack ? root.emberSlot.landed : root.emberSlot.occupied) ? "transparent" : root.theme.text
-        border.width: root.activeFocus && !root.emberSlot.occupied && root.horizontal ? 2 : 0; border.color: root.theme.accent
+        color: (root.thickTrack ? root.emberSlot.landed : root.emberSlot.occupied) ? "transparent"
+            : root.activeFocus ? root.theme.focusColor : root.theme.text
     }
 }

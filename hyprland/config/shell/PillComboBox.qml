@@ -6,10 +6,14 @@ ComboBox {
     required property var theme
     property real menuWidth: width
     property string emptyText: ""
+    property var optionLabel: null
     implicitHeight: flat ? 30 : 42
     font: theme.textFont
     leftPadding: flat ? 0 : 14; rightPadding: flat ? 26 : 36
-    background: Rectangle { color: root.flat ? "transparent" : Qt.alpha(root.theme.text, 0.06); radius: 10 }
+    background: Rectangle {
+        color: root.flat ? "transparent" : Qt.alpha(root.theme.text, 0.06); radius: 10
+        FocusDot { theme: root.theme; visible: root.activeFocus && !root.popup.visible }
+    }
     contentItem: Text {
         text: root.count ? root.displayText : root.emptyText; textFormat: Text.PlainText; color: root.flat ? root.theme.secondary : root.theme.text
         font: root.font; verticalAlignment: Text.AlignVCenter; horizontalAlignment: root.flat ? Text.AlignHCenter : Text.AlignLeft; elide: Text.ElideRight
@@ -23,7 +27,8 @@ ComboBox {
         width: root.popup.width - 16; height: 40
         highlighted: root.highlightedIndex === index
         background: Rectangle { color: parent.highlighted ? root.theme.hover : "transparent"; radius: 8 }
-        contentItem: Text { text: String(modelData); textFormat: Text.PlainText; color: root.theme.text; font: root.font; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+        contentItem: Text { text: root.optionLabel ? root.optionLabel(modelData) : root.textAt(index); textFormat: Text.PlainText; color: root.theme.text; font: root.font; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; rightPadding: 10 }
+        FocusDot { theme: root.theme; visible: parent.highlighted }
     }
     popup: Popup {
         x: root.flat ? Math.round((root.width - width) / 2) : 0

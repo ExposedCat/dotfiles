@@ -140,8 +140,6 @@ ColumnLayout {
                 opacity: root.bluetooth.enabled ? 1 : 0.45
                 enabled: root.bluetooth.enabled && !deviceRow.pending && !!root.deviceData[deviceRow.address]
                 activeFocusOnTab: true
-                border.width: activeFocus && !root.shell.emberEnabled ? 1 : 0
-                border.color: root.theme.accent
                 Accessible.role: Accessible.Button
                 Accessible.name: hint
                 Accessible.description: deviceRow.pending ? (root.bluetooth.pending[deviceRow.address]?.connect === false ? "Disconnecting" : "Connecting") : deviceRow.device.connected ? "Connected" : deviceRow.remembered ? "Paired device" : "Nearby device, pair and connect"
@@ -154,7 +152,14 @@ ColumnLayout {
                 Component.onDestruction: {
                     if (root.rowItems[deviceRow.address] === button) { const items = Object.assign({}, root.rowItems); delete items[deviceRow.address]; root.rowItems = items; }
                 }
-                EmberSlot { id: deviceSlot; objectName: "bluetooth-row:" + deviceRow.address; shell: root.shell; anchors.fill: parent; shapeRadius: 10; shapeOpacity: 0.42 }
+                EmberSlot {
+                    id: deviceSlot
+                    objectName: "bluetooth-row:" + deviceRow.address
+                    shell: root.shell
+                    anchors { top: parent.top; right: parent.right; margins: 4 }
+                    width: 6; height: width
+                }
+                FocusDot { theme: root.theme; visible: button.activeFocus && !deviceSlot.occupied; z: 1 }
                 RowLayout {
                     anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
                     spacing: 12

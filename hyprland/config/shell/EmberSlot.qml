@@ -4,10 +4,14 @@ import QtQuick
 Item {
     id: root
     required property var shell
+    property Item ember: null
     property real shapeRadius: Math.min(width, height) / 2
     property real shapeOpacity: 1
-    readonly property bool landed: occupied && shell.pill.ember.dock === root && !shell.pill.ember.moving
+    property real shapeBorderWidth: 0
+    readonly property Item motion: ember || shell?.pill?.ember || null
+    readonly property bool landed: occupied && motion?.dock === root && !motion.moving
     property bool caret: false
     property var motionKey: null
-    readonly property bool occupied: !!shell && shell.emberEnabled && shell.emberTarget === root
+    readonly property bool occupied: ember ? ember.active && ember.target === root
+        : !!shell && shell.emberEnabled && shell.emberTarget === root
 }

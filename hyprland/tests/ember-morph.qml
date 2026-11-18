@@ -84,32 +84,36 @@ Scope {
                 test.docked(); test.check(test.shape.width === 3 && test.shape.height > 20, "Notification did not become an accent strip");
                 test.app.toggle("bluetooth"); break;
             case 8:
+                test.descendants(test.app.pill.activePane).find(c => c.objectName === "bluetooth-power").forceActiveFocus(); break;
+            case 9:
                 test.docked(); test.check(test.shape.width === 20 && test.shape.height === 20, "Bluetooth did not become the switch thumb");
                 test.app.bluetooth.togglePower(); break;
-            case 9:
-                test.docked(); test.app.toggle("ethernet"); break;
             case 10:
+                test.docked(); test.app.toggle("ethernet"); break;
+            case 11:
                 test.docked(); test.check(test.shape.height === 32 && test.shape.width > 40, "Network did not become the active status capsule");
                 test.app.toggle("system"); break;
-            case 11:
-                test.docked(); test.check(test.shape.width === 82 && test.shape.height === 38, "System did not become the metric value capsule");
-                test.app.toggle("power"); break;
             case 12:
+                test.docked();
+                test.check(test.app.emberTarget.objectName.startsWith("systemEndpoint:")
+                    && test.shape.width === 8 && test.shape.height === 8, "System did not become the metric endpoint");
+                test.app.toggle("power"); break;
+            case 13:
                 test.check(!test.app.emberTarget && !test.shape.visible, "Power chose an action without interaction");
                 test.descendants(test.app.pill.activePane).find(c => c.hint === "Lock").forceActiveFocus(); break;
-            case 13:
-                test.docked(); test.check(test.shape.width === 70 && test.shape.height === 60, "Power did not become the action background");
+            case 14:
+                test.docked(); test.check(test.shape.width === 6 && test.shape.height === 6, "Power action focus did not become the orange dot");
                 test.app.gesture("hide", "100");
                 test.check(!test.shape.visible, "Super hold did not hide the shape immediately"); break;
-            case 14:
-                test.app.gesture("show", "200"); break;
             case 15:
+                test.app.gesture("show", "200"); break;
+            case 16:
                 test.docked(); test.check(test.shape.visible, "Super release did not restore the shape");
                 test.app.panel = ""; test.app.pill.hoverExpanded = false; break;
-            case 16:
+            case 17:
                 test.check(!test.shape.visible && !test.app.emberTarget, "Collapsed pill kept a highlight");
                 test.app.pill.retained = {}; test.app.toggle("notifications"); break;
-            case 17:
+            case 18:
                 test.docked();
                 test.check(test.jumpFrames > 10 && test.sawTakeoff && test.sawLanding, "Missing takeoff, visible dot flight, or landing morph");
                 console.warn("MORPH PASS: one shape, docking, replacement handles, calendar/date/card morphs, Bluetooth thumb, network status, metric bar, power focus, instant hold/release, collapse, and retained-view destruction");

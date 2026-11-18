@@ -30,11 +30,15 @@ Rectangle {
     implicitHeight: 36
     radius: 8
     readonly property bool hovered: buttonHover.hovered
-    color: emberSlot.occupied ? "transparent" : selected ? theme.surface : "transparent"
-    border.width: activeFocus ? 1 : 0
-    border.color: danger ? theme.red : theme.accent
+    color: selected ? theme.surface : "transparent"
     opacity: enabled || pending ? 1 : 0.45
-    EmberSlot { id: emberSlot; shell: root.emberShell; anchors.fill: parent; shapeRadius: root.radius; shapeOpacity: 0.42 }
+    EmberSlot {
+        id: emberSlot
+        shell: root.emberShell
+        anchors { top: parent.top; right: parent.right; margins: 4 }
+        width: 6; height: width
+    }
+    FocusDot { theme: root.theme; visible: root.activeFocus && !emberSlot.occupied; z: 1 }
     RowLayout {
         id: content
         anchors.centerIn: parent

@@ -4,6 +4,16 @@ local M = {}
 local rules = {}
 local pending = false
 
+hl.animation({ leaf = "workspaces", enabled = true, speed = 2.2, bezier = "easeInOutCubic", style = "slide" })
+
+local function setWorkspaceSlide(style)
+    for _, leaf in ipairs({ "workspacesIn", "workspacesOut" }) do
+        hl.animation({ leaf = leaf, enabled = true, speed = 2.2, bezier = "easeInOutCubic", style = style })
+    end
+end
+
+setWorkspaceSlide("slide")
+
 function M.list(monitor)
     local result = {}
     if not monitor then return result end
@@ -129,7 +139,20 @@ end
 local function target(workspace, move)
     if not workspace then return end
     if move then
-        hl.dispatch(hl.dsp.window.move({ workspace = workspace.id }))
+        local window = hl.get_active_window()
+        if not window then return end
+        local monitor = workspace.monitor
+        local width = monitor.mode.width
+        local x = window.at.x - monitor.x
+        local visible = math.max(0, math.min(width, x + window.size.x) - math.max(0, x))
+        -- Hyprland slides the carried window in with the destination. Limit
+        -- the travel to a fraction of the window's visible width.
+        local percent = math.max(1, math.min(25, math.floor(100 * visible / (3 * width))))
+        local dispatch = hl.dsp.window.move({ workspace = workspace.id, window = window })
+        setWorkspaceSlide(string.format("slide %d%%", percent))
+        local ok, result = pcall(hl.dispatch, dispatch)
+        setWorkspaceSlide("slide")
+        if not ok then error(result, 0) end
     else
         hl.dispatch(hl.dsp.focus({ workspace = workspace.id }))
     end

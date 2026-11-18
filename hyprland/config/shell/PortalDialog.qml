@@ -101,6 +101,7 @@ Item {
                 Repeater {
                     model: [{id: "screen", name: "Monitors"}, {id: "window", name: "Windows"}, {id: "workspace", name: "Workspaces"}]
                     Item {
+                        id: tabControl
                         required property var modelData
                         required property int index
                         x: 3 + index * (tabs.width - 6) / 3; width: (tabs.width - 6) / 3; height: tabs.height
@@ -109,6 +110,7 @@ Item {
                         Keys.onReturnPressed: root.setTab(modelData.id)
                         Keys.onSpacePressed: root.setTab(modelData.id)
                         Text { anchors.centerIn: parent; text: modelData.name; color: root.tab === modelData.id ? portalTheme.text : "#e2dad4"; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; Behavior on color { ColorAnimation { duration: 120 } } }
+                        FocusDot { theme: portalTheme; visible: tabControl.activeFocus || (tabs.activeFocus && root.tab === modelData.id) }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { tabs.forceActiveFocus(); root.setTab(parent.modelData.id); } }
                     }
                 }
@@ -146,14 +148,13 @@ Item {
                             onToggled: { const values = Object.assign({}, root.selections); values[optionRow.modelData.id] = checked ? "true" : "false"; root.selections = values }
                         }
                         Text { visible: optionRow.modelData.values.length > 0; Layout.fillWidth: true; text: optionRow.modelData.name; textFormat: Text.PlainText; color: portalTheme.text; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; wrapMode: Text.Wrap }
-                        ComboBox {
+                        PillComboBox {
                             visible: optionRow.modelData.values.length > 0; Layout.maximumWidth: 180
+                            theme: portalTheme
                             model: optionRow.modelData.values; textRole: "name"; valueRole: "id"
                             currentIndex: model.findIndex(v => v.id === root.selections[optionRow.modelData.id])
                             Accessible.name: optionRow.modelData.name
-                            font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize
                             onActivated: { const values = Object.assign({}, root.selections); values[optionRow.modelData.id] = currentValue; root.selections = values }
-                            palette { button: portalTheme.surface; buttonText: portalTheme.text; window: portalTheme.surface; text: portalTheme.text; highlight: portalTheme.accent; highlightedText: "black"; base: portalTheme.surface }
                         }
                     }
                 }
@@ -186,7 +187,7 @@ Item {
                 Rectangle {
                     anchors.fill: sourcePreview; radius: 11; color: "transparent"
                     border.width: sourceCard.activeFocus ? 1 : 0
-                    border.color: sourceCard.activeFocus ? portalTheme.text : "#50423d3a"
+                    border.color: portalTheme.focusColor
                     Behavior on border.color { ColorAnimation { duration: 120 } }
                 }
                 Rectangle { visible: sourceCard.chosen; x: 0; y: sourcePreview.height + 4; width: parent.width; height: sourceName.height + 8; radius: 10; color: "#70cc7855" }
@@ -206,7 +207,7 @@ Item {
                 y: root.region ? root.region[1] / (root.chosenSource || {}).height * regionPreview.height : 0
                 width: root.region ? root.region[2] / (root.chosenSource || {}).width * regionPreview.width : 0
                 height: root.region ? root.region[3] / (root.chosenSource || {}).height * regionPreview.height : 0
-                color: "#33cc7855"; border.color: portalTheme.accent; border.width: 2
+                color: Qt.alpha(portalTheme.focusColor, 0.20); border.color: portalTheme.focusColor; border.width: 2
             }
             MouseArea {
                 x: regionPreview.x; y: 0; width: regionPreview.width; height: regionPreview.height; cursorShape: Qt.CrossCursor

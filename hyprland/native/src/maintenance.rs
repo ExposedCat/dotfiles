@@ -9,6 +9,7 @@ use std::{
 };
 const LEGACY: &[&str] = &[
     "tools/desktop.py",
+    "tools/clipboard.qml",
     "tools/capture.py",
     "shell/shell.py",
     "shell/agenda.py",
@@ -103,6 +104,14 @@ fn reload_hypr() -> Result<()> {
     if !errors.trim().is_empty() {
         bail!("Live configuration errors: {errors}");
     }
+    if !root().join("shell/ClipboardPopup.qml").is_file() {
+        let _ = run(&[
+            "systemctl",
+            "--user",
+            "stop",
+            "dotfiles-hyprland-clipboard.service",
+        ]);
+    }
     let helper = root().join("bin/dotfiles-desktop");
     if helper.is_file() {
         run(&[
@@ -126,6 +135,7 @@ fn reload_hypr() -> Result<()> {
             "automount",
             "shell",
             "capture",
+            "clipboard",
             "clipboard-text",
             "clipboard-image",
             "idle",

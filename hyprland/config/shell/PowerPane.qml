@@ -29,7 +29,7 @@ ColumnLayout {
                     theme: root.theme; icon: modelData.icon; iconSize: 26
                     hint: (root.confirmAction === modelData.id ? "Confirm " : "") + modelData.title
                     selected: root.confirmAction === modelData.id
-                    color: emberSlot.occupied ? "transparent" : selected ? root.theme.hover : root.theme.surface
+                    color: selected ? root.theme.hover : root.theme.surface
                     danger: ["logout", "reboot", "poweroff"].includes(modelData.id)
                     onClicked: {
                         if (danger && root.confirmAction !== modelData.id) root.confirmAction = modelData.id;

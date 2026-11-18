@@ -27,6 +27,7 @@
 - xdg-desktop-portal-gtk
 - xdg-desktop-portal-gnome (modern Nautilus file chooser)
 - pipewire
+- pipewire-utils (`pw-cli` for stopping screen sharing from the pill)
 - pipewire-pulseaudio
 - pulseaudio-utils (pactl, recording audio source discovery)
 - wireplumber

@@ -17,10 +17,18 @@ Scope {
     readonly property bool muted: fixture ? !!fixtureData.muted : available ? sink.audio.muted : false
     readonly property real micVolume: fixture ? (fixtureData.micVolume ?? 0.8) : source && source.audio && source.ready ? source.audio.volume : 0
     readonly property bool micMuted: fixture ? !!fixtureData.micMuted : source && source.audio ? source.audio.muted : false
+    // An AudioSink can feed a recording stream through its monitor ports.
+    readonly property var micLinks: (fixture ? fixtureData.micLinks || [] : Pipewire.linkGroups.values)
+        .filter(link => link?.source?.type === PwNodeType.AudioSource && link.target?.type === PwNodeType.AudioInStream)
+    readonly property var activeMics: [...new Set(micLinks.filter(link => link.state === PwLinkState.Active).map(link => link.source))]
+    readonly property bool micInUse: activeMics.length > 0
+    readonly property bool activeMicsMuted: micInUse && (fixture ? micMuted : activeMics.every(node => node.audio?.muted))
     readonly property string device: sink ? (sink.description || sink.name) : "Audio unavailable"
     property bool armed: false
+    property bool togglingActiveMics: false
     signal osdRequested(bool microphone)
-    function show(mic) { if (armed) osdRequested(mic); }
+    signal fixtureMicMuteRequested(bool muted)
+    function show(mic) { if (armed && !(mic && togglingActiveMics)) osdRequested(mic); }
     function adjust(delta) { if (available && !fixture) sink.audio.volume = Math.max(0, Math.min(1, volume + delta)); }
     function toggleMute() { if (fixture) fixtureData = Object.assign({}, fixtureData, {muted: !muted}); else if (available) sink.audio.muted = !muted; }
     function setVolume(value, microphone) {
@@ -32,6 +40,20 @@ Scope {
     function toggleMicMute() {
         if (fixture) fixtureData = Object.assign({}, fixtureData, {micMuted: !micMuted});
         else if (source && source.audio) source.audio.muted = !source.audio.muted;
+    }
+    function toggleActiveMics() {
+        if (!micInUse) return;
+        const mute = !activeMicsMuted;
+        // The pill icon provides immediate feedback for this toggle.
+        togglingActiveMics = true;
+        try {
+            if (fixture) { fixtureMicMuteRequested(mute); return; }
+            for (const node of activeMics) {
+                if (node.audio) node.audio.muted = mute;
+            }
+        } finally {
+            togglingActiveMics = false;
+        }
     }
     function selectDevice(index, microphone) {
         const node = (microphone ? inputs : outputs)[index];
@@ -46,6 +68,7 @@ Scope {
     onMicMutedChanged: show(true)
     onSinkChanged: { armed = false; arm.restart(); }
     onSourceChanged: { armed = false; arm.restart(); }
-    PwObjectTracker { objects: root.fixture ? [] : (root.mixerOpen ? root.nodes : []).concat([root.sink, root.source]).filter(n => n !== null) }
+    PwObjectTracker { objects: root.fixture ? [] : [...new Set((root.mixerOpen ? root.nodes : root.activeMics).concat([root.sink, root.source]).filter(n => n !== null))] }
+    PwObjectTracker { objects: root.fixture ? [] : root.micLinks }
     Timer { id: arm; interval: 700; running: true; onTriggered: root.armed = true }
 }

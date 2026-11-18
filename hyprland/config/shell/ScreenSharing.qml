@@ -12,10 +12,22 @@ Scope {
         .filter(n => n && !n.audio)
     // Direct region recording and screenshots create no portal sources.
     readonly property var sources: candidates.filter(n =>
-        (n.properties?.["media.name"] || n.name || "").startsWith("xdph-streaming-"))
+        n.properties?.["media.name"]?.startsWith("xdph-streaming-") || n.name?.startsWith("xdph-streaming-"))
     readonly property var links: (fixture ? fixtureData.screenLinks || [] : Pipewire.linkGroups.values)
         .filter(link => link && link.source && sources.some(node => node.id === link.source.id))
-    readonly property bool active: links.some(link => link.state === PwLinkState.Active)
+    readonly property var activeSources: sources.filter(node =>
+        links.some(link => link.source?.id === node.id && link.state === PwLinkState.Active))
+    readonly property bool active: activeSources.length > 0
+    signal fixtureSharesStopped(var remainingSources)
+
+    function stop() {
+        if (fixture) {
+            fixtureSharesStopped(candidates.filter(node => !activeSources.includes(node)));
+            return;
+        }
+        // Removing the portal source disconnects every consumer of that share.
+        for (const node of activeSources) Quickshell.execDetached(["pw-cli", "destroy", String(node.id)]);
+    }
     PwObjectTracker { objects: root.fixture ? [] : root.candidates }
     PwObjectTracker { objects: root.fixture ? [] : root.links }
 }

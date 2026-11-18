@@ -88,7 +88,6 @@ Item {
                 id: close; theme: root.theme; emberShell: root.shell
                 icon: "x"; hint: "Cancel"; implicitWidth: 30; implicitHeight: 30
                 emberSlot.objectName: "credential-close"
-                border.width: activeFocus && !root.shell.emberEnabled ? 1 : 0
                 onHoveredChanged: root.trackHover(this, hovered)
                 onActiveFocusChanged: root.trackFocus(this, activeFocus)
                 onClicked: root.shell.credentials.finish({response: 1})
@@ -132,7 +131,7 @@ Item {
                         cursorVisible: !root.shell.emberEnabled
                         // TextInput changes cursorVisible internally during editing.
                         // Keep its delegate hidden while the shared ember is the caret.
-                        cursorDelegate: Rectangle { visible: !root.shell.emberEnabled; width: 1; color: root.theme.text }
+                        cursorDelegate: Rectangle { visible: !root.shell.emberEnabled; width: 1; color: root.theme.focusColor }
                         onHoveredChanged: root.trackHover(this, hovered)
                         onActiveFocusChanged: root.trackFocus(this, activeFocus)
                         onTextEdited: root.trackFocus(this, true)
@@ -145,7 +144,7 @@ Item {
                         }
                         background: Rectangle {
                             radius: 10; color: root.theme.surface
-                            Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 10 } height: 2; radius: 1; visible: input.activeFocus && !root.shell.emberEnabled; color: "#cc7855" }
+                            Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 10 } height: 2; radius: 1; visible: input.activeFocus && !root.shell.emberEnabled; color: root.theme.focusColor }
                         }
                         onTextChanged: { const next = Object.assign({}, root.values); next[fieldRow.modelData.key] = text; root.values = next }
                         onAccepted: { if (fieldRow.index + 1 < fields.count) fields.itemAt(fieldRow.index + 1).focusInput(); else root.accept() }
@@ -159,7 +158,6 @@ Item {
                         Accessible.checkable: true; Accessible.checked: fieldRow.revealed
                         implicitHeight: 40; implicitWidth: 40; radius: 10
                         emberSlot.objectName: "credential-visibility-" + fieldRow.index
-                        border.width: activeFocus && !root.shell.emberEnabled ? 1 : 0
                         onHoveredChanged: root.trackHover(this, hovered)
                         onActiveFocusChanged: root.trackFocus(this, activeFocus)
                         onClicked: { forceActiveFocus(Qt.MouseFocusReason); fieldRow.revealed = !fieldRow.revealed; }
@@ -167,15 +165,16 @@ Item {
                 }
             }
         }
-        CheckBox {
+        PortalCheckBox {
             id: rememberBox
+            theme: root.theme
             property alias emberSlot: rememberSlot
+            focusDotVisible: activeFocus && !rememberSlot.occupied
             visible: !!root.request.rememberAllowed; checked: root.remember
-            font: root.theme.textFont; text: "Remember in keyring"; onToggled: root.remember = checked
-            contentItem: Text { text: parent.text; font: root.theme.textFont; color: root.theme.secondary; leftPadding: parent.indicator.width + parent.spacing; verticalAlignment: Text.AlignVCenter }
+            text: "Remember in keyring"; onToggled: root.remember = checked
             onHoveredChanged: root.trackHover(this, hovered)
             onActiveFocusChanged: root.trackFocus(this, activeFocus)
-            EmberSlot { id: rememberSlot; shell: root.shell; objectName: "credential-remember"; x: rememberBox.indicator.x; y: rememberBox.indicator.y; width: rememberBox.indicator.width; height: rememberBox.indicator.height; shapeRadius: 4; shapeOpacity: 0.42 }
+            EmberSlot { id: rememberSlot; shell: root.shell; objectName: "credential-remember"; x: rememberBox.indicator.x + rememberBox.indicator.width - 3; y: rememberBox.indicator.y - 3; width: 6; height: width }
         }
         RowLayout {
             Layout.fillWidth: true; spacing: 10
@@ -184,7 +183,6 @@ Item {
             ShellButton {
                 id: cancel; theme: root.theme; emberShell: root.shell; text: "Cancel"; implicitHeight: 40
                 emberSlot.objectName: "credential-cancel"
-                border.width: activeFocus && !root.shell.emberEnabled ? 1 : 0
                 onHoveredChanged: root.trackHover(this, hovered)
                 onActiveFocusChanged: root.trackFocus(this, activeFocus)
                 onClicked: root.shell.credentials.finish({response: 1})
@@ -193,7 +191,6 @@ Item {
                 id: confirm; visible: !root.request.displayOnly; theme: root.theme; emberShell: root.shell
                 text: root.request.confirmLabel || "Continue"; selected: true; implicitHeight: 40; enabled: root.canAccept
                 emberSlot.objectName: "credential-connect"
-                border.width: activeFocus && !root.shell.emberEnabled ? 1 : 0
                 onHoveredChanged: root.trackHover(this, hovered)
                 onActiveFocusChanged: root.trackFocus(this, activeFocus)
                 onClicked: root.accept()

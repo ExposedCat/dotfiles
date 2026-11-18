@@ -12,7 +12,6 @@ Rectangle {
     signal groupDismissed()
     implicitWidth: 30; implicitHeight: 30
     radius: 8; color: "transparent"
-    border.width: activeFocus ? 1 : 0; border.color: theme.accent
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: hint
@@ -71,6 +70,7 @@ Rectangle {
         }
     }
     ShellIcon { anchors.centerIn: parent; name: "x"; width: 21; height: 21 }
+    FocusDot { theme: root.theme; visible: root.activeFocus }
     MouseArea {
         id: pointer
         anchors.fill: parent

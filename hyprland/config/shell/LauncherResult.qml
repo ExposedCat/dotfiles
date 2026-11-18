@@ -42,6 +42,7 @@ Rectangle {
         }
         Text { text: "★"; visible: root.favorite; color: "#cc7855"; font: root.theme.textFont }
     }
+    FocusDot { theme: root.theme; visible: root.selected }
     MouseArea {
         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
         onPositionChanged: mouse => root.pointerMoved(mouse.x, mouse.y)

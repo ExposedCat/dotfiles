@@ -10,6 +10,7 @@ PanelWindow {
     id: bar
     required property var shell
     required property var theme
+    readonly property alias pillTheme: colors
     readonly property var monitorInfo: shell.fixture ? null : Hyprland.monitorFor(screen)
     readonly property bool fullscreen: shell.fixture ? !!shell.fixtureData.fullscreen : !!(monitorInfo && monitorInfo.activeWorkspace && monitorInfo.activeWorkspace.hasFullscreen)
     readonly property bool idleHidden: shell.pillSuppressed || fullscreen
@@ -132,12 +133,18 @@ PanelWindow {
     readonly property int sideInset: 20
     readonly property int groupSpacing: 24
     readonly property real compactContentWidth: timeButton.width + 14 + layoutLabel.width
-    readonly property int notificationSpace: hasNotifications ? 30 : 0
-    readonly property real compactWidth: Math.ceil((compactContentWidth + 36 + notificationSpace) / 2) * 2
+    readonly property int notificationSlot: 30
+    readonly property int privacyGap: 8
+    readonly property int privacyButtonWidth: 32
+    readonly property int privacyButtonSpacing: 2
+    readonly property int privacyCount: Number(shell.audio.micInUse) + Number(shell.screenSharing)
+    readonly property int privacySpace: privacyCount > 0 ? privacyGap + privacyCount * privacyButtonWidth + (privacyCount - 1) * privacyButtonSpacing : 0
+    readonly property int indicatorSpace: (hasNotifications ? notificationSlot : 0) + privacySpace
+    readonly property real compactWidth: Math.ceil((compactContentWidth + 36 + indicatorSpace) / 2) * 2
     readonly property real leftContentWidth: compactContentWidth / 2 + 14 + dateLabel.width + workspaceControls.implicitWidth + (trayItems.count ? trayIcons.implicitWidth : 0) + sideInset
-    // Reserve the indicator's slot while expanded so arrivals never retarget
+    // Reserve the dot's slot while expanded so notifications never retarget
     // the expansion animation, fade the controls, or move them under the mouse.
-    readonly property real rightContentWidth: compactContentWidth / 2 + weekdayLabel.width - layoutLabel.width + 30 + appearanceButton.width + controlButtons.implicitWidth + sideInset
+    readonly property real rightContentWidth: compactContentWidth / 2 + weekdayLabel.width - layoutLabel.width + notificationSlot + privacySpace + appearanceButton.width + controlButtons.implicitWidth + sideInset
     readonly property real leftNeed: leftContentWidth + groupSpacing * (trayItems.count ? 2 : 1)
     // Each left spacer takes half the remaining left-hand room. Reserve room
     // for the matching right spacer too, without measuring its own stretched width.
@@ -149,7 +156,7 @@ PanelWindow {
     // Standalone views use the reveal animation instead of the compact morph.
     // Snap all painted coordinates to whole pixels to avoid text shimmer.
     readonly property rect targetGeometry: Qt.rect(
-        pinnedLauncher ? launcherPosition.x : (width - targetWidth) / 2 + (hiddenPanelVisible ? 0 : (feedbackRight - feedbackLeft + (!expanded ? notificationSpace : 0)) / 2),
+        pinnedLauncher ? launcherPosition.x : (width - targetWidth) / 2 + (hiddenPanelVisible ? 0 : (feedbackRight - feedbackLeft + (!expanded ? indicatorSpace : 0)) / 2),
         pinnedLauncher ? launcherPosition.y : theme.panelGap, targetWidth, targetHeight)
     property rect animatedGeometry: targetGeometry
     Behavior on animatedGeometry {
@@ -285,6 +292,7 @@ PanelWindow {
                 id: header
                 objectName: "pillHeader"
                 width: parent.width; height: bar.headerHeight
+                readonly property real labelRight: weekdayLabel.x + layoutLabel.width + (weekdayLabel.width - layoutLabel.width) * bar.detailsOpacity
                 visible: !bar.idleHidden
                 opacity: bar.idleHidden || bar.shownPanel ? 0 : 1
                 enabled: opacity > 0.95
@@ -347,10 +355,29 @@ PanelWindow {
                     visible: opacity > 0
                     enabled: bar.hasNotifications
                     Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.InOutCubic } }
-                    x: Math.round(weekdayLabel.x + layoutLabel.width + (weekdayLabel.width - layoutLabel.width) * bar.detailsOpacity + 12); y: 4
+                    x: Math.round(header.labelRight + 12); y: 4
                     theme: colors; implicitWidth: 18; implicitHeight: 32
                     hint: "Notifications"; onClicked: bar.openPanel("notifications")
                     Rectangle { anchors.centerIn: parent; width: 6; height: 6; radius: 3; color: colors.accent }
+                }
+                Row {
+                    x: Math.round(header.labelRight + bar.notificationSlot * notificationDot.opacity) + bar.privacyGap
+                    y: 4; spacing: bar.privacyButtonSpacing
+                    ShellButton {
+                        objectName: "pillMicrophoneIndicator"
+                        visible: bar.shell.audio.micInUse
+                        theme: colors; width: bar.privacyButtonWidth; height: 32
+                        icon: bar.shell.audio.activeMicsMuted ? "mic-off" : "mic"
+                        hint: bar.shell.audio.activeMicsMuted ? "Unmute microphone" : "Mute microphone"
+                        onClicked: bar.shell.audio.toggleActiveMics()
+                    }
+                    ShellButton {
+                        objectName: "pillScreenSharingIndicator"
+                        visible: bar.shell.screenSharing
+                        theme: colors; width: bar.privacyButtonWidth; height: 32
+                        icon: "screen-share"; hint: "Stop screen sharing"
+                        onClicked: bar.shell.stopScreenSharing()
+                    }
                 }
                 RowLayout {
                     id: leftControls
@@ -364,14 +391,6 @@ PanelWindow {
                         Layout.alignment: Qt.AlignVCenter
                         height: bar.headerHeight; spacing: 8
                         WorkspaceDots { id: workspaceWidget; shell: bar.shell; theme: colors; spaces: bar.spaces; floating: true; implicitHeight: bar.headerHeight }
-                        Item {
-                            objectName: "pillScreenSharingIndicator"
-                            visible: bar.shell.screenSharing
-                            width: 36; height: bar.headerHeight
-                            Accessible.role: Accessible.StaticText
-                            Accessible.name: "Screen sharing active"
-                            ShellIcon { anchors.centerIn: parent; name: "screen-share"; width: 21; height: 21 }
-                        }
                     }
                     Item { id: workspaceTraySpacer; visible: trayItems.count > 0; Layout.fillWidth: true; Layout.minimumWidth: bar.groupSpacing }
                     Row {
@@ -482,7 +501,7 @@ PanelWindow {
         parent: header
         shell: bar.shell; theme: colors; spaces: bar.spaces
         showing: bar.feedbackVisible && bar.shell.osd.kind !== "workspace" && !bar.hidden
-        x: Math.round((bar.width + bar.compactWidth) / 2) - pill.x - 4; y: 0
+        x: Math.round((bar.width + bar.compactWidth + bar.indicatorSpace) / 2) - pill.x - 4; y: 0
     }
     Component {
         id: launcherComponent
@@ -541,6 +560,7 @@ PanelWindow {
     property alias ember: ember
     Ember {
         id: ember
+        color: colors.focusColor
         parent: pill
         anchors.fill: parent
         clip: true

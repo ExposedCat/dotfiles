@@ -120,7 +120,6 @@ ColumnLayout {
             theme: root.theme; emberShell: root.shell
             icon: "rotate-cw"; pending: root.testing; enabled: !pending
             hint: "Measure internet speed"; implicitWidth: 40; implicitHeight: 40; radius: 10
-            border.width: activeFocus && !root.shell.emberEnabled ? 1 : 0
             onHoveredChanged: root.follow(this, true, hovered)
             onActiveFocusChanged: root.follow(this, false, activeFocus)
             onClicked: root.testSpeed()

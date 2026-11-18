@@ -1,17 +1,14 @@
-use crate::{shell, util::*};
+use crate::{clipboard, shell, util::*};
 use anyhow::{Context, Result, bail};
 use gio::prelude::*;
 use glib::variant::ToVariant;
 use serde_json::{Value, json};
-use std::{
-    env,
-    process::{Command, Stdio},
-    time::Duration,
-};
+use std::{env, process::Command, time::Duration};
 const PREFIX: &str = "dotfiles-hyprland-";
 const BACKGROUND: &[&str] = &[
     "agents",
     "automount",
+    "clipboard",
     "clipboard-text",
     "clipboard-image",
     "shell",
@@ -93,16 +90,25 @@ pub fn session_start(refresh: bool) -> Result<()> {
             true,
         )?;
     }
-    for kind in ["text", "image"] {
+    for legacy in ["clipboard-text", "clipboard-image"] {
+        if active(legacy) {
+            run(&["systemctl", "--user", "stop", &format!("{PREFIX}{legacy}")])?;
+        }
+    }
+    if refresh && active("clipboard") {
+        run(&[
+            "systemctl",
+            "--user",
+            "restart",
+            &format!("{PREFIX}clipboard"),
+        ])?;
+    } else {
         service(
-            &format!("clipboard-{kind}"),
+            "clipboard",
             &strings(&[
-                "/usr/bin/wl-paste",
-                "--type",
-                kind,
-                "--watch",
-                "/usr/bin/cliphist",
-                "store",
+                &root().join("bin/dotfiles-desktop").to_string_lossy(),
+                "desktop",
+                "clipboard-watch",
             ]),
             true,
         )?;
@@ -343,61 +349,14 @@ pub fn main(args: &[String]) -> Result<()> {
         }
         "apps-list" => emit(&json!(apps())),
         "app-launch" => launch(arg(args, 1)?),
-        "clipboard" => {
-            use std::os::unix::process::CommandExt;
-            Err(command(&[
-                "quickshell",
-                "--no-duplicate",
-                "--path",
-                &root().join("tools/clipboard.qml").to_string_lossy(),
-            ])
-            .exec()
-            .into())
-        }
-        "clipboard-list" => {
-            let out = Command::new("cliphist").arg("list").output()?;
-            if !out.status.success()
-                && !String::from_utf8_lossy(&out.stderr)
-                    .to_lowercase()
-                    .contains("no such file")
-            {
-                bail!("{}", String::from_utf8_lossy(&out.stderr));
-            }
-            let rows: Vec<_> = String::from_utf8_lossy(&out.stdout)
-                .lines()
-                .filter_map(|l| {
-                    let (id, preview) = l.split_once('\t')?;
-                    if !id.is_empty() && id.bytes().all(|n| n.is_ascii_digit()) {
-                        Some(json!({"id":id,"preview":preview}))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            emit(&json!(rows))
-        }
-        "clipboard-copy" => {
-            use std::io::Write;
-            let id = arg(args, 1)?;
-            if id.is_empty() || !id.bytes().all(|n| n.is_ascii_digit()) {
-                bail!("Clipboard entry IDs must be numbers");
-            }
-            let mut child = command(&["cliphist", "decode"])
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn()?;
-            child.stdin.take().unwrap().write_all(id.as_bytes())?;
-            let output = child.wait_with_output()?;
-            if !output.status.success() {
-                bail!("Cannot decode clipboard entry");
-            }
-            status(
-                command(&["wl-copy"]),
-                Some(output.stdout),
-                Duration::from_secs(5),
-            )?;
-            Ok(())
-        }
+        "clipboard" => ipc(&["clipboard", &clipboard::location()?.to_string()]),
+        "clipboard-watch" => clipboard::watch(),
+        "clipboard-list" => clipboard::list(),
+        "clipboard-clear" => clipboard::clear(),
+        "clipboard-preview" => clipboard::preview(arg(args, 1)?, arg(args, 2)?),
+        "clipboard-paste" => clipboard::paste(arg(args, 1)?, arg(args, 2)?),
+        "clipboard-serve" => clipboard::serve(arg(args, 1)?),
+        "clipboard-copy" => clipboard::legacy_copy(arg(args, 1)?),
         "copy-text" => {
             status(
                 command(&["wl-copy"]),

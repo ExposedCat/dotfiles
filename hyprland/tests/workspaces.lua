@@ -1,6 +1,6 @@
 -- Run by test_workspaces.py with a real Lua runtime and a fake compositor.
 local module_path = ...
-local hooks, timers, state, monitors, applied, dispatched
+local hooks, timers, state, monitors, applied, dispatched, animations, active_window
 local getenv = os.getenv
 os.getenv = function(key)
     if key == "WAYLAND_DISPLAY" then return "workspace-test" end
@@ -53,16 +53,20 @@ end
 
 local function setup()
     hooks, timers, state, applied, dispatched = {}, {}, {}, {}, {}
+    animations = {}
+    active_window = { at = { x = 0 }, size = { x = 1200 } }
     monitors = {
-        { name = "DP-1", enabled = true },
-        { name = "HDMI-1", enabled = true },
+        { name = "DP-1", enabled = true, x = 0, mode = { width = 1600 } },
+        { name = "HDMI-1", enabled = true, x = 1600, mode = { width = 1600 } },
     }
     hl = {
+        animation = function(spec) animations[spec.leaf] = spec.style end,
         on = function(event, callback) hooks[event] = callback end,
         timer = function(callback) table.insert(timers, callback) end,
         get_monitors = function() return monitors end,
         get_workspaces = function() return state end,
         get_active_monitor = function() return monitors.focused or monitors[1] end,
+        get_active_window = function() return active_window end,
         workspace_rule = function(spec)
             local rule = { persistent = spec.persistent, enabled = true }
             for _, monitor in ipairs(monitors) do
@@ -74,6 +78,11 @@ local function setup()
         end,
         dispatch = function(command)
             table.insert(dispatched, command)
+            command.style = animations.workspacesIn
+            assert(animations.workspacesOut == command.style, "the entry and exit slides must match")
+            if command.action ~= "move" then
+                assert(command.style == "slide", "ordinary workspace switches must use the full slide")
+            end
             if command.action == "renumber" then
                 local target
                 for _, workspace in ipairs(state) do
@@ -88,7 +97,7 @@ local function setup()
         dsp = {
             workspace = { change_id = function(spec) return { action = "renumber", from = spec.workspace, id = spec.id } end },
             focus = function(spec) return { action = "focus", id = spec.workspace } end,
-            window = { move = function(spec) return { action = "move", id = spec.workspace } end },
+            window = { move = function(spec) return { action = "move", id = spec.workspace, window = spec.window } end },
         },
     }
     add(1, monitors[1], 2, true)
@@ -128,7 +137,20 @@ assert(dispatched[#dispatched].id == left.id, "previous must reach the left edge
 policy.step(1)
 assert(dispatched[#dispatched].id == right.id, "next must reach the right edge")
 policy.select(1, true)
-assert(dispatched[#dispatched].id == left.id and dispatched[#dispatched].action == "move")
+assert(dispatched[#dispatched].id == left.id and dispatched[#dispatched].action == "move"
+       and dispatched[#dispatched].window == active_window and dispatched[#dispatched].style == "slide 25%")
+active_window.at.x = 1510
+active_window.size.x = 200
+policy.step(1, true)
+assert(dispatched[#dispatched].id == right.id and dispatched[#dispatched].action == "move"
+       and dispatched[#dispatched].style == "slide 1%", "narrow visible area should limit slide travel")
+assert(animations.workspacesIn == "slide" and animations.workspacesOut == "slide")
+local dispatch = hl.dispatch
+hl.dispatch = function() error("move failed") end
+local ok = pcall(policy.step, 1, true)
+assert(not ok and animations.workspacesIn == "slide" and animations.workspacesOut == "slide",
+       "a failed move must restore the slide")
+hl.dispatch = dispatch
 monitors.focused = monitors[2]
 policy.step(1)
 assert(dispatched[#dispatched].id == policy.list(monitors[2])[3].id, "switching must stay on the focused monitor")

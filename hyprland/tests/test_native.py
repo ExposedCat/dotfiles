@@ -110,6 +110,22 @@ class NativeContracts(unittest.TestCase):
         self.assertEqual(copied.read_text(),'-1e+20')
         self.assertNotEqual(self.run_native('desktop','clipboard-copy','$(bad)',check=False).returncode,0)
 
+    def test_legacy_image_uses_decoded_markup_instead_of_truncated_preview(self):
+        markup = '<meta charset="UTF-8"><img src="https://example.test/image.png" alt="Example photo">'
+        summary = markup[:40]
+        self.fake('cliphist', f'''import sys
+if sys.argv[1:] == ["list"]:
+    print("42\\t" + {summary!r})
+else:
+    assert sys.argv[1:] == ["decode"] and sys.stdin.read() == "42"
+    sys.stdout.write({markup!r})
+''')
+        (entry,) = json.loads(self.run_native('desktop', 'clipboard-list').stdout)
+        self.assertEqual(entry['id'], 'legacy-42')
+        self.assertEqual(entry['kind'], 'remote-image')
+        self.assertEqual(entry['source'], 'example.test')
+        self.assertEqual(entry['preview'], 'Example photo')
+
     def test_shortcuts_use_persistent_shell_and_keep_timestamp(self):
         log=self.directory/'ipc'
         self.fake('quickshell',f'import pathlib,json,sys\npathlib.Path({str(log)!r}).write_text(json.dumps(sys.argv[1:]))\n')

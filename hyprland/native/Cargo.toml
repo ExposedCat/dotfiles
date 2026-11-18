@@ -24,8 +24,11 @@ percent-encoding = "2"
 wait-timeout = "0.2"
 gio-unix = "0.22"
 glib-unix = "0.22"
-image = { version = "0.25", default-features = false, features = ["png", "pnm"] }
+image = { version = "0.25", default-features = false, features = ["png", "pnm", "jpeg", "gif", "webp", "bmp", "tiff", "ico"] }
 signal-hook = "0.3"
+wl-clipboard-rs = "0.9.5"
+ammonia = "4.2.5"
+html5ever = "0.40"
 
 [profile.release]
 lto = "thin"

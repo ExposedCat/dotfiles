@@ -153,6 +153,7 @@ PopupWindow {
                         }
                         ShellIcon { anchors { right: parent.right; verticalCenter: parent.verticalCenter } width: 17; height: 17; name: "chevron-right"; visible: row.modelData.hasChildren }
                     }
+                    FocusDot { theme: popup.theme; visible: row.selected && row.available }
                     MouseArea {
                         anchors.fill: parent
                         enabled: row.available

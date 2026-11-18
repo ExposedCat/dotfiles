@@ -34,8 +34,7 @@ hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
 hl.bind(mainMod .. " + up",    hl.dsp.focus({ direction = "up" }))
 hl.bind(mainMod .. " + down",  hl.dsp.focus({ direction = "down" }))
 
--- GNOME shortcuts, scoped to the focused monitor. Logitech side buttons
--- emit Ctrl+Alt+Left/Right as well.
+-- Keyboard workspace shortcuts, scoped to the focused monitor.
 hl.bind("SUPER + Page_Up", function() workspaces.step(-1) end)
 hl.bind("SUPER + Page_Down", function() workspaces.step(1) end)
 hl.bind("CTRL + ALT + left", function() workspaces.step(-1) end)
@@ -57,9 +56,39 @@ end
 hl.bind(mainMod .. " + S",         hl.dsp.workspace.toggle_special("magic"))
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
 
--- Scroll through existing workspaces with mainMod + scroll
-hl.bind(mainMod .. " + mouse_down", function() pill.cancel(); workspaces.step(1) end)
-hl.bind(mainMod .. " + mouse_up", function() pill.cancel(); workspaces.step(-1) end)
+-- OpenLogi can send a wheel event from a side button. Hyprland keeps its
+-- window drag active on wheel events, but ends it on key or button events.
+local openLogiDevices = { "ol-action-injector", "ol-action-injector-1" }
+local wheelSwitchPending = false
+for direction, wheel in pairs({ [-1] = "mouse_up", [1] = "mouse_down" }) do
+    local function switchWorkspace()
+        pill.cancel()
+        workspaces.step(direction)
+    end
+
+    local function switchWithWheel()
+        if wheelSwitchPending then return end
+        wheelSwitchPending = true
+        hl.timer(function() wheelSwitchPending = false end, { timeout = 300, type = "oneshot" })
+        switchWorkspace()
+    end
+
+    local function moveWorkspace()
+        local cursor = hl.get_cursor_pos()
+        pill.cancel()
+        workspaces.step(direction, true)
+        -- Moving and following a window can warp the cursor to its center.
+        local current = hl.get_cursor_pos()
+        if cursor and current and (cursor.x ~= current.x or cursor.y ~= current.y) then
+            hl.dispatch(hl.dsp.cursor.move(cursor))
+        end
+    end
+
+    hl.bind(mainMod .. " + " .. wheel, switchWithWheel, { device = { inclusive = false, list = openLogiDevices } })
+    hl.bind(wheel, switchWorkspace, { device = { list = openLogiDevices } })
+    hl.bind("SHIFT + " .. wheel, moveWorkspace, { device = { list = openLogiDevices } })
+    hl.bind(mainMod .. " + " .. wheel, moveWorkspace, { device = { list = openLogiDevices } })
+end
 
 -- Move/resize windows with mainMod + LMB/RMB and dragging
 hl.bind(mainMod .. " + mouse:272", function() pill.cancel(); hl.dispatch(hl.dsp.window.drag()) end, { mouse = true })

@@ -64,9 +64,9 @@ hl.animation({ leaf = "border",        enabled = true,  speed = 5.39, bezier = "
 hl.animation({ leaf = "windows",       enabled = true,  speed = 4.79, spring = "easy" })
 hl.animation({ leaf = "windowsIn",     enabled = true,  speed = 4.1,  spring = "easy",         style = "popin 87%" })
 hl.animation({ leaf = "windowsOut",    enabled = true,  speed = 1.49, bezier = "linear",       style = "popin 87%" })
--- Moves and layout resizes must settle once, without spring overshoot stretching
--- application buffers back and forth while the client redraws at its new size.
-hl.animation({ leaf = "windowsMove",   enabled = true,  speed = 2,    bezier = "easeOutQuint" })
+-- Hyprland shares this curve between window movement and layout resizing.
+-- Match the workspace slide so a window settles into its new tile in step.
+hl.animation({ leaf = "windowsMove",   enabled = true,  speed = 2.2,  bezier = "easeInOutCubic" })
 -- Hyprland also uses fadeIn for windows revealed underneath a fullscreen window.
 -- Reveal those immediately so closing fullscreen never fades through wallpaper.
 hl.animation({ leaf = "fadeIn",        enabled = false })
@@ -77,10 +77,6 @@ hl.animation({ leaf = "layersIn",      enabled = true,  speed = 4,    bezier = "
 hl.animation({ leaf = "layersOut",     enabled = true,  speed = 1.5,  bezier = "linear",       style = "fade" })
 hl.animation({ leaf = "fadeLayersIn",  enabled = true,  speed = 1.79, bezier = "almostLinear" })
 hl.animation({ leaf = "fadeLayersOut", enabled = true,  speed = 1.39, bezier = "almostLinear" })
--- Move both workspaces together, with matching timing for entry and exit.
-hl.animation({ leaf = "workspaces",    enabled = true,  speed = 2.2,  bezier = "easeInOutCubic", style = "slide" })
-hl.animation({ leaf = "workspacesIn",  enabled = true,  speed = 2.2,  bezier = "easeInOutCubic", style = "slide" })
-hl.animation({ leaf = "workspacesOut", enabled = true,  speed = 2.2,  bezier = "easeInOutCubic", style = "slide" })
 hl.animation({ leaf = "zoomFactor",    enabled = true,  speed = 7,    bezier = "quick" })
 
 -- Only ordinary floating windows keep the default rounded corners.
@@ -123,6 +119,7 @@ hl.config({
 
 hl.config({
     misc = {
+        animate_manual_resizes = true,
         force_default_wallpaper = -1,    -- Set to 0 or 1 to disable the anime mascot wallpapers
         disable_hyprland_logo   = false, -- If true disables the random hyprland logo / anime girl background. :(
     },

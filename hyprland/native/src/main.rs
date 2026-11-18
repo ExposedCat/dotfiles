@@ -3,6 +3,8 @@ mod agents;
 mod automount;
 mod calculator;
 mod capture;
+mod caret;
+mod clipboard;
 mod dates;
 mod desktop;
 mod launcher;

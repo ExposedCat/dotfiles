@@ -220,12 +220,17 @@ them; Shift+Caps Lock toggles normal Caps Lock.
 | Print | Select and annotate a screenshot area |
 | Alt+Print | Immediately copy and save the current window |
 | Ctrl+Shift+Alt+R | Select a recording area, or stop the active recording |
-| Super+Page Up/Down or Ctrl+Alt+Left/Right | Previous/next workspace on the focused monitor, including Logitech side buttons |
+| Super+Page Up/Down or Ctrl+Alt+Left/Right | Previous/next workspace on the focused monitor |
 | Super+Shift+Page Up/Down or Ctrl+Alt+Shift+Left/Right | Move the active window to the previous/next workspace on its monitor |
+| Logitech Back/Forward with the OpenLogi mappings below | Previous/next workspace. Hold Shift or Super to move the active window with you. Super also works during a left-button drag |
 | Super+1…0 / Super+Shift+1…0 | Select / move a window to an existing workspace by position on the focused monitor |
 | Volume and mute keys | PipeWire volume and mute |
 | Play/pause and previous/next keys | Control an MPRIS player, preferring one already playing |
 | Brightness keys | Adjust the focused monitor through DDC/CI in 5-point steps; show its actual brightness in an OSD |
+
+In OpenLogi, assign **Scroll Up** to Back and **Scroll Down** to Forward.
+To carry a window across workspaces, start dragging with Super+left mouse button,
+tap Back or Forward, then release the left button where you want to drop it.
 
 The brightness feedback appears inside the main pill with the adjusted output name, percentage,
 and level bar, then hides after 1.6 seconds. It shares the volume/microphone OSD,
@@ -388,10 +393,14 @@ sockets avoid launching IPC clients for opening the selector and suspending
 shell focus dismissal; older workers and standalone use retain the IPC/cold
 fallbacks.
 
-The clipboard picker preserves text and image bytes and renders previews as
-plain text. Cliphist respects selections marked sensitive by the source
-application; history otherwise persists in its default cache database.
-`cliphist wipe` clears that history.
+Super+Shift+V opens clipboard history beside the text caret or, when caret
+coordinates are unavailable, near the pointer. Click an item or select it with
+the arrow keys and press Enter to paste it into the original app. The list
+shows color swatches, links, formatted HTML, and image and video thumbnails.
+Clipboard history preserves the original formats, skips selections marked
+sensitive, and includes older Cliphist entries. The floating clear button
+empties the history. A visible standalone image tag can load a remote thumbnail.
+On paste the picker offers the image and supplies the URL to text-only apps.
 
 The lock screen has an opaque background, password entry, and clock on each
 display. **Automatic locking is disabled by preference.** There are no idle
@@ -408,8 +417,8 @@ at full size without flashing the compact pill or clock. Closing reverses the
 transition and restores the hidden state.
 Explicitly opened views also remain available over fullscreen apps.
 It overlaps applications and reserves no tiling space. The compact pill shows
-only the time and EN/RU keyboard layout, with a lit notification dot only while
-active notifications remain. There is no separator or inactive dot. Click the time or dot for the calendar and notification
+the time and EN/RU keyboard layout, followed by a lit dot while active
+notifications remain. Click the time or dot for the calendar and notification
 center. Volume/microphone/brightness feedback and workspace changes temporarily
 use the pill itself. Notifications appear independently in the top-right corner,
 with the same small gap from the top and right edges.
@@ -429,8 +438,10 @@ clock; the weekday replaces EN/RU beside it as the layout label fades out.
 The notification dot fades and scales into a reserved slot in the expanded
 pill, keeping its controls and clock stationary. While expanding, the pill
 accepts hover across its destination so moving onto appearing controls keeps it open.
-A screen-sharing indicator appears while a portal stream has an active PipeWire
-consumer; local recordings use the recording-area outline without a bar icon.
+The microphone and screen-sharing buttons appear after the notification dot, or
+after the layout label when the dot is hidden. Click the microphone to mute or
+unmute the inputs currently in use. Click the screen-sharing button to stop
+active portal shares. Local recordings use the recording-area outline.
 The sound icon reflects mute state. Leaving collapses it after 240 ms; an open menu or tray menu keeps it
 expanded. Media, mixer, system, network, Bluetooth, power, and notifications grow from the
 same floating surface, with a constant 20-pixel corner radius and a single
@@ -486,13 +497,12 @@ two idle minutes. The launcher clears its query on every opening while keeping
 its application index and provider caches warm.
 The small terracotta marker adapts the idea of [Ricelin's Ame](https://github.com/Gakuseei/Ricelin/blob/main/configs/quickshell/pill/Ame.qml):
 one shape pulls out into a dot, jumps in an arc, then unfolds on landing into
-the active workspace indicator, notification action background,
-launcher caret, sound slider fill, media seek handle, selected calendar date, notification accent strip,
-selected metric value, connection status, Bluetooth thumb/device selection,
-and focused power action. It docks beneath each control’s text and replaces its
-normal highlight or handle, without an outer glow. Fuzzy matching retains Ricelin's MIT
-attribution. Clipboard history remains in its existing standalone picker; there
-is no wallpaper view in the pill.
+the active workspace indicator, launcher caret, sound slider fill, media seek
+handle, selected calendar date, notification accent strip, selected metric
+value, or Bluetooth thumb. Popup buttons use the marker as a small focus dot.
+Fuzzy matching retains Ricelin's MIT
+attribution. Clipboard history animates from the pill to the active text field.
+There is no wallpaper view in the pill.
 
 Tap either Super key alone to expand the pill into the application launcher.
 Holding Super for 200 ms hides the pill; releasing it immediately restores the
@@ -641,9 +651,9 @@ permanent enablement links. Recording uses the transient
 `dotfiles-hyprland-record.service`. These services stop with the UWSM graphical
 session and restart on failure. Only one notification daemon and Polkit agent
 should run in the session. The shell requires Quickshell 0.3.2 or newer.
-Screen-sharing status uses Quickshell's native PipeWire objects. There is no
-background recording-status process or systemd unit polling. Initial keyboard
-details are read once; subsequent layout changes use Hyprland events.
+Microphone and screen-sharing status use Quickshell's native PipeWire objects.
+Initial keyboard details are read once; subsequent layout changes use Hyprland
+events.
 
 Check the install/restore failure handling with:
 
@@ -652,8 +662,9 @@ python3 -m unittest discover -s hyprland/tests
 ```
 
 Run `hyprland/tests/screen-sharing.qml` with a shell fixture on the isolated
-helper's nested Wayland compositor. It checks local recording and camera
-exclusion, active/paused portal streams, multiple consumers, and share teardown.
+helper's nested Wayland compositor. It checks compact indicator placement,
+microphone mute and unmute, portal share teardown, and the distinction between
+active shares, local recordings, and cameras.
 
 The notification regression fixture `hyprland/tests/notification-behavior.qml`
 checks hover-paused expiry, queued arrivals, replacement updates, and stable
@@ -1105,10 +1116,15 @@ sudo systemctl enable --now startup
 </h2>
 
 Fedora 45 uses the packaged `oo7-daemon` and `pam_oo7`, including for GOA.
-`./services/secrets/manage install` ties oo7 to `graphical-session.target` so it
-starts on every desktop login and stops on logout even with lingering enabled.
-It also restarts oo7 after a clean exit caused by losing D-Bus. `_scripts/load`
-installs this setup; `./services/secrets/manage check` verifies it.
+`./services/secrets/manage install` starts oo7 with `graphical-session.target`.
+When the user manager stays running after logout, such as with lingering enabled,
+oo7 and its unlocked keyring remain available to user services. The unit also
+restarts oo7 after a clean exit caused by losing D-Bus. `_scripts/load` installs
+this setup, and `./services/secrets/manage check` verifies it.
+
+GNOME Online Accounts still starts on demand over D-Bus. When oo7 comes back
+after a restart, systemd restarts an already-running Online Accounts daemon so
+it reconnects to the new Secret Service instance.
 
 GDM's packaged PAM configuration delivers the password at login. D-Bus activation
 alone is insufficient for that handoff, so this setup starts oo7 with the session.

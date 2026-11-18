@@ -10,7 +10,7 @@ flowchart TD
     Native -->|session setup| Systemd[systemd user services]
     Systemd --> Shell[Quickshell / QML + JavaScript]
     Systemd --> Capture[Persistent Quickshell capture UI]
-    Systemd --> Clipboard[wl-paste / cliphist]
+    Systemd --> Clipboard[Wayland clipboard history watcher]
     Shell <-->|JSON lines| Workers[Rust launcher, appearance, statistics]
     Shell -->|bounded commands| Actions[Rust calendar, brightness, network, actions]
     Shell <--> Integrations[Quickshell PipeWire, MPRIS, Bluetooth, Polkit]

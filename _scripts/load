@@ -21,7 +21,7 @@ cp ./claude/CLAUDE.md ~/.claude/CLAUDE.md
 # LAN hostname resolution on this PC.
 ./services/mdns/manage install
 
-# Secret Service: start oo7 for each desktop session and recover after bus loss.
+# Secret Service: start oo7 at desktop login and recover after bus loss.
 ./services/secrets/manage install
 
 # Build and install the pinned Papers, Bazecor and OpenLogi forks and wl-screenrec.

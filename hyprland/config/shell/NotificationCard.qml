@@ -193,7 +193,7 @@ Item {
                         onHoveredChanged: root.followAction(this, hovered, false)
                         onActiveFocusChanged: root.followAction(this, activeFocus, true)
                         theme: root.theme; text: modelData.text; selected: true
-                        color: emberSlot.occupied ? "transparent" : Qt.alpha(root.theme.hover, 0.36)
+                        color: Qt.alpha(root.theme.hover, 0.36)
                         onClicked: root.store.invoke(root.entry.id, modelData.identifier)
                     }
                 }
@@ -202,7 +202,7 @@ Item {
                     onHoveredChanged: root.followAction(this, hovered, false)
                     onActiveFocusChanged: root.followAction(this, activeFocus, true)
                     theme: root.theme; text: "Reply"; selected: true
-                    color: emberSlot.occupied ? "transparent" : Qt.alpha(root.theme.hover, 0.36)
+                    color: Qt.alpha(root.theme.hover, 0.36)
                     visible: root.canReply && !root.composing
                     onClicked: { root.store.startReply(root.entry.id, root.inCenter ? "center" : "banner"); Qt.callLater(() => replyText.forceActiveFocus()) }
                 }
@@ -220,7 +220,15 @@ Item {
                 placeholderTextColor: root.theme.secondary
                 text: root.store.drafts[root.entry.id] || ""
                 selectByMouse: true
-                background: Rectangle { color: Qt.alpha(root.theme.background, 0.65); radius: 8; border.width: 1; border.color: replyText.activeFocus ? root.theme.accent : Qt.alpha(root.theme.border, 0.3) }
+                background: Rectangle {
+                    color: Qt.alpha(root.theme.background, 0.65); radius: 8
+                    border.width: 1; border.color: Qt.alpha(root.theme.border, 0.3)
+                    Rectangle {
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 8 }
+                        height: 2; radius: 1; color: root.theme.focusColor
+                        visible: replyText.activeFocus
+                    }
+                }
                 onTextEdited: root.store.setDraft(root.entry.id, text)
                 onAccepted: root.sendReply()
                 TapHandler { onTapped: root.store.startReply(root.entry.id, root.inCenter ? "center" : "banner") }

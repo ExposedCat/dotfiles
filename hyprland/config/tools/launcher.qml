@@ -68,7 +68,14 @@ Scope {
 
                 leftPadding: 12
                 selectByMouse: true
-                background: Rectangle { color: "#313244"; radius: 10; border.color: "#89b4fa" }
+                background: Rectangle {
+                    color: "#313244"; radius: 10
+                    Rectangle {
+                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 8 }
+                        height: 2; radius: 1; color: typography.focusColor
+                        visible: search.activeFocus
+                    }
+                }
                 onTextChanged: list.currentIndex = 0
                 Keys.onDownPressed: list.currentIndex = Math.min(list.currentIndex + 1, list.count - 1)
                 Keys.onUpPressed: list.currentIndex = Math.max(list.currentIndex - 1, 0)
