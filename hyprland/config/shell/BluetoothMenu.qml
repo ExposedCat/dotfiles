@@ -160,7 +160,6 @@ ColumnLayout {
                     shapeRadius: button.radius
                     shapeOpacity: 0.42
                 }
-                FocusDot { theme: root.theme; visible: button.activeFocus && !root.shell.emberEnabled; z: 1 }
                 RowLayout {
                     anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
                     spacing: 12

@@ -7,7 +7,12 @@ Item {
     enabled: false
     property bool ready: false
     property bool hasPosition: false
-    property Item target: null
+    property Item restingTarget: null
+    property Item pointerTarget: null
+    property Item keyboardTarget: null
+    property bool keyboardLast: false
+    readonly property Item interactionTarget: keyboardLast ? (keyboardTarget || pointerTarget) : (pointerTarget || keyboardTarget)
+    property Item target: interactionTarget || restingTarget
     required property color color
     property bool active: false
     property Item dock: null
@@ -66,6 +71,17 @@ Item {
             radius: Math.max(0, radius), alpha: alpha, border: border, fill: fill};
     }
     readonly property rect geometry: pose.rect
+    function follow(slot, inside, keyboard) {
+        if (inside) {
+            if (keyboard) keyboardTarget = slot;
+            else pointerTarget = slot;
+            keyboardLast = keyboard;
+        } else if (keyboard) {
+            if (keyboardTarget === slot) keyboardTarget = null;
+        } else if (pointerTarget === slot) {
+            pointerTarget = null;
+        }
+    }
     function locate() {
         if (!target) return;
         const p = target.mapToItem(root, 0, 0);

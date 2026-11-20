@@ -10,7 +10,7 @@ Rectangle {
     implicitWidth: Math.max(76, label.implicitWidth + 28)
     implicitHeight: 36
     radius: 8
-    color: !enabled ? theme.surface : primary ? Qt.alpha(theme.focusColor, 0.44) : pointer.containsMouse ? theme.hover : theme.surface
+    color: primary && enabled && !buttonSlot.occupied ? Qt.alpha(theme.focusColor, 0.44) : theme.surface
     opacity: enabled ? 1 : 0.45
     scale: pointer.pressed ? 0.96 : 1
     Behavior on color { ColorAnimation { duration: 120 } }
@@ -21,7 +21,7 @@ Rectangle {
     Accessible.onPressAction: clicked()
     Keys.onReturnPressed: clicked()
     Keys.onSpacePressed: clicked()
+    EmberControl { id: buttonSlot; control: root; anchors.fill: parent; shapeRadius: root.radius }
     Text { font.family: root.theme.fontFamily; font.weight: root.theme.fontWeight; font.pixelSize: root.theme.bodySize; id: label; anchors.centerIn: parent; text: root.text; textFormat: Text.PlainText; color: root.theme.text }
-    FocusDot { theme: root.theme; visible: root.activeFocus }
     MouseArea { id: pointer; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.clicked() }
 }

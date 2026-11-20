@@ -295,7 +295,6 @@ PanelWindow {
         hint: "Clear clipboard history"
         icon: "list-x"
         iconSize: 18
-        color: hovered ? root.theme.hover : "transparent"
         visible: root.progress > 0.55
         enabled: root.opened && !root.loading && !clearHistory.running && root.entries.length > 0
         opacity: root.clamp((root.progress - 0.55) * 3, 0, 1) * (enabled ? 1 : 0.55)
@@ -310,7 +309,7 @@ PanelWindow {
         z: 2
         color: root.theme.focusColor
         target: !root.opened || root.progress < 0.95 || !root.shell.emberEnabled ? null
-            : clearButton.activeFocus ? clearButton.emberSlot : list.activeFocus ? list.currentItem?.emberSlot || null : null
+            : interactionTarget || (list.activeFocus ? list.currentItem?.emberSlot || null : null)
         active: !!target
     }
 }

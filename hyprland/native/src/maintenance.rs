@@ -12,6 +12,7 @@ const LEGACY: &[&str] = &[
     "tools/clipboard.qml",
     "tools/capture.py",
     "shell/shell.py",
+    "shell/FocusDot.qml",
     "shell/agenda.py",
     "shell/appearance.py",
     "shell/brightness.py",

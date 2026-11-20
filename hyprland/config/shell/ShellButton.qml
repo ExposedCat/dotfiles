@@ -12,7 +12,6 @@ Rectangle {
     property bool danger: false
     property bool indicator: false
     property var emberShell: null
-    property bool fillFocus: false
     property alias emberSlot: emberSlot
     property alias mouseButtons: pointer.acceptedButtons
     signal clicked(int button)
@@ -33,20 +32,12 @@ Rectangle {
     readonly property bool hovered: buttonHover.hovered
     color: selected ? theme.surface : "transparent"
     opacity: enabled || pending ? 1 : 0.45
-    EmberSlot {
+    EmberControl {
         id: emberSlot
+        control: root
         shell: root.emberShell
-        x: root.fillFocus ? 0 : root.width - width - 4
-        y: root.fillFocus ? 0 : 4
-        width: root.fillFocus ? root.width : 6
-        height: root.fillFocus ? root.height : width
-        shapeRadius: root.fillFocus ? root.radius : width / 2
-        shapeOpacity: root.fillFocus ? 0.42 : 1
-    }
-    FocusDot {
-        theme: root.theme
-        visible: root.activeFocus && !emberSlot.occupied && !(root.fillFocus && root.emberShell?.emberEnabled)
-        z: 1
+        anchors.fill: parent
+        shapeRadius: root.radius
     }
     RowLayout {
         id: content
@@ -67,7 +58,4 @@ Rectangle {
         onClicked: event => root.clicked(event.button)
         onWheel: event => root.scrolled(event.angleDelta.y)
     }
-
-
-
 }

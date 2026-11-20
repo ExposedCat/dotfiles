@@ -5,6 +5,7 @@ Item {
     required property var theme
     required property var store
     property bool active: true
+    readonly property Item controlEmber: bannerEmber
     property var popupData: ({})
     property int presentationSerial: 0
     property int regionRevision: 0
@@ -100,5 +101,12 @@ Item {
                 onRetired: root.retire(entryId)
             }
         }
+    }
+    Ember {
+        id: bannerEmber
+        anchors.fill: parent
+        z: 2
+        color: root.theme.focusColor
+        active: root.active && !!target
     }
 }

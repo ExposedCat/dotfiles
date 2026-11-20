@@ -5,6 +5,9 @@ import QtQuick.Layouts
 Item {
     id: root
     required property var theme
+    property Item sharedEmber: null
+    readonly property Item controlEmber: sharedEmber || dialogEmber
+    readonly property Item emberTarget: sharing ? tabs.selectedSlot : permission ? null : appPicker.emberTarget
     property var requestData: ({kind: "apps", apps: []})
     property bool submitting: false
     property string error: ""
@@ -91,6 +94,7 @@ Item {
                 readonly property var options: [{id: "screen", name: "Monitors"}, {id: "window", name: "Windows"}, {id: "workspace", name: "Workspaces"}]
                 readonly property int index: options.findIndex(option => option.id === root.tab)
                 readonly property real tabWidth: (width - 6) / options.length
+                readonly property Item selectedSlot: index >= 0 && index < shareTabs.count ? shareTabs.itemAt(index)?.emberSlot ?? null : null
                 activeFocusOnTab: true
                 Accessible.role: Accessible.PageTabList
                 Accessible.name: "Sharing sources"
@@ -112,22 +116,21 @@ Item {
                         x: 3 + index * tabs.tabWidth; width: tabs.tabWidth; height: tabs.height
                         Accessible.role: Accessible.PageTab; Accessible.name: modelData.name; Accessible.selected: root.tab === modelData.id
                         Accessible.onPressAction: root.setTab(modelData.id)
+                        Rectangle {
+                            anchors.fill: tabSlot
+                            radius: tabSlot.shapeRadius
+                            color: Qt.alpha(portalTheme.focusColor, 0.24)
+                            visible: root.tab === tabControl.modelData.id && !tabSlot.occupied
+                        }
                         EmberSlot {
                             id: tabSlot
-                            shell: null; ember: tabEmber
+                            shell: null; ember: root.controlEmber
                             anchors.fill: parent; anchors.topMargin: 3; anchors.bottomMargin: 3
                             shapeRadius: 10; shapeOpacity: 0.44
                         }
                         Text { anchors.centerIn: parent; text: modelData.name; color: root.tab === modelData.id ? portalTheme.text : "#e2dad4"; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; Behavior on color { ColorAnimation { duration: 120 } } }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { tabs.forceActiveFocus(); root.setTab(tabControl.modelData.id); } }
                     }
-                }
-                Ember {
-                    id: tabEmber
-                    anchors.fill: parent; z: 1
-                    color: portalTheme.focusColor
-                    target: root.sharing && tabs.index < shareTabs.count ? shareTabs.itemAt(tabs.index)?.emberSlot ?? null : null
-                    active: !!target
                 }
             }
             ShellButton { id: shareClose; theme: portalTheme; icon: "x"; hint: "Cancel sharing"; implicitWidth: 30; implicitHeight: 30; onClicked: root.decide(1) }
@@ -137,6 +140,7 @@ Item {
             visible: !root.permission && !root.sharing
             Layout.fillWidth: true; Layout.fillHeight: true
             theme: portalTheme; applications: root.requestData.apps || []; filename: root.requestData.filename || ""
+            focusEmber: root.controlEmber
             onSelectedIdChanged: root.selected = selectedId
             onAccepted: identity => { root.selected = identity; root.decide(0) }
         }
@@ -262,5 +266,12 @@ Item {
             PortalButton { id: cancel; visible: !root.sharing; theme: portalTheme; text: root.permission ? root.requestData.denyLabel || "Deny" : "Cancel"; enabled: !root.submitting; onClicked: root.decide(1) }
             PortalButton { theme: portalTheme; text: root.sharing ? "Share" : root.permission ? root.requestData.grantLabel || "Allow" : "Open"; primary: true; enabled: root.canAccept && !root.submitting; onClicked: root.decide(0) }
         }
+    }
+    Ember {
+        id: dialogEmber
+        anchors.fill: parent; z: 2
+        color: portalTheme.focusColor
+        restingTarget: root.sharedEmber ? null : root.emberTarget
+        active: !root.sharedEmber && root.enabled && !!target
     }
 }

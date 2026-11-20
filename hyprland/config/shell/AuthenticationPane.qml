@@ -83,7 +83,6 @@ Item {
             Item { Layout.fillWidth: true }
             ShellButton {
                 id: cancel; theme: root.theme; emberShell: root.shell; text: "Cancel"
-                fillFocus: true
                 emberSlot.objectName: "authentication-cancel"
                 onHoveredChanged: { if (hovered) root.interactionControl = cancel; }
                 onActiveFocusChanged: { if (activeFocus) root.interactionControl = cancel; }
@@ -91,7 +90,6 @@ Item {
             }
             ShellButton {
                 id: confirm; theme: root.theme; emberShell: root.shell; text: "Authenticate"; selected: true; enabled: password.enabled
-                fillFocus: true
                 emberSlot.objectName: "authentication-confirm"
                 onHoveredChanged: { if (hovered) root.interactionControl = confirm; }
                 onActiveFocusChanged: { if (activeFocus) root.interactionControl = confirm; }

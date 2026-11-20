@@ -276,6 +276,7 @@ PanelWindow {
     Item {
         id: pill
         objectName: "floatingPill"
+        readonly property Item controlEmber: ember
         width: Math.round(bar.animatedGeometry.width / 2) * 2
         height: Math.round(bar.animatedGeometry.height)
         x: Math.round(bar.animatedGeometry.x)
@@ -435,7 +436,7 @@ PanelWindow {
                     enabled: opacity > 0.95
                     ShellButton {
                         id: appearanceButton; objectName: "pillAppearanceButton"
-                        emberShell: bar.shell; theme: colors
+                        theme: colors
                         icon: bar.shell.appearance.dark ? "moon" : "sun"
                         hint: bar.shell.appearance.error || (bar.shell.appearance.dark ? "Switch to light style" : "Switch to dark style")
                         enabled: bar.shell.appearance.available && !bar.shell.appearance.pending
@@ -445,12 +446,12 @@ PanelWindow {
                         id: controlButtons
                         objectName: "pillControlButtons"
                         height: 36; spacing: 2
-                        ShellButton { objectName: "pillMusicButton"; visible: !!bar.shell.media.player; emberShell: bar.shell; theme: colors; icon: "music"; hint: "Now playing"; selected: bar.shell.panel === "media"; onClicked: bar.openPanel("media") }
-                        ShellButton { emberShell: bar.shell; theme: colors; icon: bar.shell.audio.muted ? "volume-x" : "volume-2"; hint: "Sound"; selected: bar.shell.panel === "mixer"; onClicked: bar.openPanel("mixer"); onScrolled: delta => bar.shell.audio.adjust(delta > 0 ? 0.05 : -0.05) }
-                        ShellButton { emberShell: bar.shell; theme: colors; icon: "activity"; hint: "System statistics"; selected: bar.shell.panel === "system"; onClicked: bar.openPanel("system") }
-                        ShellButton { emberShell: bar.shell; theme: colors; icon: "ethernet-port"; hint: "Network"; selected: bar.shell.panel === "ethernet"; onClicked: bar.openPanel("ethernet") }
-                        ShellButton { objectName: "pillBluetoothButton"; emberShell: bar.shell; theme: colors; icon: bar.shell.bluetooth.enabled ? "bluetooth" : "bluetooth-off"; hint: "Bluetooth"; selected: bar.shell.panel === "bluetooth"; onClicked: bar.openPanel("bluetooth") }
-                        ShellButton { emberShell: bar.shell; theme: colors; icon: "power"; hint: "Power"; selected: bar.shell.panel === "power"; onClicked: bar.openPanel("power") }
+                        ShellButton { objectName: "pillMusicButton"; visible: !!bar.shell.media.player; theme: colors; icon: "music"; hint: "Now playing"; selected: bar.shell.panel === "media"; onClicked: bar.openPanel("media") }
+                        ShellButton { theme: colors; icon: bar.shell.audio.muted ? "volume-x" : "volume-2"; hint: "Sound"; selected: bar.shell.panel === "mixer"; onClicked: bar.openPanel("mixer"); onScrolled: delta => bar.shell.audio.adjust(delta > 0 ? 0.05 : -0.05) }
+                        ShellButton { theme: colors; icon: "activity"; hint: "System statistics"; selected: bar.shell.panel === "system"; onClicked: bar.openPanel("system") }
+                        ShellButton { theme: colors; icon: "ethernet-port"; hint: "Network"; selected: bar.shell.panel === "ethernet"; onClicked: bar.openPanel("ethernet") }
+                        ShellButton { objectName: "pillBluetoothButton"; theme: colors; icon: bar.shell.bluetooth.enabled ? "bluetooth" : "bluetooth-off"; hint: "Bluetooth"; selected: bar.shell.panel === "bluetooth"; onClicked: bar.openPanel("bluetooth") }
+                        ShellButton { theme: colors; icon: "power"; hint: "Power"; selected: bar.shell.panel === "power"; onClicked: bar.openPanel("power") }
                     }
                 }
             }
@@ -555,6 +556,7 @@ PanelWindow {
         if (hidden) return null;
         if (feedbackVisible) return shell.osd.kind === "workspace" ? workspaceWing.workspaceIndicator.emberSlot : null;
         if (!expanded) return null;
+        if (ember.interactionTarget) return ember.interactionTarget;
         if (shell.panel) return panelLoader.item?.emberTarget || null;
         return workspaceWidget.emberSlot;
     }

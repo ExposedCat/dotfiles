@@ -215,14 +215,16 @@ Item {
                 placeholderTextColor: root.theme.secondary
                 text: root.store.drafts[root.entry.id] || ""
                 selectByMouse: true
+                cursorVisible: false
+                EmberControl {
+                    control: replyText; trackHover: false; caret: true
+                    x: replyText.cursorRectangle.x; y: replyText.cursorRectangle.y
+                    width: 3; height: replyText.cursorRectangle.height || 19
+                    shapeRadius: 1.5; shapeOpacity: 1
+                }
                 background: Rectangle {
                     color: Qt.alpha(root.theme.background, 0.65); radius: 8
                     border.width: 1; border.color: Qt.alpha(root.theme.border, 0.3)
-                    Rectangle {
-                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 8 }
-                        height: 2; radius: 1; color: root.theme.focusColor
-                        visible: replyText.activeFocus
-                    }
                 }
                 onTextEdited: root.store.setDraft(root.entry.id, text)
                 onAccepted: root.sendReply()

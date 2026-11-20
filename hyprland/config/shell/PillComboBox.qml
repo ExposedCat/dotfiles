@@ -12,7 +12,10 @@ ComboBox {
     leftPadding: flat ? 0 : 14; rightPadding: flat ? 26 : 36
     background: Rectangle {
         color: root.flat ? "transparent" : Qt.alpha(root.theme.text, 0.06); radius: 10
-        FocusDot { theme: root.theme; visible: root.activeFocus && !root.popup.visible }
+        EmberControl {
+            control: root; anchors.fill: parent; shapeRadius: parent.radius
+            visible: !root.popup.visible
+        }
     }
     contentItem: Text {
         text: root.count ? root.displayText : root.emptyText; textFormat: Text.PlainText; color: root.flat ? root.theme.secondary : root.theme.text
@@ -26,9 +29,11 @@ ComboBox {
         required property int index
         width: root.popup.width - 16; height: 40
         highlighted: root.highlightedIndex === index
-        background: Rectangle { color: parent.highlighted ? root.theme.hover : "transparent"; radius: 8 }
+        background: EmberSlot {
+            shell: null; ember: choicesEmber
+            shapeRadius: 8; shapeOpacity: 0.42
+        }
         contentItem: Text { text: root.optionLabel ? root.optionLabel(modelData) : root.textAt(index); textFormat: Text.PlainText; color: root.theme.text; font: root.font; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; rightPadding: 10 }
-        FocusDot { theme: root.theme; visible: parent.highlighted }
     }
     popup: Popup {
         x: root.flat ? Math.round((root.width - width) / 2) : 0
@@ -43,6 +48,15 @@ ComboBox {
             boundsBehavior: Flickable.StopAtBounds
             PillWheel { flickable: choices }
             ScrollBar.vertical: ScrollBar {}
+            Ember {
+                id: choicesEmber
+                parent: choices
+                anchors.fill: parent; z: 1; clip: true
+                color: root.theme.focusColor
+                restingTarget: root.popup.visible ? choices.currentItem?.background ?? null : null
+                active: !!target
+                onActiveChanged: if (!active) hasPosition = false
+            }
         }
     }
 }

@@ -23,7 +23,6 @@ ColumnLayout {
                 ShellButton {
                     required property var modelData
                     emberShell: root.shell
-                    fillFocus: true
                     onHoveredChanged: { if (hovered) root.hoveredButton = this; else if (root.hoveredButton === this) root.hoveredButton = null; }
                     onActiveFocusChanged: { if (activeFocus) root.focusedButton = this; else if (root.focusedButton === this) root.focusedButton = null; }
                     implicitWidth: 70; implicitHeight: 60; radius: 20

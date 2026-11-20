@@ -81,6 +81,7 @@ PopupWindow {
     }
     FocusScope {
         id: content
+        readonly property Item controlEmber: trayEmber
         anchors { fill: parent; margins: 8 }
         focus: true
         Keys.onEscapePressed: popup.visible = false
@@ -117,15 +118,21 @@ PopupWindow {
                     required property int index
                     readonly property bool separator: modelData.isSeparator
                     readonly property bool available: !separator && modelData.enabled
-                    readonly property bool selected: ListView.isCurrentItem
+                    readonly property alias emberSlot: rowSlot
                     width: list.width
                     height: separator ? 13 : 40
                     radius: 7
-                    color: selected && available ? popup.theme.hover : "transparent"
+                    color: "transparent"
                     Accessible.role: Accessible.MenuItem
                     Accessible.name: separator ? "" : popup.label(modelData.text)
                     Accessible.onPressAction: popup.activate(modelData)
                     Rectangle { visible: row.separator; anchors.centerIn: parent; width: parent.width - 16; height: 1; color: popup.theme.border }
+                    EmberSlot {
+                        id: rowSlot
+                        shell: null; ember: trayEmber
+                        anchors.fill: parent
+                        shapeRadius: row.radius; shapeOpacity: 0.42
+                    }
                     Item {
                         anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
                         visible: !row.separator
@@ -153,7 +160,6 @@ PopupWindow {
                         }
                         ShellIcon { anchors { right: parent.right; verticalCenter: parent.verticalCenter } width: 17; height: 17; name: "chevron-right"; visible: row.modelData.hasChildren }
                     }
-                    FocusDot { theme: popup.theme; visible: row.selected && row.available }
                     MouseArea {
                         anchors.fill: parent
                         enabled: row.available
@@ -165,6 +171,14 @@ PopupWindow {
                 }
             }
             Text { font: popup.theme.textFont; visible: !popup.entries.length; text: "Loading…"; color: popup.theme.secondary; padding: 12 }
+        }
+        Ember {
+            id: trayEmber
+            anchors.fill: parent; z: 2
+            color: popup.theme.focusColor
+            restingTarget: list.currentItem?.available ? list.currentItem.emberSlot : null
+            active: popup.visible && !!target
+            onActiveChanged: if (!popup.visible) hasPosition = false
         }
     }
 }

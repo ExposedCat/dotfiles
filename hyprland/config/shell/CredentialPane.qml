@@ -167,14 +167,12 @@ Item {
         }
         PortalCheckBox {
             id: rememberBox
-            theme: root.theme
-            property alias emberSlot: rememberSlot
-            focusDotVisible: activeFocus && !rememberSlot.occupied
+            theme: root.theme; emberShell: root.shell
+            emberSlot.objectName: "credential-remember"
             visible: !!root.request.rememberAllowed; checked: root.remember
             text: "Remember in keyring"; onToggled: root.remember = checked
             onHoveredChanged: root.trackHover(this, hovered)
             onActiveFocusChanged: root.trackFocus(this, activeFocus)
-            EmberSlot { id: rememberSlot; shell: root.shell; objectName: "credential-remember"; x: rememberBox.indicator.x + rememberBox.indicator.width - 3; y: rememberBox.indicator.y - 3; width: 6; height: width }
         }
         RowLayout {
             Layout.fillWidth: true; spacing: 10

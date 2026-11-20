@@ -45,6 +45,7 @@ Rectangle {
         event.accepted = true;
         if (!event.isAutoRepeat) releaseHold();
     }
+    EmberControl { control: root; anchors.fill: parent; shapeRadius: root.radius }
     NumberAnimation {
         id: fill
         target: root; property: "progress"; from: 0; to: 1; duration: 520
@@ -70,7 +71,6 @@ Rectangle {
         }
     }
     ShellIcon { anchors.centerIn: parent; name: "x"; width: 21; height: 21 }
-    FocusDot { theme: root.theme; visible: root.activeFocus }
     MouseArea {
         id: pointer
         anchors.fill: parent
