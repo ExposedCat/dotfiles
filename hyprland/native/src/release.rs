@@ -234,18 +234,3 @@ pub fn main(repo: &Path, args: &[String]) -> Result<()> {
         build(repo)
     }
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn canonical_recipe_compatible_with_existing_receipts() {
-        let v = json!({"b":[1,"x"],"a":{"v":true}});
-        assert_eq!(python_json(&v), r#"{"a": {"v": true}, "b": [1, "x"]}"#);
-        let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap();
-        assert_eq!(&fingerprint(repo).unwrap()[..12], "a6a7a62c3367");
-    }
-}

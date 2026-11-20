@@ -131,8 +131,5 @@ podman exec --user root dev /usr/bin/dnf install -y bubblewrap xorg-x11-server-X
 
 Verified on this machine: separate concurrent displays; private X11 authentication and D-Bus; GTK window screenshots; real typing and mouse click with visible result; Brevlada's GTK/WebKit viewer diagnostics; timeout and orphan-process cleanup; rejection of foreign application PIDs and backend overrides. Recheck the relevant visible behavior for each task. A working helper is not proof that an application test passed.
 
-Helper regression checks: `PYTHONDONTWRITEBYTECODE=1 python3 scripts/test_runtime.py`.
-They cover private mount wrapping and preflight failure, symlink/shared-directory
-rejection, refusal of legacy sessions/environment escapes, host endpoint deletion
-and replacement, and foreign abstract-listener rejection. Validate actual GUI
-launch/input/capture and preserve host socket identities whenever the wrapper changes.
+Validate actual GUI launch, input, and capture and preserve host socket identities
+whenever the wrapper changes.

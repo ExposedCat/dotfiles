@@ -1,19 +1,7 @@
 #!/usr/bin/env bash
 
-# Codex: install the isolated GUI skill without generated Python caches.
-mkdir -p ~/.codex/skills/isolated-gui/{agents,scripts}
-cp ./codex/skills/isolated-gui/SKILL.md ~/.codex/skills/isolated-gui/
-cp ./codex/skills/isolated-gui/agents/openai.yaml ~/.codex/skills/isolated-gui/agents/
-cp ./codex/skills/isolated-gui/scripts/{desktop,runtime,test_runtime}.py ~/.codex/skills/isolated-gui/scripts/
-
-# Codex: install the server workflow skill.
-mkdir -p ~/.codex/skills/server/agents
-cp ./codex/skills/server/SKILL.md ~/.codex/skills/server/
-cp ./codex/skills/server/agents/openai.yaml ~/.codex/skills/server/agents/
-
-# Claude: share the installed Codex server and isolated GUI workflows.
-mkdir -p ~/.claude
-cp ./claude/CLAUDE.md ~/.claude/CLAUDE.md
+# Install the repository skills and share installed Codex skills with Claude.
+./claude/install || exit
 
 # System sleep: install on the host, including when called from Distrobox.
 ./services/sleep/manage install
@@ -24,8 +12,229 @@ cp ./claude/CLAUDE.md ~/.claude/CLAUDE.md
 # Secret Service: start oo7 at desktop login and recover after bus loss.
 ./services/secrets/manage install
 
-# Build and install the pinned Papers, Bazecor and OpenLogi forks and wl-screenrec.
-./apps/manage install all
+# Install Dokument from FlatPark and set it as the default PDF viewer.
+host=()
+if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
+    host=(distrobox-host-exec)
+fi
+flathub=https://dl.flathub.org/repo/flathub.flatpakrepo
+if "${host[@]}" flatpak info com.chipichapa.Dokument >/dev/null 2>&1 || {
+    "${host[@]}" flatpak --user remote-add --if-not-exists flathub "$flathub" &&
+    "${host[@]}" flatpak --user remote-add --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo &&
+    "${host[@]}" flatpak --user install --noninteractive flatpark com.chipichapa.Dokument
+}; then
+    "${host[@]}" xdg-mime default com.chipichapa.Dokument.desktop application/pdf
+fi
+
+# Locally built apps
+(
+    set -euo pipefail
+    state=${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/apps
+    cache=${XDG_CACHE_HOME:-$HOME/.cache}
+    config=${XDG_CONFIG_HOME:-$HOME/.config}
+    applications=$HOME/.local/share/applications
+    mkdir -p "$state" "$applications"
+    exec 9>"$state/load.lock"
+    flock 9
+
+    checkout_app() {
+        local source=$1 url=$2 revision=$3 remote changes
+        if [[ ! -e $source ]]; then
+            git init --quiet "$source"
+            git -C "$source" remote add origin "$url"
+        fi
+        remote=$(git -C "$source" remote get-url origin)
+        changes=$(git -C "$source" status --porcelain)
+        if [[ $remote != "$url" || -n $changes ]]; then
+            printf 'Unexpected remote or local changes in %s\n' "$source" >&2
+            return 1
+        fi
+        if [[ $(git -C "$source" rev-parse --verify HEAD 2>/dev/null) != "$revision" ]]; then
+            git -C "$source" fetch --depth=1 origin "$revision"
+            git -C "$source" checkout --detach "$revision"
+        fi
+    }
+
+    build_in_dev() (
+        local directory=$1
+        shift
+        if (( ${#host[@]} )); then
+            cd "$directory"
+            "$@"
+        else
+            podman exec --user "$UID" --workdir "$directory" "${DOTFILES_BUILD_CONTAINER:-dev}" "$@"
+        fi
+    )
+
+    # Bazecor fork. Build with Electron Forge and install on the host.
+    install_bazecor() (
+        local revision=e2daabd9b1e42b94912f1482297d6dbacdb7e100 id=com.dygma.bazecor
+        local directory=$state/bazecor
+        local bundle=$directory/bazecor-$revision.flatpak location stage
+        mkdir -p "$directory"
+        if [[ ! -s $bundle ]]; then
+            checkout_app "$directory/source" https://github.com/Chipi-Chapa-Corp/Bazecor.git "$revision"
+            "${host[@]}" flatpak --user remote-add --if-not-exists flathub "$flathub"
+            stage=$(mktemp -d "$directory/.build-XXXXXX")
+            trap 'rm -rf -- "$stage"' EXIT
+            git clone --quiet --shared "$directory/source" "$stage/source"
+            mkdir "$stage/tmp"
+            build_in_dev "$stage/source" corepack yarn install --frozen-lockfile
+            build_in_dev "$stage/source" /usr/local/libexec/dev-container/flatpak-build env \
+                "TMPDIR=$stage/tmp" "DOTFILES_FLATPAK_RUNTIME_REPO=$flathub" \
+                DEBUG=@malept/flatpak-bundler corepack yarn make-flatpak
+            shopt -s globstar nullglob
+            local bundles=("$stage/source/out/make/"**/*.flatpak)
+            if (( ${#bundles[@]} != 1 )); then
+                printf 'Expected one Bazecor Flatpak bundle, found %s\n' "${#bundles[@]}" >&2
+                return 1
+            fi
+            mv -- "${bundles[0]}" "$bundle"
+        fi
+        "${host[@]}" flatpak --user install --noninteractive --or-update --bundle "$bundle"
+        location=$("${host[@]}" flatpak --user info --show-location "$id//stable")
+        if [[ ! -f $location/export/share/applications/$id.desktop ]]; then
+            printf 'Bazecor did not export its application-menu entry\n' >&2
+            return 1
+        fi
+
+        # Migrate AppImage data before archiving the retired launcher.
+        local profile=$HOME/.var/app/$id/config/Bazecor legacy backup=
+        if [[ -d $config/Bazecor && ! -e $profile ]]; then
+            mkdir -p "${profile%/*}"
+            (
+                migration=$(mktemp -d "${profile%/*}/.migrate-XXXXXX")
+                trap 'rm -rf -- "$migration"' EXIT
+                tar -C "$config/Bazecor" --exclude='Singleton*' --exclude=Cache \
+                    --exclude='Code Cache' --exclude=GPUCache --exclude='Dawn*Cache' \
+                    --exclude=Crashpad --exclude=logs -cf - . | tar -C "$migration" -xf -
+                mv -nT -- "$migration" "$profile"
+            )
+        fi
+        for legacy in "$applications/bazecor.desktop" "$HOME/AppImages/bazecor.appimage" \
+            "$HOME/.local/libexec/dotfiles-bazecor.py" "$HOME/.local/share/icons/hicolor/512x512/apps/bazecor.png" \
+            "$cache/dotfiles/bazecor"; do
+            [[ -e $legacy ]] || continue
+            if [[ -z $backup ]]; then
+                backup=$(mktemp -d "$directory/appimage-$(date -u +%Y%m%dT%H%M%S)-XXXXXX")
+            fi
+            mv -- "$legacy" "$backup/"
+        done
+    )
+
+    # OpenLogi fork. Install the upstream agent unit for the local binaries.
+    install_openlogi() (
+        local revision=096120939477377dda77a0e2b964578f85d6d983 toolchain=1.99.0
+        local directory=$state/openlogi opt=$HOME/.local/opt/openlogi
+        local version=openlogi-${revision:0:12} target=$cache/dotfiles-build/openlogi/target
+        local source=$directory/source packaging=$directory/source/packaging/linux
+        local binaries=(openlogi openlogi-agent openlogi-desktop)
+        local binary stage output libraries rules unit=openlogi-agent.service
+        checkout_app "$source" https://github.com/Chipi-Chapa-Corp/OpenLogi.git "$revision"
+        if [[ ! -d $opt/$version ]]; then
+            output=$directory/$version/bin
+            if [[ ! -x $output/openlogi || ! -x $output/openlogi-agent || ! -x $output/openlogi-desktop ]]; then
+                build_in_dev "$source" rustup toolchain install "$toolchain" --profile minimal
+                build_in_dev "$source" env "CARGO_TARGET_DIR=$target" CARGO_BUILD_JOBS=4 \
+                    CARGO_PROFILE_RELEASE_DEBUG=0 CARGO_PROFILE_RELEASE_LTO=false \
+                    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 cargo "+$toolchain" build --release --locked \
+                    -p openlogi -p openlogi-agent --bin openlogi-agent --bin openlogi \
+                    -p openlogi-desktop --bin openlogi-desktop
+                output=$target/release
+            fi
+            mkdir -p "$opt"
+            stage=$(mktemp -d "$opt/.install-XXXXXX")
+            trap 'rm -rf -- "$stage"' EXIT
+            for binary in "${binaries[@]}"; do
+                install -Dm0755 "$output/$binary" "$stage/bin/$binary"
+                libraries=$("${host[@]}" ldd "$stage/bin/$binary")
+                if [[ $libraries == *'not found'* ]]; then
+                    printf 'Missing host libraries for %s\n%s\n' "$binary" "$libraries" >&2
+                    return 1
+                fi
+            done
+            mv -T -- "$stage" "$opt/$version"
+        fi
+
+        rules=$packaging/udev/70-openlogi.rules
+        if [[ $(cat "$rules") != "$("${host[@]}" cat /etc/udev/rules.d/70-openlogi.rules 2>/dev/null)" ]]; then
+            "${host[@]}" pkexec /usr/bin/bash -ec '
+                install -Dm0644 "$1" /etc/udev/rules.d/70-openlogi.rules
+                restorecon /etc/udev/rules.d/70-openlogi.rules
+                install -d /etc/modules-load.d
+                echo uinput > /etc/modules-load.d/openlogi.conf
+                modprobe uinput
+                udevadm control --reload-rules
+                udevadm trigger --subsystem-match=hidraw
+                udevadm trigger --subsystem-match=input
+                udevadm trigger --subsystem-match=misc --sysname-match=uinput
+            ' bash "$rules"
+        fi
+        ln -sfnT -- "$opt/$version" "$opt/current"
+        mkdir -p "$HOME/.local/bin" "$config/systemd/user"
+        for binary in "${binaries[@]}"; do
+            ln -sfnT -- "$opt/current/bin/$binary" "$HOME/.local/bin/$binary"
+        done
+        sed "s|^Exec=openlogi-desktop$|Exec=\"$opt/current/bin/openlogi-desktop\"|" \
+            "$packaging/desktop/openlogi.desktop" > "$applications/openlogi.desktop"
+        install -Dm0644 "$source/design/icon/openlogi-128.png" \
+            "$HOME/.local/share/icons/hicolor/128x128/apps/openlogi.png"
+        sed -e 's|^ExecStart=/usr/bin/openlogi-agent$|ExecStart=%h/.local/opt/openlogi/current/bin/openlogi-agent|' \
+            -e '/^After=graphical-session.target$/c\After=graphical-session-pre.target\nPartOf=graphical-session.target' \
+            "$packaging/systemd/$unit" > "$config/systemd/user/$unit"
+        "${host[@]}" systemctl --user enable "$unit"
+        if "${host[@]}" systemctl --user is-active --quiet graphical-session.target; then
+            "${host[@]}" systemctl --user restart "$unit"
+        fi
+    )
+
+    # wl-screenrec RPM with FFmpeg 9 on Fedora 45.
+    install_wl_screenrec() (
+        local revision=6edf054322b8652b66bd6daf4b9b0ebadedd5574 version=0.3.1
+        local directory=$state/wl-screenrec recipe=$PWD/apps/wl-screenrec
+        local rpm=wl-screenrec-$version-1.local.fc45.x86_64
+        local artifact=$directory/$revision/$rpm.rpm stage requires
+        if [[ $("${host[@]}" rpm -q --qf '%{NEVRA}' wl-screenrec) == "$rpm" ]]; then
+            requires=$("${host[@]}" rpm -q --requires wl-screenrec)
+            [[ $requires == *libavcodec.so.63* ]] && return 0
+        fi
+        if [[ $("${host[@]}" rpm --eval '%{fedora} %{_arch}') != '45 x86_64' ]]; then
+            printf 'The wl-screenrec RPM targets Fedora 45 x86_64\n' >&2
+            return 1
+        fi
+        if [[ ! -s $artifact ]]; then
+            checkout_app "$directory/source" https://github.com/rosalyntg/wl-screenrec.git "$revision"
+            stage=$(mktemp -d "$directory/.rpmbuild-XXXXXX")
+            trap 'rm -rf -- "$stage"' EXIT
+            mkdir -p "$stage"/{SOURCES,SPECS,RPMS,BUILD,BUILDROOT}
+            git -C "$directory/source" archive --format=tar.gz --prefix="wl-screenrec-$version/" \
+                --output="$stage/SOURCES/wl-screenrec-$version.tar.gz" HEAD
+            cp "$recipe/wl-screenrec.spec" "$stage/SPECS/"
+            local image=localhost/dotfiles-wl-screenrec:45
+            "${host[@]}" podman build -t "$image" -f "$recipe/Containerfile" "$recipe"
+            "${host[@]}" podman run --rm -v "$stage:/build:Z" "$image" \
+                rpmbuild -bb /build/SPECS/wl-screenrec.spec --define '_topdir /build' --define 'dist .fc45'
+            mkdir -p "${artifact%/*}"
+            mv -- "$stage/RPMS/x86_64/$rpm.rpm" "$artifact"
+        fi
+        "${host[@]}" rpm -K --nosignature "$artifact"
+        requires=$("${host[@]}" rpm -qp --requires "$artifact")
+        if [[ $requires != *libavcodec.so.63* ]]; then
+            printf 'The wl-screenrec RPM was built without FFmpeg 9\n' >&2
+            return 1
+        fi
+        "${host[@]}" rpm-ostree install --idempotent "$artifact"
+        printf 'wl-screenrec staged. Reboot to activate the RPM.\n'
+    )
+
+    install_bazecor
+    install_openlogi
+    install_wl_screenrec
+)
+app_setup_status=$?
+if (( app_setup_status != 0 )); then
+    exit "$app_setup_status"
+fi
 
 # Fastfetch
 cp ./fastfetch/* ~/.config/fastfetch/
@@ -45,18 +254,14 @@ cp ./gtk/gtk.css ~/.config/gtk-3.0/gtk.css
 cp ./gtk/gtk.css ~/.config/gtk-4.0/gtk.css
 
 # PrusaSlicer's bundled GTK chooser needs GVfs to list and mount removable drives.
-prusa_flatpak_host=()
-if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
-    prusa_flatpak_host=(distrobox-host-exec)
-fi
-"${prusa_flatpak_host[@]}" flatpak override --user \
+"${host[@]}" flatpak override --user \
     '--talk-name=org.gtk.vfs.*' --filesystem=xdg-run/gvfsd \
     com.prusa3d.PrusaSlicer
 
 # Remove the retired Brevlada entry only after migration to the installed app ID.
 brevlada_old_autostart=${XDG_CONFIG_HOME:-$HOME/.config}/autostart/io.github.ExposedCat.Brevlada.desktop
-if "${prusa_flatpak_host[@]}" flatpak info com.chipichapa.Brevlada >/dev/null 2>&1 \
-    && ! "${prusa_flatpak_host[@]}" flatpak info io.github.ExposedCat.Brevlada >/dev/null 2>&1 \
+if "${host[@]}" flatpak info com.chipichapa.Brevlada >/dev/null 2>&1 \
+    && ! "${host[@]}" flatpak info io.github.ExposedCat.Brevlada >/dev/null 2>&1 \
     && [[ -f $brevlada_old_autostart ]] \
     && grep -qx 'X-Flatpak=io.github.ExposedCat.Brevlada' "$brevlada_old_autostart"; then
     rm -- "$brevlada_old_autostart"

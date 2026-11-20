@@ -143,6 +143,8 @@ Item {
             }
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 2
+                // The 30px dismiss control adds headroom above a two-line banner's title.
+                transform: Translate { y: root.isBanner && body.visible ? -3 : 0 }
                 RowLayout {
                     Layout.fillWidth: true; spacing: 7
                     Text { font: root.theme.textFont; Layout.fillWidth: true; text: root.entry.summary; textFormat: Text.PlainText; color: root.theme.text; wrapMode: Text.NoWrap; maximumLineCount: 1; elide: Text.ElideRight }
@@ -159,7 +161,7 @@ Item {
                         onGroupDismissed: root.dismissGroup()
                     }
                 }
-                Text { objectName: "notificationBody"; font: root.theme.textFont; visible: text.length > 0; Layout.fillWidth: true; text: root.entry.body; textFormat: Text.PlainText; color: root.theme.secondary; wrapMode: Text.Wrap; maximumLineCount: root.detailsExpanded ? 5 : 1; elide: Text.ElideRight }
+                Text { id: body; objectName: "notificationBody"; font: root.theme.textFont; visible: text.length > 0; Layout.fillWidth: true; text: root.entry.body; textFormat: Text.PlainText; color: root.theme.secondary; wrapMode: Text.Wrap; maximumLineCount: root.detailsExpanded ? 5 : 1; elide: Text.ElideRight }
             }
         }
         Item {

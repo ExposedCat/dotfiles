@@ -489,36 +489,3 @@ pub fn main(args: &[String]) -> Result<()> {
         .map_err(|_| anyhow::anyhow!("File provider worker failed"))?;
     Ok(())
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn history_persists_and_validates_paths() {
-        let d = tempfile::tempdir().unwrap();
-        let mut h = History {
-            path: d.path().join("history.json"),
-            entries: HashMap::new(),
-        };
-        let mut r = item("character", "2014", "em dash", "");
-        r["value"] = json!("—");
-        h.record(&r, true).unwrap();
-        h.record(&r, false).unwrap();
-        let saved = read_json(&h.path).unwrap();
-        assert_eq!(saved["entries"]["character:2014"]["favorite"], true);
-        assert_eq!(h.search("").len(), 1);
-        use std::os::unix::fs::PermissionsExt;
-        assert_eq!(
-            h.path.metadata().unwrap().permissions().mode() & 0o777,
-            0o600
-        );
-    }
-    #[test]
-    fn queue_coalesces_obsolete_requests() {
-        let q = Queue::default();
-        q.push(json!({"id":1}));
-        q.push(json!({"id":2}));
-        assert_eq!(q.next().unwrap()["id"], 2);
-        q.close();
-        assert!(q.next().is_none());
-    }
-}

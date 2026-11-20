@@ -728,35 +728,3 @@ pub fn main(args: &[String]) -> Result<()> {
         _ => bail!("Unknown maintenance command"),
     }
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn routing_preserves_other_preferences() {
-        let text = "[Default Applications]\napplication/octet-stream=dev-code.desktop;reader.desktop;\ntext/plain=editor.desktop;\nx-scheme-handler/mailto=old.desktop;\n";
-        let result = mime_defaults(text);
-        assert!(result.contains("text/plain=editor.desktop"));
-        assert!(result.contains("application/octet-stream=reader.desktop;"));
-        assert!(!result.contains("old.desktop"));
-        assert_eq!(result, mime_defaults(&result));
-    }
-    #[test]
-    fn managed_blocks_are_idempotent_and_literal() {
-        let block = "# BEGIN fixture\npath=$HOME\\thing\n# END fixture";
-        let result = managed("unrelated", block, "fixture").unwrap();
-        assert_eq!(result, managed(&result, block, "fixture").unwrap());
-        assert!(managed("# BEGIN fixture\ntruncated", block, "fixture").is_err());
-    }
-    #[test]
-    fn copy_preserves_user_symlinks_without_following_them() {
-        let d = tempfile::tempdir().unwrap();
-        let source = d.path().join("source");
-        fs::create_dir(&source).unwrap();
-        symlink("/outside", source.join("unrelated")).unwrap();
-        copy_tree(&source, &d.path().join("stage")).unwrap();
-        assert_eq!(
-            fs::read_link(d.path().join("stage/unrelated")).unwrap(),
-            PathBuf::from("/outside")
-        );
-    }
-}

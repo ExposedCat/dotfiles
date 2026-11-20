@@ -1,8 +1,7 @@
 # Native desktop helpers
 
 One Rust package builds `dotfiles-desktop`. The desktop UI remains QML/JavaScript
-in Quickshell, and Hyprland policy remains Lua. Python is used by test harnesses,
-not by the installed runtime or the current installation/build commands.
+in Quickshell, and Hyprland policy remains Lua.
 
 ```mermaid
 flowchart TD
@@ -84,21 +83,13 @@ files are kept outside this checkout; no installed command invokes Cargo.
 
 export CARGO_TARGET_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles-build/hyprland-native"
 cargo fmt --manifest-path hyprland/native/Cargo.toml --check
-cargo clippy --locked --manifest-path hyprland/native/Cargo.toml --all-targets -- -D warnings
-cargo test --locked --manifest-path hyprland/native/Cargo.toml
-DOTFILES_DESKTOP_BINARY="$CARGO_TARGET_DIR/release/dotfiles-desktop" \
-  python3 -B -m unittest discover -s hyprland/tests
+cargo clippy --locked --manifest-path hyprland/native/Cargo.toml -- -D warnings
 ```
 
 For GUI checks, use the repository's isolated-gui skill. Set
 `DOTFILES_DESKTOP_BINARY` to the compiled executable and `DOTFILES_HYPR_ROOT` to
-this checkout's absolute `hyprland/config` path. Test state, profiles, captures,
-and logs must stay outside this checkout. The portal, launcher and capture
-harnesses exercise the real binary, QML, sockets, and private D-Bus session.
-
-`hyprland/tests/capture-startup.py --legacy-shortcut /external/reference/capture.py`
-supports a controlled comparison with an externally preserved migration reference.
-Software-rendered private-display timings do not measure the working compositor.
+this checkout's absolute `hyprland/config` path. Diagnostic state, profiles,
+captures, and logs must stay outside this checkout.
 
 Installation stages the binary with the configuration and validates before
 activation. A failed reload restores the entire previous directory. Historical

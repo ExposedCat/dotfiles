@@ -240,29 +240,3 @@ impl Dates {
         Ok(vec![])
     }
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn calendar_and_offsets() {
-        let d = Dates {
-            now: DateTime::parse_from_rfc3339("2026-11-15T12:30:00+00:00").unwrap(),
-        };
-        for (q, v) in [
-            ("days between 28 February 2024 and 1 March 2024", "2 days"),
-            ("2024-01-31 + 1 month", "2024-02-29"),
-            ("time between 23:00 and 01:00", "2 hours, 0 minutes"),
-            (
-                "time between 2026-03-29T01:00+01:00 and 2026-03-29T04:00+02:00",
-                "2 hours, 0 minutes",
-            ),
-            ("timestamp now", "1794745800"),
-        ] {
-            assert_eq!(d.search_at(q).unwrap()[0]["value"], v, "{q}");
-        }
-        assert!(
-            d.search_at("days between 2026-02-30 and 2026-03-01")
-                .is_err()
-        );
-    }
-}

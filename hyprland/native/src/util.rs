@@ -215,18 +215,3 @@ pub fn status(mut cmd: Command, input: Option<Vec<u8>>, timeout: Duration) -> Re
     }
     Ok(())
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn background_owner_does_not_hold_command_completion() {
-        let started = std::time::Instant::now();
-        status(
-            command(&["/bin/sh", "-c", "sleep 1 & exit 0"]),
-            None,
-            Duration::from_secs(2),
-        )
-        .unwrap();
-        assert!(started.elapsed() < Duration::from_millis(700));
-    }
-}

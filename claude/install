@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+directory=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+codex_skills=$HOME/.codex/skills
+claude_directory=$HOME/.claude
+claude_skills=$claude_directory/skills
+mkdir -p "$codex_skills" "$claude_directory"
+
+tar --exclude=__pycache__ --exclude='*.py[co]' -C "$directory/../codex/skills" -cf - . |
+    tar --no-overwrite-dir --keep-directory-symlink -C "$codex_skills" -xf -
+
+if [[ ! -L $claude_skills || ! $claude_skills -ef $codex_skills ]]; then
+    backup=
+    if [[ -e $claude_skills || -L $claude_skills ]]; then
+        shopt -s dotglob nullglob
+        for entry in "$claude_skills"/*; do
+            target=$codex_skills/${entry##*/}
+            [[ ! -e $target && ! -L $target ]] || continue
+            if [[ -L $entry ]]; then
+                link_target=$(realpath -m -- "$entry")
+                [[ $link_target != "$target" ]] || continue
+                ln -sT -- "$link_target" "$target"
+            else
+                cp -aT -- "$entry" "$target"
+            fi
+        done
+        backup=$(mktemp -d "$claude_directory/skills-backup.XXXXXX")
+        mv -T -- "$claude_skills" "$backup/skills"
+        printf 'Previous Claude skills directory saved in %s\n' "$backup/skills"
+    fi
+    if ! ln -sT -- "$codex_skills" "$claude_skills"; then
+        if [[ -n $backup && ! -e $claude_skills && ! -L $claude_skills ]]; then
+            mv -T -- "$backup/skills" "$claude_skills"
+        fi
+        exit 1
+    fi
+fi
+
+cp -- "$directory/CLAUDE.md" "$claude_directory/CLAUDE.md"

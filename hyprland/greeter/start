@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${GREETD_SOCK:?Start the login screen from greetd}"
+DOTFILES_GREETER_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+export DOTFILES_GREETER_DIR
+export PATH=/usr/bin:/usr/sbin
+export HYPRLAND_NO_SD_VARS=1
+export QT_QUICK_CONTROLS_STYLE=Basic
+
+exec /usr/bin/start-hyprland -- --config "$DOTFILES_GREETER_DIR/hyprland.lua"

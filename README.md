@@ -78,8 +78,6 @@ to the existing Secret Service according to the connection's secret flags and
 the Remember choice. VPN plugins exposing external UI descriptors are rendered
 in the pill; provider-specific browser/SSO flows still require their own client.
 Inspect registration with `journalctl --user -u dotfiles-hyprland-agents.service`.
-`hyprland/tests/credential-agents.py` exercises real D-Bus agent calls and pill
-morphs with fake BlueZ/NetworkManager services on the isolated desktop's bus.
 
 The custom desktop backend is Rust, built from `hyprland/native/`. QML and
 JavaScript own presentation, input, and animation; Lua owns compositor policy.
@@ -87,8 +85,8 @@ The installer builds with the locked Cargo dependencies in the development
 container and installs `~/.config/hypr/bin/dotfiles-desktop` alongside the config.
 The sharing picker and Brevlada email bridge are native multicall executables
 from the same build. Normal desktop operations and maintenance commands no longer
-invoke Python. Python remains a test/isolated-desktop tool, and is used only when
-rolling back to a historical configuration that predates the migration.
+invoke Python. Rollback to a historical configuration can restore the Python
+entry points bundled with that configuration.
 
 Build caches stay under `${XDG_CACHE_HOME:-~/.cache}/dotfiles-build/hyprland-native/`.
 The binary is part of the configuration snapshot, so rollback restores matching
@@ -142,17 +140,8 @@ picker use that same pill expansion and collapse, with their existing choices,
 previews, sharing tabs, remember option, and region selection. These dialogs
 share one view with the standalone fallback. Requests pass over the private
 runtime socket `dotfiles-portal-shell.sock`; request updates and frontend Close
-are reflected in that same pane. Other desktops, unavailable or busy shells,
-and fixture previews retain the standalone dialog.
-`hyprland/tests/portal-apps.py` exercises those keyboard responses on a private
-D-Bus session through the isolated GUI helper; set `XDG_DATA_HOME` to an external
-test directory for its fixture application entries.
-`hyprland/tests/portal-pill.py` runs the real shell in a nested compositor to
-check expansion/collapse frames, request updates, acceptance, cancellation,
-fresh searches on reopening, permission allow/deny choices, sharing responses
-for windows/workspaces/monitor regions, and hidden-pill/fullscreen behavior.
-Set `DOTFILES_PORTAL_PRODUCTION_ROOT=1` to check all three dialog kinds through
-the exact installed shell entry point.
+are reflected in that same pane. Other desktops and unavailable or busy shells
+retain the standalone dialog.
 
 The installer preserves unrelated Hyprland rules and `xdph.conf` settings,
 backs up every changed file under `~/.local/state/dotfiles/xdg-desktop-portal/`,
@@ -164,41 +153,12 @@ and stops with the graphical session. Inspect its logs with
 at the center of the screen; foreign-window transient parenting is not yet
 implemented. File selection and printing retain their native backend dialogs. Applications with their own dialogs bypass these portal UIs.
 
-Protocol checks run with:
-
-```bash
-CARGO_TARGET_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles-build/hyprland-native" \
-  cargo test --locked --manifest-path hyprland/native/Cargo.toml
-DOTFILES_DESKTOP_BINARY="$(./hyprland/native/build)" \
-  python3 -B -m unittest discover -s hyprland/tests
-```
-
-For private GUI previews and the interactive D-Bus integration check, use the
-isolated GUI helper. Never launch these diagnostics on the working desktop:
-
-```bash
-desktop="/usr/bin/python3 $HOME/.codex/skills/isolated-gui/scripts/desktop.py"
-$desktop --session portal-check start --size 1440x1000
-$desktop --session portal-check launch --cwd "$PWD" \
-  --env DOTFILES_HYPR_ROOT="$PWD/hyprland/config" \
-  --env DOTFILES_DESKTOP_BINARY="$HOME/.config/hypr/bin/dotfiles-desktop" -- \
-  "$HOME/.config/hypr/bin/dotfiles-desktop" portal preview \
-  "$PWD/hyprland/tests/portal-fixtures/apps.json"
-# access.json and share.json preview the other dialogs with sample data.
-$desktop --session portal-check launch --cwd "$PWD" -- /usr/bin/python3 \
-  "$PWD/hyprland/tests/portal-client.py"
-$desktop --session portal-check stop
-```
-
 Sharing previews use live screencopy when available and a muted window outline
 when it is unavailable. Workspace cards compose the current window layout from
 Hyprland metadata, with live window previews when available. Window previews
 require an unambiguous application/title match; actual sharing always uses the
 exact source ID supplied by XDPH. Dialogs use compact controls and brief
 entrance, selection, and tab transitions; permission details expand on demand.
-Private X11
-checks cover dialog behavior and protocol responses, not live Wayland/PipeWire
-capture or GPU performance.
 
 Everyday controls:
 
@@ -348,8 +308,8 @@ shared cursor setting, recording audio toggles, and recording frame rate, under
 `~/.local/state/dotfiles/hyprland/capture.json`.
 Restored regions are clipped to the currently connected desktop.
 
-Alt+Print immediately captures the active window's visible rectangle across
-all intersecting displays and copies/saves it, without opening a selector.
+Alt+Print captures the active window directly. It rounds the corners to a 10 px
+radius, adds 24 px of white padding on each side, and copies and saves the PNG.
 For recording, choose a region, cursor option, and audio sources, then press any key except Escape/Backspace/Delete
 or the video-camera button. Ctrl+Shift+Alt+R is the only stop control. Recording
 borders remain outside the encoded rectangle; dimming passes input through.
@@ -655,105 +615,6 @@ Microphone and screen-sharing status use Quickshell's native PipeWire objects.
 Initial keyboard details are read once; subsequent layout changes use Hyprland
 events.
 
-Check the install/restore failure handling with:
-
-```bash
-python3 -m unittest discover -s hyprland/tests
-```
-
-Run `hyprland/tests/screen-sharing.qml` with a shell fixture on the isolated
-helper's nested Wayland compositor. It checks compact indicator placement,
-microphone mute and unmute, portal share teardown, and the distinction between
-active shares, local recordings, and cameras.
-
-The notification regression fixture `hyprland/tests/notification-behavior.qml`
-checks hover-paused expiry, queued arrivals, replacement updates, and stable
-ordering. `hyprland/tests/notification-banners.qml` checks tilted drop/fade entrances,
-last-banner retirement, exit reversal, center toggling, and input-region cleanup.
-`hyprland/tests/notification-icons.qml` checks the USB-drive icon, notification
-image URLs, missing icons, file images, fallbacks, and recovery after updates.
-`hyprland/tests/notification-grouping.qml` checks app/title matching, stack expansion,
-member replies, title changes, group limits, hover consumption, dismissal, and expiry.
-`hyprland/tests/notification-input.py` runs real pointer input on a private nested
-compositor, checking banner bottoms, expanded actions, reply footers, lower group
-members, neighbor reflow, and click-through outside banners. Run it through the
-isolated GUI helper; it starts its own compositor and test-local state.
-`hyprland/tests/notification-center-controls.qml` checks first-card controls,
-single-message dismissal, circular hold progress, cancellation, and group dismissal.
-`hyprland/tests/notification-center-arrivals.qml` checks immediate newest-first
-stacking, drop/fade entrances, collapsed and expanded arrivals, bursts, stable
-cards, and reply drafts without delayed reordering.
-`hyprland/tests/notification-dismissal.qml` checks upward exits, retained card and
-group delegates, collapsed-stack handoff, and last-member retirement.
-`hyprland/tests/popup-behavior.qml` checks matched popup timing, geometry morphs,
-rapid switching, and switching during a close.
-`hyprland/tests/osd-behavior.qml` checks brightness levels, shared audio/microphone
-presentation, monitor changes, repeated updates, and automatic hiding.
-Run them with Quickshell through the `isolated-gui` helper on a separate
-private D-Bus session, setting `DOTFILES_SHELL_SOURCE` to the absolute
-`hyprland/config/shell` directory and `XDG_STATE_HOME` to a test-only directory.
-`hyprland/tests/panel-pointer.qml` checks the legacy drop components in isolation.
-`hyprland/tests/launcher.js` checks fuzzy ranking and keyboard layout recovery.
-`hyprland/native/` contains the Rust regression tests for real Qalculate arithmetic,
-functions, repaired parentheses, currency arithmetic, units, dates, Unicode,
-layout recovery, capture composition, permissions, history, and release recipes.
-`hyprland/tests/test_native.py` invokes the compiled executable with private files
-and command fixtures, covering installation/rollback and desktop actions.
-`hyprland/tests/launcher-providers.qml` checks selectable results and contextual
-actions; `launcher-backend.qml` exercises the real QML/JSON worker connection.
-`launcher-refinements.qml` checks the minimal layout, asynchronous first-result
-selection, deliberate navigation, drag threshold/placement, and focus dismissal.
-`hyprland/tests/launcher-provider-bus.py` runs the actual worker against a fake
-Nautilus on the isolated desktop's private D-Bus session, checking file results,
-copying, favorites, and recents. Run all GUI and D-Bus fixtures through the
-isolated helper; do not run them on the working desktop.
-`hyprland/tests/capture-input.py` runs a nested compositor through that helper
-and checks real held/repeated Escape, Enter, Ctrl+C, modifier releases, annotation
-editing, and the cold fallback against an underlying key-event observer.
-It also checks the capture/shell handoff with the real launcher, preserving its
-query and selection through cancel/export and restoring focus-loss dismissal.
-`hyprland/tests/capture-startup.py` measures first and repeated shortcut-to-frame
-latency on two private outputs through the isolated helper, including the real
-Rust shortcut, frame capture, shell handoff, and full-size overlay rendering.
-Its `--source` option accepts another tools directory for comparisons.
-`hyprland/tests/recording-audio.py` runs through the isolated helper with
-`DOTFILES_DESKTOP_BINARY` pointing to the built binary. It starts a private
-PipeWire/Pulse session with hardware monitors disabled and verifies speaker,
-mic, and mixed inputs using distinct synthetic tones. `capture-multiscreen.py`
-checks the toolbar toggles, recording arguments, and persisted audio choices.
-The Rust `spanning_video_retains_one_audio_track_and_can_stay_silent` test needs
-FFmpeg with libx264; run it explicitly with
-`cargo test spanning_video_retains_one_audio_track_and_can_stay_silent -- --ignored`
-on a host with that encoder to verify audio retention and timing during composition.
-The ignored Rust test `gpu_join_preserves_geometry_timing_audio_and_recovers`
-requires `DOTFILES_TEST_VAAPI_DEVICE=/dev/dri/renderD128` (choose the intended
-render node) and the host FFmpeg with VA-API and libx264. It uses only generated
-files, checks mixed scales, negative coordinates, cropped edges, display gaps,
-staggered start/stop times, all four FPS settings, H.264/HEVC, a 5120-pixel join,
-audio, software recovery, and atomic output. It also prints a short synthetic
-GPU/CPU comparison. Set `DOTFILES_TEST_CACHE` to an external cache directory and
-optionally `DOTFILES_TEST_KEEP=1` to retain the generated fixture files.
-Software-rendered timings do not predict live Hyprland performance.
-`hyprland/tests/notification-layout.qml` checks card separation and stable delegates
-through reordering, variable body heights, width changes, and inline reply/cancel.
-`hyprland/tests/notification-center-layout.qml` checks spacing between groups on
-first open, hidden and live arrivals, retained pane resizing, body changes, and dismissal.
-`hyprland/tests/pill-features.qml` exercises the integrated views, notification
-queue/expiry pause, media/mixer controls, retained state, and Super restoration.
-`hyprland/tests/pill-dismissal.qml` covers notification arrivals while a menu is
-open, stable full-view geometry, Bluetooth device churn, and releasing input on close.
-`hyprland/tests/pill.lua` exercises Super tap/hold/chord handling with a fake
-compositor as part of the Python suite. `hyprland/tests/pill-behavior.qml` checks
-the real shell's pill geometry, launcher, menu switching, collapse, hidden input
-region, stale IPC events, timestamp wraparound, and launcher access while manually
-hidden or fullscreen. Run that fixture in a nested
-Wayland compositor inside the isolated helper (for example, Sway with
-`WLR_BACKENDS=x11` and `WLR_RENDERER=pixman`). Set `DOTFILES_SHELL_FIXTURE` to a JSON
-file, `DOTFILES_SHELL_SOURCE` to the absolute shell directory, and both
-`XDG_STATE_HOME` and `XDG_CACHE_HOME` to test-only directories. The nested
-compositor must start Quickshell with `QT_QPA_PLATFORM=wayland`; the outer
-helper's X11 display and private bus remain isolated from the user's desktop.
-
 
 <h2 align="center">
   <p>System fonts and GTK</p>
@@ -866,17 +727,16 @@ wget -O ~/.config/fastfetch/bongo.txt https://raw.githubusercontent.com/ExposedC
   <p>OpenLogi</p>
 </h2>
 
-OpenLogi replaces LogiOps. Build the pinned fork and enable its user agent:
+`_scripts/load` builds the pinned OpenLogi fork and enables its user agent.
+Inspect it with:
 
 ```bash
-./apps/manage install openlogi
-./apps/manage check openlogi
+systemctl --user status openlogi-agent.service
 ```
 
-Existing mappings in `~/.config/openlogi/config.toml` are preserved and backed up
-before an upgrade. The fork includes configurable gesture hold and sensitivity;
-see [local application builds](apps/README.md). Keep `logid.service` masked so
-both daemons cannot claim the same mouse. The files in `logiops/` are historical.
+Upgrades preserve the mappings in `~/.config/openlogi/config.toml`. The fork
+includes configurable gesture hold and sensitivity. See the
+[local application builds](apps/README.md).
 
 <h2 align="center">
   <p>LAN hostname resolution</p>
@@ -1057,24 +917,22 @@ as the default deployment target, keeps remote diagnostics read-only, and uses
 From the repository root:
 
 ```bash
-mkdir -p ~/.codex/skills
-cp -R ./codex/skills/isolated-gui ~/.codex/skills/
-cp -R ./codex/skills/server ~/.codex/skills/
-mkdir -p ~/.claude
-cp ./claude/CLAUDE.md ~/.claude/CLAUDE.md
+./claude/install
 ```
 
-The global [Claude instructions](claude/CLAUDE.md) use
-[Claude Code file imports](https://code.claude.com/docs/en/memory#import-additional-files)
-to load these same skill files from `~/.codex/skills/`. Keep both skills installed
-even when using only Claude; the GUI commands use the shared Codex helper path.
-Workflow changes then apply to both agents without maintaining duplicate copies.
+The installer copies this repository's skills to `~/.codex/skills/` and makes
+`~/.claude/skills` a single symlink to that directory. Both agents read the
+shared directory, so new skills and their supporting files are available
+without running the installer again. On the first run it backs up the old
+Claude skills directory and preserves its files, including synced account
+skills, alongside the Codex skills. If names collide, the Codex copy takes
+precedence and the previous Claude copy stays in the backup.
+[Claude Code skill locations](https://code.claude.com/docs/en/skills#skills-locations)
 
-`_scripts/load` installs both skills and `~/.claude/CLAUDE.md`; `_scripts/dump`
-saves their source files back to the repo. Both exclude generated Python caches.
-The dev container image
-includes the GUI dependencies; for an existing container, use the dependency
-installation command in the skill.
+`_scripts/load` also runs this installer. `_scripts/dump` saves the tracked
+skill files and [global Claude instructions](claude/CLAUDE.md) back to the
+repository. The dev container image includes the GUI dependencies. For an
+existing container, use the dependency installation command in the skill.
 
 <h2 align="center">
   <p>SystemD - Startup script</p>
@@ -1135,9 +993,10 @@ keyring again or log out and back in with a password when that happens.
 The Fedora 44 GNOME Keyring build recipe has been retired. Its saved RPMs and
 logs remain in `~/.local/state/dotfiles/gnome-keyring/`.
 
-`_scripts/load` also runs `./apps/manage install all` for the pinned Papers,
-Bazecor and OpenLogi forks and an upstream wl-screenrec build. See
-[local application builds](apps/README.md) for sources, dependencies and checks.
+`_scripts/load` installs Dokument (`com.chipichapa.Dokument`) from FlatPark if
+needed and sets it as the default PDF viewer. It also builds and installs the
+pinned Bazecor and OpenLogi forks and the wl-screenrec RPM.
+See [local application builds](apps/README.md).
 
 <h2 align="center">
   <p>Dev Container</p>
@@ -1184,55 +1043,3 @@ activation requests to their workspace. The original
 container opener is saved at `/usr/local/libexec/dev-container/xdg-open`.
 Reapply the script after reinstalling or updating the container's `xdg-utils` or
 `flatpak` package, since package updates can replace the links in `/usr/bin`.
-
-<h2 align="center">
-  <p>GNOME Dev Container</p>
-</h2>
-
-Fedora distrobox for GNOME Shell development with:
-
-1. `systemd`
-2. `gnome-shell`
-3. `mutter-devel`
-4. `gettext`
-5. `dbus-daemon`
-6. `gnome-extensions-app`
-
-<h3 align="center">
-  <p>Usage</p>
-</h3>
-
-Create the distrobox:
-
-```bash
-./containers/gnome-dev/create
-```
-
-<h2 align="center">
-  <p>Ramalama</p>
-</h2>
-
-Local `ramalama` inference service with:
-
-1. Podman Compose setup
-2. Vulkan backend
-3. Model/image overrides through `.env`
-4. Persistent model storage volume
-
-<h3 align="center">
-  <p>Usage</p>
-</h3>
-
-1. Move into the container directory:
-
-```bash
-cd containers/ramalama
-```
-
-2. Start the service:
-
-```bash
-podman compose up -d
-```
-
-3. Adjust `containers/ramalama/.env` if you want a different model or image

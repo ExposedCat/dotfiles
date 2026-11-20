@@ -2,14 +2,11 @@ use crate::recording_audio::Options as AudioOptions;
 use crate::recording_compose::compose;
 use crate::util::*;
 use anyhow::{Context, Result, bail};
-use image::{
-    RgbImage,
-    imageops::{self, FilterType},
-};
+use image::{ImageFormat, Rgb, RgbImage, imageops};
 use serde_json::{Value, json};
 use std::{
     fs,
-    io::{Read, Write},
+    io::{Cursor, Read, Write},
     os::unix::net::UnixStream,
     path::{Path, PathBuf},
     process::Command,
@@ -104,51 +101,57 @@ fn selected<'a>(rect: &Value, outputs: &'a Value) -> Vec<(&'a Value, Value)> {
         })
         .collect()
 }
-pub fn frozen_image(outputs: &Value, rect: &Value, cursor: bool) -> Result<RgbImage> {
-    let parts = selected(rect, outputs);
-    let scale = parts
-        .iter()
-        .map(|(o, _)| o["scale"].as_f64().unwrap_or(1.))
-        .fold(1., f64::max);
-    let width = (n(rect, "width") * scale).round_ties_even() as u32;
-    let height = (n(rect, "height") * scale).round_ties_even() as u32;
-    if width == 0 || height == 0 || u64::from(width) * u64::from(height) > 256_000_000 {
+fn frame_window(window: &RgbImage) -> Result<RgbImage> {
+    const PADDING: u32 = 24;
+    const RADIUS: u32 = 10;
+    let (w, h) = window.dimensions();
+    let width = w.checked_add(2 * PADDING).context("Window is too wide")?;
+    let height = h.checked_add(2 * PADDING).context("Window is too tall")?;
+    if w == 0 || h == 0 || u64::from(width) * u64::from(height) > 256_000_000 {
         bail!("Capture dimensions exceed the image limit");
     }
-    let mut canvas = RgbImage::new(width, height);
-    for (o, p) in parts {
-        let source = url::Url::parse(s(o, if cursor { "cursor" } else { "plain" }))?
-            .to_file_path()
-            .map_err(|_| anyhow::anyhow!("Expected a local capture image"))?;
-        let image = image::open(source)?.to_rgb8();
-        let sx = image.width() as f64 / n(o, "width");
-        let sy = image.height() as f64 / n(o, "height");
-        let x = ((n(&p, "x") - n(o, "x")) * sx).round_ties_even().max(0.) as u32;
-        let y = ((n(&p, "y") - n(o, "y")) * sy).round_ties_even().max(0.) as u32;
-        let right = ((n(&p, "x") + n(&p, "width") - n(o, "x")) * sx)
-            .round_ties_even()
-            .min(image.width() as f64) as u32;
-        let bottom = ((n(&p, "y") + n(&p, "height") - n(o, "y")) * sy)
-            .round_ties_even()
-            .min(image.height() as f64) as u32;
-        if right <= x || bottom <= y {
-            continue;
+    let mut framed = RgbImage::from_pixel(width, height, Rgb([255; 3]));
+    imageops::replace(&mut framed, window, PADDING.into(), PADDING.into());
+
+    // Blend the four corner arcs into the white frame at pixel centers.
+    let radius = RADIUS.min(w / 2).min(h / 2);
+    for y in 0..radius {
+        for x in 0..radius {
+            let dx = (radius - x) as f32 - 0.5;
+            let dy = (radius - y) as f32 - 0.5;
+            let coverage = (radius as f32 + 0.5 - dx.hypot(dy)).clamp(0., 1.);
+            for (cx, cy) in [
+                (x, y),
+                (w - 1 - x, y),
+                (x, h - 1 - y),
+                (w - 1 - x, h - 1 - y),
+            ] {
+                let pixel = framed.get_pixel_mut(PADDING + cx, PADDING + cy);
+                for channel in &mut pixel.0 {
+                    *channel = (255. - f32::from(255 - *channel) * coverage).round() as u8;
+                }
+            }
         }
-        let crop = imageops::crop_imm(&image, x, y, right - x, bottom - y).to_image();
-        let crop = imageops::resize(
-            &crop,
-            (n(&p, "width") * scale).round_ties_even().max(1.) as u32,
-            (n(&p, "height") * scale).round_ties_even().max(1.) as u32,
-            FilterType::Lanczos3,
-        );
-        imageops::replace(
-            &mut canvas,
-            &crop,
-            ((n(&p, "x") - n(rect, "x")) * scale).round_ties_even() as i64,
-            ((n(&p, "y") - n(rect, "y")) * scale).round_ties_even() as i64,
-        );
     }
-    Ok(canvas)
+    Ok(framed)
+}
+fn capture_window(directory: &Path, cursor: bool) -> Result<()> {
+    let active = json(&["hyprctl", "activewindow", "-j"])?;
+    let id = active["stableId"]
+        .as_str()
+        .filter(|id| !id.is_empty())
+        .context("No active window is available to capture")?;
+    let source = directory.join("window.ppm");
+    let mut grim = command(&["grim", "-T", id, "-t", "ppm"]);
+    if cursor {
+        grim.arg("-c");
+    }
+    grim.arg(&source);
+    output(grim, None, Duration::from_secs(10)).context("Could not capture the active window")?;
+    let window = image::open(source)?.into_rgb8();
+    let mut png = Cursor::new(Vec::new());
+    frame_window(&window)?.write_to(&mut png, ImageFormat::Png)?;
+    save_screenshot(png.into_inner())
 }
 fn capture_outputs(monitors: &Value, directory: &Path) -> Result<Value> {
     let mut outputs = vec![];
@@ -291,55 +294,17 @@ fn select(mode: &str) -> Result<()> {
     let Some(_lock) = try_lock(&runtime()?.join("dotfiles-capture.lock"))? else {
         return Ok(());
     };
-    let monitors = json(&["hyprctl", "monitors", "-j"])?;
-    let window = if mode == "window" {
-        json(&["hyprctl", "activewindow", "-j"])?
-    } else {
-        Value::Null
-    };
     let dir = tempfile::Builder::new()
         .prefix("dotfiles-capture-")
         .tempdir_in(runtime()?)?;
+    let preferences = preferences();
+    if mode == "window" {
+        return capture_window(dir.path(), preferences["cursor"] == true);
+    }
+    let monitors = json(&["hyprctl", "monitors", "-j"])?;
     let outputs = capture_outputs(&monitors, dir.path())?;
     if rows(&outputs).is_empty() {
         bail!("No active displays are available");
-    }
-    let preferences = preferences();
-    if mode == "window" {
-        let rect = json!({"x":window["at"][0],"y":window["at"][1],"width":window["size"][0],"height":window["size"][1]});
-        let parts = selected(&rect, &outputs);
-        if parts.is_empty() {
-            bail!("The active window is outside the visible displays");
-        }
-        let left = parts
-            .iter()
-            .map(|(_, p)| n(p, "x"))
-            .fold(f64::INFINITY, f64::min);
-        let top = parts
-            .iter()
-            .map(|(_, p)| n(p, "y"))
-            .fold(f64::INFINITY, f64::min);
-        let right = parts
-            .iter()
-            .map(|(_, p)| n(p, "x") + n(p, "width"))
-            .fold(f64::NEG_INFINITY, f64::max);
-        let bottom = parts
-            .iter()
-            .map(|(_, p)| n(p, "y") + n(p, "height"))
-            .fold(f64::NEG_INFINITY, f64::max);
-        let image = frozen_image(
-            &outputs,
-            &json!({"x":left,"y":top,"width":right-left,"height":bottom-top}),
-            preferences["cursor"] == true,
-        )?;
-        let path = output_path("image")?;
-        image.save(&path)?;
-        status(
-            command(&["wl-copy", "--type", "image/png"]),
-            Some(fs::read(path)?),
-            Duration::from_secs(5),
-        )?;
-        return Ok(());
     }
     let data = json!({"mode":mode,"outputs":outputs,"render":dir.path().join("render.png"),"selection":null,"preferences":preferences});
     atomic_json(&dir.path().join("session.json"), &data)?;
@@ -381,6 +346,9 @@ fn export(dir: &Path, data: &Value) -> Result<()> {
     if !image.starts_with(b"\x89PNG\r\n\x1a\n") {
         bail!("The rendered image is not a PNG");
     }
+    save_screenshot(image)
+}
+fn save_screenshot(image: Vec<u8>) -> Result<()> {
     let target = output_path("image")?;
     atomic(&target, &image)?;
     status(
@@ -614,138 +582,5 @@ pub fn main(args: &[String]) -> Result<()> {
             RecordingOptions::parse(&args[4..])?,
         ),
         x => bail!("Unknown capture action: {x}"),
-    }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn recording_rates_are_validated_and_forwarded_with_audio() {
-        assert_eq!(RecordingOptions::parse(&[]).unwrap().fps, 60);
-        for fps in [60, 120, 144, 165] {
-            let options = RecordingOptions::parse(&[
-                "--mic".into(),
-                "--fps".into(),
-                fps.to_string(),
-                "--speakers".into(),
-            ])
-            .unwrap();
-            assert_eq!(options.fps, fps);
-            assert!(options.audio.speakers && options.audio.microphone);
-            assert_eq!(RecordingOptions::parse(&options.flags()).unwrap(), options);
-        }
-        for flags in [
-            vec!["--fps"],
-            vec!["--fps", "0"],
-            vec!["--fps", "240"],
-            vec!["--fps", "oops"],
-            vec!["--unknown"],
-        ] {
-            assert!(
-                RecordingOptions::parse(&flags.into_iter().map(String::from).collect::<Vec<_>>())
-                    .is_err()
-            );
-        }
-    }
-    #[test]
-    #[ignore = "requires FFmpeg with libx264; run on the recording host"]
-    fn spanning_video_retains_one_audio_track_and_can_stay_silent() {
-        let dir = tempfile::tempdir().unwrap();
-        let first = dir.path().join("first.mkv");
-        let second = dir.path().join("second.mkv");
-        for (path, sound) in [(&first, true), (&second, false)] {
-            let mut encoder = command(&[
-                "ffmpeg",
-                "-nostdin",
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-f",
-                "lavfi",
-                "-i",
-                "color=red:s=32x32:r=60",
-            ]);
-            if sound {
-                encoder.args(["-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000"]);
-            }
-            encoder.args(["-t", "0.5", "-c:v", "libx264", "-pix_fmt", "yuv420p"]);
-            if sound {
-                encoder.args(["-c:a", "pcm_s16le"]);
-            }
-            encoder.arg(path);
-            output(encoder, None, Duration::from_secs(15)).unwrap();
-        }
-        let clips = vec![
-            (
-                first,
-                json!({"x":-32,"y":0,"width":32,"height":32,"scale":1}),
-                0.08,
-            ),
-            (
-                second,
-                json!({"x":0,"y":0,"width":32,"height":32,"scale":1}),
-                0.02,
-            ),
-        ];
-        let rect = json!({"x":-32,"y":0,"width":64,"height":32});
-        for (audio, fps) in [(true, 60), (false, 60), (true, 165), (false, 165)] {
-            let target = dir.path().join(format!("combined-{audio}-{fps}.mp4"));
-            compose(&clips, &rect, &target, audio, fps).unwrap();
-            let probe = json(&[
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_streams",
-                "-of",
-                "json",
-                &target.to_string_lossy(),
-            ])
-            .unwrap();
-            let streams = probe["streams"].as_array().unwrap();
-            assert_eq!(
-                streams
-                    .iter()
-                    .filter(|s| s["codec_type"] == "audio")
-                    .count(),
-                usize::from(audio)
-            );
-            let video = streams.iter().find(|s| s["codec_type"] == "video").unwrap();
-            assert_eq!(video["r_frame_rate"], format!("{fps}/1"));
-            assert_eq!(
-                (video["width"].as_u64(), video["height"].as_u64()),
-                (Some(64), Some(32))
-            );
-            if audio {
-                let track = streams.iter().find(|s| s["codec_type"] == "audio").unwrap();
-                let start = track["start_time"]
-                    .as_str()
-                    .unwrap()
-                    .parse::<f64>()
-                    .unwrap();
-                assert!(
-                    (0.04..0.09).contains(&start),
-                    "Audio lost its display start offset: {start}"
-                );
-                assert!(track["duration"].as_str().unwrap().parse::<f64>().unwrap() > 0.4);
-            }
-        }
-    }
-    #[test]
-    fn mixed_scale_composition_preserves_gaps() {
-        let d = tempfile::tempdir().unwrap();
-        let p = d.path().join("left.png");
-        RgbImage::from_pixel(20, 20, image::Rgb([255, 0, 0]))
-            .save(&p)
-            .unwrap();
-        let outputs = json!([{"x":-10,"y":0,"width":10,"height":10,"scale":2,"plain":url::Url::from_file_path(&p).unwrap().as_str()}]);
-        let image = frozen_image(
-            &outputs,
-            &json!({"x":-10,"y":0,"width":20,"height":10}),
-            false,
-        )
-        .unwrap();
-        assert_eq!(image.dimensions(), (40, 20));
-        assert_eq!(image.get_pixel(0, 0).0, [255, 0, 0]);
-        assert_eq!(image.get_pixel(39, 0).0, [0, 0, 0]);
     }
 }

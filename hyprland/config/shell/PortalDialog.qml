@@ -88,31 +88,46 @@ Item {
                 id: tabs
                 objectName: "shareTabs"
                 Layout.fillWidth: true; implicitHeight: 42
-                readonly property int index: root.tab === "screen" ? 0 : root.tab === "window" ? 1 : 2
-                Keys.onRightPressed: root.setTab(["screen", "window", "workspace"][Math.min(2, index + 1)])
-                Keys.onLeftPressed: root.setTab(["screen", "window", "workspace"][Math.max(0, index - 1)])
-                Rectangle { anchors.fill: parent; radius: 12; color: "#181310" }
+                readonly property var options: [{id: "screen", name: "Monitors"}, {id: "window", name: "Windows"}, {id: "workspace", name: "Workspaces"}]
+                readonly property int index: options.findIndex(option => option.id === root.tab)
+                readonly property real tabWidth: (width - 6) / options.length
+                activeFocusOnTab: true
+                Accessible.role: Accessible.PageTabList
+                Accessible.name: "Sharing sources"
+                Keys.onRightPressed: root.setTab(options[Math.min(options.length - 1, index + 1)].id)
+                Keys.onLeftPressed: root.setTab(options[Math.max(0, index - 1)].id)
                 Rectangle {
-                    x: 3 + tabs.index * (tabs.width - 6) / 3; y: 3
-                    width: (tabs.width - 6) / 3; height: tabs.height - 6
-                    radius: 10; color: "#685145"
-                    Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                    anchors.fill: parent; radius: 12; color: "#181310"
+                    border.width: tabs.activeFocus ? 1 : 0
+                    border.color: Qt.alpha(portalTheme.focusColor, 0.4)
                 }
                 Repeater {
-                    model: [{id: "screen", name: "Monitors"}, {id: "window", name: "Windows"}, {id: "workspace", name: "Workspaces"}]
+                    id: shareTabs
+                    model: tabs.options
                     Item {
                         id: tabControl
                         required property var modelData
                         required property int index
-                        x: 3 + index * (tabs.width - 6) / 3; width: (tabs.width - 6) / 3; height: tabs.height
-                        activeFocusOnTab: true
+                        property alias emberSlot: tabSlot
+                        x: 3 + index * tabs.tabWidth; width: tabs.tabWidth; height: tabs.height
                         Accessible.role: Accessible.PageTab; Accessible.name: modelData.name; Accessible.selected: root.tab === modelData.id
-                        Keys.onReturnPressed: root.setTab(modelData.id)
-                        Keys.onSpacePressed: root.setTab(modelData.id)
+                        Accessible.onPressAction: root.setTab(modelData.id)
+                        EmberSlot {
+                            id: tabSlot
+                            shell: null; ember: tabEmber
+                            anchors.fill: parent; anchors.topMargin: 3; anchors.bottomMargin: 3
+                            shapeRadius: 10; shapeOpacity: 0.44
+                        }
                         Text { anchors.centerIn: parent; text: modelData.name; color: root.tab === modelData.id ? portalTheme.text : "#e2dad4"; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; Behavior on color { ColorAnimation { duration: 120 } } }
-                        FocusDot { theme: portalTheme; visible: tabControl.activeFocus || (tabs.activeFocus && root.tab === modelData.id) }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { tabs.forceActiveFocus(); root.setTab(parent.modelData.id); } }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { tabs.forceActiveFocus(); root.setTab(tabControl.modelData.id); } }
                     }
+                }
+                Ember {
+                    id: tabEmber
+                    anchors.fill: parent; z: 1
+                    color: portalTheme.focusColor
+                    target: root.sharing && tabs.index < shareTabs.count ? shareTabs.itemAt(tabs.index)?.emberSlot ?? null : null
+                    active: !!target
                 }
             }
             ShellButton { id: shareClose; theme: portalTheme; icon: "x"; hint: "Cancel sharing"; implicitWidth: 30; implicitHeight: 30; onClicked: root.decide(1) }

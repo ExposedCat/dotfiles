@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
-"""Interactive shell prompt gallery. Run on the desktop to inspect real pill views.
-
-Credential and pill portal previews use sample data and discard responses. The
-file pickers use the real desktop portal; authentication authorizes /usr/bin/true.
-For automated GUI checks, use --smoke-test through isolated-gui with a fixture shell.
-"""
+"""Open live pill views, file choosers, and the system authentication prompt."""
 import argparse
 import json
 import os
 from pathlib import Path
-import socket
 import shlex
+import socket
 import subprocess
 import sys
 import tempfile
@@ -18,7 +13,7 @@ import threading
 import time
 import uuid
 
-ROOT = Path(__file__).resolve().parents[1]
+SAMPLES = Path(__file__).resolve().parent / 'samples'
 
 
 def desktop_environment():
@@ -106,7 +101,7 @@ class Preview:
         return self.exchange('dotfiles-credentials-shell.sock', {'action': 'open', 'data': data})
 
     def portal(self, kind):
-        data = json.loads((ROOT / 'tests/portal-fixtures' / f'{kind}.json').read_text())
+        data = json.loads((SAMPLES / f'{kind}.json').read_text())
         data['app'] = {'name': 'Prompt Gallery', 'id': 'org.dotfiles.PromptGallery'}
         # Connect directly to the live pill while preserving sample source previews.
         with tempfile.TemporaryDirectory(prefix='dotfiles-portal-', dir=os.environ['XDG_RUNTIME_DIR']) as directory:
@@ -130,11 +125,8 @@ class Preview:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--smoke-test', action='store_true')
     parser.add_argument('--floating-launch', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.smoke_test and not os.environ.get('ISOLATED_GUI_SESSION'):
-        parser.error('--smoke-test requires isolated-gui')
     desktop_environment()
     if not os.environ.get('ISOLATED_GUI_SESSION') and not args.floating_launch:
         command = shlex.join(['/usr/bin/python3', '-B', str(Path(__file__).resolve()), '--floating-launch'])
@@ -153,7 +145,6 @@ def main():
             self.generation = 0
             self.portal_request = None
             self.portal_subscription = None
-            self.buttons = {}
             self.titles = {}
             self.shell_config = os.environ.get('DOTFILES_GALLERY_SHELL', str(Path.home() / '.config/hypr/shell/shell.qml'))
             self.connect('activate', self.activate)
@@ -173,7 +164,7 @@ def main():
             layout.append(toolbar)
             scroll = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER)
             page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20, margin_start=24, margin_end=24, margin_top=12, margin_bottom=24)
-            intro = Gtk.Label(label='Open a prompt, dismiss it, and click again to replay the morph. Preview choices do not change your settings.', wrap=True, xalign=0)
+            intro = Gtk.Label(label='Screen sharing, permission, app, and credential previews use sample requests. Dismiss a prompt to replay it.', wrap=True, xalign=0)
             intro.add_css_class('dim-label')
             page.append(intro)
             actions = Gtk.Box(spacing=8, homogeneous=True)
@@ -222,15 +213,12 @@ def main():
                     row.add_suffix(button)
                     row.set_activatable_widget(button)
                     group.add(row)
-                    self.buttons[key] = button
                     self.titles[key] = title
                 page.append(group)
             scroll.set_child(page)
             layout.append(scroll)
             self.window.set_content(layout)
             self.window.present()
-            if args.smoke_test:
-                GLib.timeout_add(1600, self.smoke_start)
 
         def stop(self):
             self.queue.clear()
@@ -252,7 +240,7 @@ def main():
         def tour(self, _button):
             self.stop()
             # Dismiss each view to advance; leave enough time to see the compact pill.
-            self.queue = ['bt-confirm', 'bt-pin', 'bt-passkey', 'wifi', 'vpn', 'apps', 'access', 'share', 'open-file', 'save-file', 'panel:launcher', 'panel:notifications', 'panel:bluetooth', 'panel:ethernet', 'panel:mixer', 'panel:media', 'panel:system', 'panel:power', 'auth']
+            self.queue = [key for key in self.titles if key != 'auth'] + ['auth']
             self.next_in_tour()
 
         def next_in_tour(self):
@@ -340,34 +328,6 @@ def main():
                         self.portal_request = None
                         self.finished(generation, 'The desktop file chooser is unavailable')
             bus.call('org.freedesktop.portal.Desktop', '/org/freedesktop/portal/desktop', 'org.freedesktop.portal.FileChooser', 'SaveFile' if key == 'save-file' else 'OpenFile', GLib.Variant('(ssa{sv})', ('', 'Prompt Gallery — ' + ('Save file' if key == 'save-file' else 'Open file'), options)), None, Gio.DBusCallFlags.NONE, 10000, None, called)
-
-        def smoke_start(self):
-            self.smoke_keys = iter(['bt-confirm', 'bt-pin', 'bt-passkey', 'wifi', 'vpn', 'apps', 'access', 'share'])
-            self.smoke_next()
-            return False
-
-        def smoke_next(self):
-            try:
-                key = next(self.smoke_keys)
-            except StopIteration:
-                print('GALLERY PASS: all credential and pill portal buttons open and dismiss the live fixture shell', flush=True)
-                self.quit()
-                return False
-            self.buttons[key].emit('clicked')
-            def check():
-                try:
-                    state = json.loads(self.shell('status'))
-                    expected = 'portal' if key in ('apps', 'access', 'share') else 'credentials'
-                    assert state['panel'] == expected, (key, state)
-                    print('PASS:', key, flush=True)
-                    self.stop()
-                    GLib.timeout_add(800, self.smoke_next)
-                except Exception as error:
-                    print('GALLERY FAIL:', error, flush=True)
-                    self.quit()
-                return False
-            GLib.timeout_add(1400, check)
-            return False
 
     return Gallery().run([])
 

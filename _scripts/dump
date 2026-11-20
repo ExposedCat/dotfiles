@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
 
-# Codex: capture the isolated GUI skill without generated Python caches.
-mkdir -p ./codex/skills/isolated-gui/{agents,scripts}
-cp ~/.codex/skills/isolated-gui/SKILL.md ./codex/skills/isolated-gui/
-cp ~/.codex/skills/isolated-gui/agents/openai.yaml ./codex/skills/isolated-gui/agents/
-cp ~/.codex/skills/isolated-gui/scripts/{desktop,runtime,test_runtime}.py ./codex/skills/isolated-gui/scripts/
+# Codex: capture updates to skill files tracked in this checkout.
+while IFS= read -r -d '' path; do
+    installed=$HOME/.codex/skills/${path#codex/skills/}
+    [[ -f $path && -f $installed ]] || continue
+    cp -- "$installed" "$path"
+done < <(git ls-files -z -- codex/skills/)
 
-# Codex: capture the server workflow skill.
-mkdir -p ./codex/skills/server/agents
-cp ~/.codex/skills/server/SKILL.md ./codex/skills/server/
-cp ~/.codex/skills/server/agents/openai.yaml ./codex/skills/server/agents/
-
-# Claude: capture the global instructions that import the shared workflows.
+# Claude: capture the global instructions.
 mkdir -p ./claude
 cp ~/.claude/CLAUDE.md ./claude/CLAUDE.md
 
