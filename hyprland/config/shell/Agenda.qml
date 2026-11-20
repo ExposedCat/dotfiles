@@ -5,45 +5,105 @@ import Quickshell.Io
 Scope {
     id: root
     required property var shell
+    property date rangeStart: monthOffset(shell.clock.date, 0)
     property date selectedDate: shell.clock.date
-    readonly property string selectedKey: dayKey(selectedDate)
-    property string requestedKey: ""
+    readonly property date nextDate: dayAfter(selectedDate)
+    property var requestedRange: null
     property var cache: ({})
-    readonly property var events: cache[selectedKey] ? cache[selectedKey].events : []
-    readonly property bool cached: !!cache[selectedKey]
     property var clocks: []
     property bool configured: false
     property bool loading: false
     property bool unavailable: false
     property bool ready: false
+    readonly property int refreshInterval: 300000
+    readonly property int cachedMonthLimit: 24
     readonly property string cachePath: (Quickshell.env("XDG_CACHE_HOME") || Quickshell.env("HOME") + "/.cache") + "/dotfiles/hyprland/agenda.json"
     function dayKey(date) { return Qt.formatDateTime(date, "yyyy-MM-dd"); }
+    function monthKey(date) { return Qt.formatDateTime(date, "yyyy-MM"); }
+    function dayAfter(date) { return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1); }
+    function monthOffset(date, offset) { return new Date(date.getFullYear(), date.getMonth() + offset, 1); }
+    function eventsOn(key) { return cache[key]?.events ?? []; }
     function selectDate(date) { selectedDate = date; }
-    function saveDay(key, events) {
-        const next = Object.assign({}, cache);
-        next[key] = {events: events, updated: Date.now()};
-        const keys = Object.keys(next).sort((a,b) => next[b].updated - next[a].updated);
-        for (const old of keys.slice(62)) delete next[old];
-        cache = next;
-        if (!shell.fixture) save.restart();
+    function rangeIsFresh(first, until) {
+        const cutoff = Date.now() - refreshInterval;
+        for (let day = first; day < until; day = dayAfter(day)) {
+            const entry = cache[dayKey(day)];
+            if (!entry?.complete || !(entry.fetchedAt >= cutoff)) return false;
+        }
+        return true;
     }
-    function refresh() {
-        if (!ready) return;
+    function refresh(force) {
+        if (!ready || reader.running) return;
+        const first = rangeStart;
+        // Include the following day even when the last visible date is selected.
+        const until = dayAfter(monthOffset(first, 4));
+        if (!shell.fixture && !force && rangeIsFresh(first, until)) {
+            unavailable = false;
+            return;
+        }
+        requestedRange = {first: first, until: until};
         if (shell.fixture) {
             configured = !!shell.fixtureData.calendarConfigured;
             clocks = shell.fixtureData.clocks || [];
-            const fixtureEvents = shell.fixtureData.eventsByDay ? (shell.fixtureData.eventsByDay[selectedKey] || []) : (shell.fixtureData.events || []).filter(e => {
-                const start = new Date(e.start), end = new Date(e.end);
-                const day = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-                const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
-                return start < next && end > day;
-            });
-            saveDay(selectedKey, fixtureEvents);
-            loading = false; unavailable = false;
-        } else if (!reader.running) {
-            requestedKey = selectedKey;
+            const {events, eventsByDay} = shell.fixtureData;
+            saveRange(eventsByDay ? [] : events || [], [], eventsByDay);
+        } else {
             loading = true; unavailable = false;
+            reader.command = [shell.helper, "agenda", "--range", dayKey(first), dayKey(until)];
             reader.running = true;
+        }
+    }
+    function saveRange(events, failed, eventsByDay) {
+        const {first, until} = requestedRange;
+        const fetchedAt = Date.now();
+        const days = {};
+        for (let day = first; day < until; day = dayAfter(day)) {
+            const key = dayKey(day);
+            // Keep cached instances from sources that could not be reached.
+            const entries = eventsOn(key).filter(event => failed.includes(event.calendarId));
+            days[key] = {events: entries.concat(eventsByDay?.[key] || []), fetchedAt: fetchedAt, complete: failed.length === 0};
+        }
+        for (const event of events) {
+            const start = new Date(event.start).getTime();
+            const end = new Date(event.end).getTime();
+            const begin = Math.max(start, first.getTime());
+            const stop = Math.min(Math.max(end, start + 1), until.getTime());
+            if (!(begin < stop)) continue;
+            const date = new Date(begin);
+            for (let day = new Date(date.getFullYear(), date.getMonth(), date.getDate()); day < stop; day = dayAfter(day))
+                days[dayKey(day)]?.events.push(event);
+        }
+        for (const day of Object.values(days))
+            day.events.sort((a, b) => Number(b.allDay === true) - Number(a.allDay === true) || new Date(a.start) - new Date(b.start));
+        const next = Object.assign({}, cache, days);
+        pruneCache(next, first);
+        cache = next;
+        if (!shell.fixture) save.restart();
+    }
+    function pruneCache(days, fetchedStart) {
+        const recency = {};
+        for (const [key, day] of Object.entries(days)) {
+            const month = key.slice(0, 7);
+            recency[month] = Math.max(recency[month] ?? 0, day.fetchedAt ?? 0);
+        }
+        const storedMonths = Object.keys(recency);
+        if (storedMonths.length <= cachedMonthLimit) return;
+
+        // Protect today, the displayed range, and the fetch that just finished.
+        const keep = new Set();
+        for (const start of [shell.clock.date, rangeStart, fetchedStart]) {
+            for (let offset = 0; offset <= 4; offset++) {
+                const month = monthKey(monthOffset(start, offset));
+                if (recency[month] !== undefined) keep.add(month);
+            }
+        }
+        storedMonths.sort((a, b) => recency[b] - recency[a]);
+        for (const month of storedMonths) {
+            if (keep.size >= cachedMonthLimit) break;
+            keep.add(month);
+        }
+        for (const key of Object.keys(days)) {
+            if (!keep.has(key.slice(0, 7))) delete days[key];
         }
     }
     function applySnapshot(data) {
@@ -51,21 +111,19 @@ Scope {
         if (data.configured !== undefined) configured = data.configured;
         if (data.loading !== undefined) loading = data.loading;
         if (data.unavailable !== undefined) unavailable = data.unavailable;
-        if (data.events !== undefined) {
-            // Replace successful calendars, preserving cached entries from any
-            // source that failed this refresh. Never blank the cache mid-fetch.
-            const failed = data.failedCalendars || [];
-            const old = cache[requestedKey] ? cache[requestedKey].events : [];
-            const retained = old.filter(e => failed.includes(e.calendarId));
-            if (!data.unavailable || data.events.length || retained.length)
-                saveDay(requestedKey, data.events.concat(retained).sort((a,b) => Number(a.allDay !== true) - Number(b.allDay !== true) || a.start - b.start));
-        }
+        if (data.events !== undefined) saveRange(data.events, data.failedCalendars || []);
     }
     function clockTime(offset) {
         const date = new Date(shell.clock.date.getTime() + offset * 1000);
         return String(date.getUTCHours()).padStart(2, "0") + ":" + String(date.getUTCMinutes()).padStart(2, "0");
     }
-    onSelectedKeyChanged: { if (ready) refresh(); }
+    onRangeStartChanged: {
+        const monthAfter = monthOffset(rangeStart, 4);
+        if (selectedDate < rangeStart) selectDate(rangeStart);
+        else if (selectedDate >= monthAfter)
+            selectDate(new Date(monthAfter.getFullYear(), monthAfter.getMonth(), 0));
+        if (shell.panel === "calendar") refresh();
+    }
     FileView { id: saved; path: root.shell.fixture ? "" : root.cachePath; blockLoading: true; atomicWrites: true; printErrors: false }
     Timer { id: save; interval: 200; onTriggered: { if (!cacheDirectory.running) cacheDirectory.running = true; } }
     Process {
@@ -77,7 +135,6 @@ Scope {
     }
     Process {
         id: reader
-        command: [root.shell.helper, "agenda", "--date", root.requestedKey]
         stdout: SplitParser {
             onRead: line => {
                 try { root.applySnapshot(JSON.parse(line)); }
@@ -87,15 +144,15 @@ Scope {
         onExited: (code, status) => {
             root.loading = false;
             if (code !== 0) root.unavailable = true;
-            if (root.requestedKey !== root.selectedKey) Qt.callLater(root.refresh);
+            if (root.shell.panel === "calendar" && root.dayKey(root.requestedRange.first) !== root.dayKey(root.rangeStart)) Qt.callLater(root.refresh);
         }
     }
     Connections {
         target: root.shell
-        function onPanelChanged() { if (root.shell.panel === "notifications") root.refresh(); }
+        function onPanelChanged() { if (root.shell.panel === "calendar") root.refresh(); }
         function onFixtureDataChanged() { if (root.shell.fixture) root.refresh(); }
     }
-    Timer { interval: 300000; repeat: true; running: root.shell.panel === "notifications"; onTriggered: root.refresh() }
+    Timer { interval: root.refreshInterval; repeat: true; running: root.shell.panel === "calendar"; onTriggered: root.refresh(true) }
     Component.onCompleted: {
         if (!shell.fixture) {
             try {
@@ -104,6 +161,6 @@ Scope {
             } catch (e) { /* A fresh cache starts empty. */ }
         }
         ready = true;
-        if (shell.fixture) refresh();
+        if (shell.fixture || shell.panel === "calendar") refresh();
     }
 }

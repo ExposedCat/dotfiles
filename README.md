@@ -523,18 +523,22 @@ before connection, with failures shown beside the device. Pairing prompts morph
 within the same pill and return to the selected device list after confirmation
 or cancellation. The power switch keeps paired devices visible while Bluetooth is off.
 
-The notification center follows the GNOME layout: notifications on the left,
-calendar on the right, then events for the selected day and world clocks below it.
+The notification indicator opens the notification center. The time opens the
+calendar.
 Notifications group by app and exact title with stacked previews. The first
 card's chevron expands the group; a separate bottom row collapses it. Clicking a
 card's cross dismisses that message. Holding the cross for half a second fills a
 circle and dismisses its group; leaving the control cancels the hold. Visible
 messages show their expanded bodies, available actions, and reply button.
 Do not disturb and the clear-all icon sit above the notification list.
-The calendar uses evenly sized rows and larger navigation arrows, with no Today button
-or day-of-week heading. Day highlights are circles inside equally spaced square cells.
-Events are cached by date in `$XDG_CACHE_HOME/dotfiles/hyprland/agenda.json`
-(normally under `~/.cache`), retaining up to 62 queried days across shell restarts.
+The calendar shows four months in a 2×2 grid starting with the current month.
+The right column shows the selected day's events above the following day's
+events, with world clocks and country flags at the bottom of the sidebar. Day markers use one,
+two, or three dots, two dots and a line for four events, and a long line for
+five or more. The four months and the day after the grid ends are cached by date
+in `$XDG_CACHE_HOME/dotfiles/hyprland/agenda.json` (normally under `~/.cache`).
+The cache keeps up to 24 fetched months and protects the range starting with the
+current month while browsing. Fresh cached ranges are reused for five minutes.
 Background refresh keeps cached events visible, including cached entries from
 individual calendars that are temporarily unavailable.
 It reads selected, enabled calendars through Evolution Data Server and reuses

@@ -2,11 +2,10 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-RowLayout {
+ColumnLayout {
     id: root
     required property var shell
     required property var theme
-    property bool notificationMode: false
     property Item lastNotificationTarget: null
     readonly property Item hoveredNotificationTarget: {
         const count = notificationList.count;
@@ -24,10 +23,9 @@ RowLayout {
         }
         return null;
     }
-    onHoveredNotificationTargetChanged: { if (hoveredNotificationTarget) { lastNotificationTarget = hoveredNotificationTarget; notificationMode = true; } }
-    onFocusedNotificationTargetChanged: { if (focusedNotificationTarget) { lastNotificationTarget = focusedNotificationTarget; notificationMode = true; } }
+    onHoveredNotificationTargetChanged: { if (hoveredNotificationTarget) lastNotificationTarget = hoveredNotificationTarget; }
+    onFocusedNotificationTargetChanged: { if (focusedNotificationTarget) lastNotificationTarget = focusedNotificationTarget; }
     readonly property Item emberTarget: {
-        if (!notificationMode) return calendar.emberTarget;
         if (lastNotificationTarget) return lastNotificationTarget;
         const count = notificationList.count;
         for (let i = 0; i < count; i++) {
@@ -35,7 +33,7 @@ RowLayout {
             const card = group?.firstUnreadCard || group?.firstCard;
             if (card) return card.emberTarget;
         }
-        return calendar.emberTarget;
+        return null;
     }
     property var groupsByKey: ({})
     property var expandedGroups: ({})
@@ -79,54 +77,39 @@ RowLayout {
     ListModel { id: groupModel }
     Connections { target: root.shell.notifications; function onGroupsChanged() { root.syncGroups() } }
     Component.onCompleted: syncGroups()
-    spacing: 24
-    ColumnLayout {
-        Layout.fillWidth: true; Layout.fillHeight: true
-        spacing: 6
-        RowLayout {
-            Layout.fillWidth: true
-            ShellButton { theme: root.theme; icon: root.shell.notifications.dnd ? "bell-off" : "bell"; text: "Do not disturb"; selected: root.shell.notifications.dnd; onClicked: root.shell.notifications.dnd = !root.shell.notifications.dnd }
-            Item { Layout.fillWidth: true }
-            ShellButton { theme: root.theme; icon: "list-x"; hint: "Clear notifications"; enabled: root.shell.notifications.entries.length > 0; onClicked: root.shell.notifications.clear() }
-        }
-        ListView {
-            id: notificationList
-            objectName: "notificationList"
-            Layout.fillWidth: true; Layout.fillHeight: true
-            clip: true; spacing: 14
-            model: groupModel
-            HoverHandler { onHoveredChanged: { if (hovered) root.notificationMode = true; } }
-            boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar {}
-            PillWheel { flickable: notificationList }
-            delegate: NotificationGroup {
-                required property string groupKey
-                required property bool wanted
-                presented: wanted
-                onRetired: root.retireGroup(groupKey)
-                width: notificationList.width; emberShell: root.shell; theme: root.theme; store: root.shell.notifications; group: root.groupsByKey[groupKey]
-                // A ListView add transition retains positions measured before
-                // wrapped card content settles. Fade without a view transition
-                // so changing group heights continue to reflow their neighbors.
-                NumberAnimation on opacity { from: 0; to: 1; duration: 120 }
-                expanded: !!root.expandedGroups[groupKey]
-                onToggleExpanded: root.toggleGroup(groupKey)
-            }
-            Column {
-                anchors.centerIn: parent; visible: notificationList.count === 0; spacing: 12
-                ShellIcon { anchors.horizontalCenter: parent.horizontalCenter; name: "bell-off"; width: 21; height: 21; opacity: 0.6 }
-                Text { font: root.theme.textFont; text: "No notifications"; color: root.theme.secondary }
-            }
-        }
+    spacing: 6
+    RowLayout {
+        Layout.fillWidth: true
+        ShellButton { theme: root.theme; icon: root.shell.notifications.dnd ? "bell-off" : "bell"; text: "Do not disturb"; selected: root.shell.notifications.dnd; onClicked: root.shell.notifications.dnd = !root.shell.notifications.dnd }
+        Item { Layout.fillWidth: true }
+        ShellButton { theme: root.theme; icon: "list-x"; hint: "Clear notifications"; enabled: root.shell.notifications.entries.length > 0; onClicked: root.shell.notifications.clear() }
     }
-    ScrollView {
-        id: calendarScroll
-        Layout.preferredWidth: 350; Layout.fillHeight: true
-        clip: true
-        contentWidth: availableWidth
-        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-        PillWheel { flickable: calendarScroll.contentItem }
-        HoverHandler { onHoveredChanged: { if (hovered) root.notificationMode = false; } }
-        CalendarPane { id: calendar; width: 350; shell: root.shell; theme: root.theme }
+    ListView {
+        id: notificationList
+        objectName: "notificationList"
+        Layout.fillWidth: true; Layout.fillHeight: true
+        clip: true; spacing: 14
+        model: groupModel
+        boundsBehavior: Flickable.StopAtBounds
+        ScrollBar.vertical: ScrollBar {}
+        PillWheel { flickable: notificationList }
+        delegate: NotificationGroup {
+            required property string groupKey
+            required property bool wanted
+            presented: wanted
+            onRetired: root.retireGroup(groupKey)
+            width: notificationList.width; emberShell: root.shell; theme: root.theme; store: root.shell.notifications; group: root.groupsByKey[groupKey]
+            // A ListView add transition retains positions measured before
+            // wrapped card content settles. Fade without a view transition
+            // so changing group heights continue to reflow their neighbors.
+            NumberAnimation on opacity { from: 0; to: 1; duration: 120 }
+            expanded: !!root.expandedGroups[groupKey]
+            onToggleExpanded: root.toggleGroup(groupKey)
+        }
+        Column {
+            anchors.centerIn: parent; visible: notificationList.count === 0; spacing: 12
+            ShellIcon { anchors.horizontalCenter: parent.horizontalCenter; name: "bell-off"; width: 21; height: 21; opacity: 0.6 }
+            Text { font: root.theme.textFont; text: "No notifications"; color: root.theme.secondary }
+        }
     }
 }

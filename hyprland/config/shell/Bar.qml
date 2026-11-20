@@ -38,7 +38,6 @@ PanelWindow {
     readonly property bool expanded: hoverExpanded || shell.panel.length > 0 || trayMenu.visible
     readonly property point pointerPosition: hover.point.position
     readonly property string pillState: hidden ? "hidden" : shell.panel || feedbackKind || (expanded ? "expanded" : "compact")
-    readonly property bool hasNotifications: shell.notifications.entries.length > 0
     // Track the pointer on the fixed native surface, not the animated header.
     readonly property bool pillHovered: hover.hovered && (
         (hover.point.position.x >= pill.x && hover.point.position.x < pill.x + pill.width
@@ -53,7 +52,7 @@ PanelWindow {
     property bool hoverExpanded: false
     property bool suppressHover: false
     property string shownPanel: ""
-    readonly property var paneNames: ["launcher", "portal", "credentials", "authentication", "notifications", "bluetooth", "ethernet", "power", "media", "mixer", "system"]
+    readonly property var paneNames: ["launcher", "portal", "credentials", "authentication", "notifications", "calendar", "bluetooth", "ethernet", "power", "media", "mixer", "system"]
     property var retained: ({})
     readonly property string feedbackKind: !shell.panel && !expanded && shell.osd.visible ? "osd" : ""
     readonly property bool feedbackVisible: feedbackKind.length > 0
@@ -65,12 +64,13 @@ PanelWindow {
         const next = Object.assign({}, retained); next[name] = true; retained = next;
     }
     function componentFor(name) {
-        return ({launcher: launcherComponent, portal: portalComponent, credentials: credentialComponent, authentication: authenticationComponent, notifications: notificationsComponent, bluetooth: bluetoothComponent, ethernet: networkComponent, power: powerComponent, media: mediaComponent, mixer: mixerComponent, system: statsComponent})[name];
+        return ({launcher: launcherComponent, portal: portalComponent, credentials: credentialComponent, authentication: authenticationComponent, notifications: notificationsComponent, calendar: calendarComponent, bluetooth: bluetoothComponent, ethernet: networkComponent, power: powerComponent, media: mediaComponent, mixer: mixerComponent, system: statsComponent})[name];
     }
     Timer { id: warm; interval: 100; onTriggered: { bar.retain("launcher"); bar.retain("media"); bar.retain("mixer"); } }
     Timer { id: unload; interval: 120000; onTriggered: { const keep = {}; for (const name of ["launcher", "media", "mixer"]) if (bar.retained[name]) keep[name] = true; bar.retained = keep; } }
     property real paneWidth: 620
     property real paneHeight: 480
+    property real calendarHeight: 660
     property real mediaHeight: 240
     property real systemHeight: 480
     property real networkHeight: 270
@@ -125,6 +125,7 @@ PanelWindow {
     Timer { id: hoverRelease; interval: 300; onTriggered: bar.suppressHover = false }
     onNativeActiveChanged: { if (!nativeActive && shell.panel && !shell.captureActive) focusLoss.restart(); }
     onMediaHeightChanged: { if (shell.panel === "media") selectPanel("media"); }
+    onCalendarHeightChanged: { if (shell.panel === "calendar") selectPanel("calendar"); }
     onSystemHeightChanged: { if (shell.panel === "system") selectPanel("system"); }
     onNetworkHeightChanged: { if (shell.panel === "ethernet") selectPanel("ethernet"); }
     onBluetoothHeightChanged: { if (shell.panel === "bluetooth") selectPanel("bluetooth"); }
@@ -139,11 +140,8 @@ PanelWindow {
     readonly property int privacyButtonSpacing: 2
     readonly property int privacyCount: Number(shell.audio.micInUse) + Number(shell.screenSharing)
     readonly property int privacySpace: privacyCount > 0 ? privacyGap + privacyCount * privacyButtonWidth + (privacyCount - 1) * privacyButtonSpacing : 0
-    readonly property int indicatorSpace: (hasNotifications ? notificationSlot : 0) + privacySpace
-    readonly property real compactWidth: Math.ceil((compactContentWidth + 36 + indicatorSpace) / 2) * 2
+    readonly property real compactWidth: Math.ceil((compactContentWidth + 36 + privacySpace) / 2) * 2
     readonly property real leftContentWidth: compactContentWidth / 2 + 14 + dateLabel.width + workspaceControls.implicitWidth + (trayItems.count ? trayIcons.implicitWidth : 0) + sideInset
-    // Reserve the dot's slot while expanded so notifications never retarget
-    // the expansion animation, fade the controls, or move them under the mouse.
     readonly property real rightContentWidth: compactContentWidth / 2 + weekdayLabel.width - layoutLabel.width + notificationSlot + privacySpace + appearanceButton.width + controlButtons.implicitWidth + sideInset
     readonly property real leftNeed: leftContentWidth + groupSpacing * (trayItems.count ? 2 : 1)
     // Each left spacer takes half the remaining left-hand room. Reserve room
@@ -156,7 +154,7 @@ PanelWindow {
     // Standalone views use the reveal animation instead of the compact morph.
     // Snap all painted coordinates to whole pixels to avoid text shimmer.
     readonly property rect targetGeometry: Qt.rect(
-        pinnedLauncher ? launcherPosition.x : (width - targetWidth) / 2 + (hiddenPanelVisible ? 0 : (feedbackRight - feedbackLeft + (!expanded ? indicatorSpace : 0)) / 2),
+        pinnedLauncher ? launcherPosition.x : (width - targetWidth) / 2 + (hiddenPanelVisible ? 0 : (feedbackRight - feedbackLeft + (!expanded ? privacySpace : 0)) / 2),
         pinnedLauncher ? launcherPosition.y : theme.panelGap, targetWidth, targetHeight)
     property rect animatedGeometry: targetGeometry
     Behavior on animatedGeometry {
@@ -178,7 +176,7 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "dotfiles-bar"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: hidden || shell.captureActive ? WlrKeyboardFocus.None : shell.panel === "authentication" ? WlrKeyboardFocus.Exclusive : ["launcher", "portal", "credentials", "media", "mixer", "system", "power", "ethernet", "bluetooth"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: hidden || shell.captureActive ? WlrKeyboardFocus.None : shell.panel === "authentication" ? WlrKeyboardFocus.Exclusive : ["launcher", "portal", "credentials", "media", "mixer", "system", "power", "ethernet", "bluetooth", "calendar"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
     Region { id: pillInput; item: pill }
     // A fast pointer can reach the controls before the painted pill does.
     // Keep that destination interactive throughout hover expansion.
@@ -213,8 +211,8 @@ PanelWindow {
         // Retain this geometry until the closing fade has finished. The popup's
         // layout must not be resized to the compact pill while still visible.
         const portalWidth = portalPane?.desiredWidth || (shell.portal.data.kind === "share" ? 680 : shell.portal.data.kind === "access" ? 440 : 560);
-        paneWidth = Math.min(width - 24, name === "authentication" ? (authenticationPane?.desiredWidth || 480) : name === "credentials" ? (credentialPane?.desiredWidth || 460) : ["ethernet", "bluetooth"].includes(name) ? 460 : name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "mixer" ? 520 : name === "notifications" ? 1080 : 620);
-        paneHeight = Math.min(height - 24, name === "authentication" ? (authenticationPane?.desiredHeight || 260) : name === "credentials" ? (credentialPane?.desiredHeight || 340) : name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? 136 : name === "notifications" ? 816 : name === "bluetooth" ? bluetoothHeight : name === "ethernet" ? networkHeight : name === "media" ? mediaHeight : name === "system" ? systemHeight : 220);
+        paneWidth = Math.min(width - 24, name === "authentication" ? (authenticationPane?.desiredWidth || 480) : name === "credentials" ? (credentialPane?.desiredWidth || 460) : ["ethernet", "bluetooth"].includes(name) ? 460 : name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "mixer" ? 520 : name === "calendar" ? 900 : 620);
+        paneHeight = Math.min(height - 24, name === "authentication" ? (authenticationPane?.desiredHeight || 260) : name === "credentials" ? (credentialPane?.desiredHeight || 340) : name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? 136 : name === "notifications" ? 816 : name === "calendar" ? calendarHeight : name === "bluetooth" ? bluetoothHeight : name === "ethernet" ? networkHeight : name === "media" ? mediaHeight : name === "system" ? systemHeight : 220);
         retain(name); shownPanel = name;
     }
     Connections {
@@ -305,17 +303,17 @@ PanelWindow {
                     x: Math.round((bar.width - bar.compactContentWidth) / 2) - pill.x
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
-                    Accessible.name: "Calendar and notifications"
-                    Accessible.onPressAction: bar.openPanel("notifications")
-                    Keys.onReturnPressed: bar.openPanel("notifications")
-                    Keys.onSpacePressed: bar.openPanel("notifications")
+                    Accessible.name: "Calendar"
+                    Accessible.onPressAction: bar.openPanel("calendar")
+                    Keys.onReturnPressed: bar.openPanel("calendar")
+                    Keys.onSpacePressed: bar.openPanel("calendar")
                     Text {
                         x: Math.round((parent.width - width) / 2); y: Math.round((parent.height - height) / 2)
                         text: Qt.formatDateTime(bar.shell.clock.date, "hh:mm")
                         font: colors.textFont
                         color: colors.text
                     }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bar.openPanel("notifications") }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bar.openPanel("calendar") }
                 }
                 Text {
                     id: dateLabel
@@ -349,20 +347,21 @@ PanelWindow {
                     visible: opacity > 0
                 }
                 ShellButton {
-                    id: notificationDot
                     objectName: "pillNotificationIndicator"
-                    opacity: bar.hasNotifications ? 1 : 0
-                    scale: opacity
-                    visible: opacity > 0
-                    enabled: bar.hasNotifications
-                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.InOutCubic } }
                     x: Math.round(header.labelRight + 12); y: 4
+                    opacity: bar.detailsOpacity
+                    visible: opacity > 0
+                    enabled: bar.expanded && opacity > 0.95
                     theme: colors; implicitWidth: 18; implicitHeight: 32
                     hint: "Notifications"; onClicked: bar.openPanel("notifications")
-                    Rectangle { anchors.centerIn: parent; width: 6; height: 6; radius: 3; color: colors.accent }
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 12; height: 12; radius: 6
+                        color: bar.shell.notifications.unread > 0 ? colors.focusColor : colors.text
+                    }
                 }
                 Row {
-                    x: Math.round(header.labelRight + bar.notificationSlot * notificationDot.opacity) + bar.privacyGap
+                    x: Math.round(header.labelRight + bar.notificationSlot * bar.detailsOpacity) + bar.privacyGap
                     y: 4; spacing: bar.privacyButtonSpacing
                     ShellButton {
                         objectName: "pillMicrophoneIndicator"
@@ -461,7 +460,7 @@ PanelWindow {
                 x: bar.launcherDragged ? inset : Math.round((bar.width - bar.paneWidth) / 2) - pill.x + inset
                 y: ["launcher", "portal", "credentials", "authentication"].includes(bar.shownPanel) ? 8 : 16
                 width: bar.paneWidth - inset * 2
-                height: bar.paneHeight - y - (bar.shownPanel === "notifications" ? y : inset)
+                height: bar.paneHeight - y - (["notifications", "calendar"].includes(bar.shownPanel) ? y : inset)
                 readonly property var item: bar.shownPanel ? paneSlots.itemAt(bar.paneNames.indexOf(bar.shownPanel))?.item || null : null
                 Repeater {
                     id: paneSlots
@@ -503,7 +502,7 @@ PanelWindow {
         parent: header
         shell: bar.shell; theme: colors; spaces: bar.spaces
         showing: bar.feedbackVisible && bar.shell.osd.kind !== "workspace" && !bar.hidden
-        x: Math.round((bar.width + bar.compactWidth + bar.indicatorSpace) / 2) - pill.x - 4; y: 0
+        x: Math.round((bar.width + bar.compactWidth + bar.privacySpace) / 2) - pill.x - 4; y: 0
     }
     Component {
         id: launcherComponent
@@ -518,6 +517,14 @@ PanelWindow {
     Component { id: credentialComponent; CredentialPane { shell: bar.shell; theme: colors } }
     Component { id: portalComponent; PortalPane { shell: bar.shell; theme: colors } }
     Component { id: notificationsComponent; NotificationCenter { shell: bar.shell; theme: colors } }
+    Component {
+        id: calendarComponent
+        CalendarPane {
+            shell: bar.shell; theme: colors
+            onImplicitHeightChanged: bar.calendarHeight = implicitHeight + 32
+            Component.onCompleted: bar.calendarHeight = implicitHeight + 32
+        }
+    }
     Component {
         id: bluetoothComponent
         BluetoothMenu {

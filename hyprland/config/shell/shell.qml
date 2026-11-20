@@ -59,7 +59,6 @@ ShellRoot {
         if (originWidth !== undefined) panelOriginWidth = originWidth;
         actionError = "";
         panel = panel === name ? "" : name;
-        if (panel === "notifications") notifications.markRead();
     }
     function gesture(action, timestamp) {
         // Separate shortcut processes can finish out of order. Ignore stale
@@ -145,7 +144,7 @@ ShellRoot {
     }
     IpcHandler {
         target: "shell"
-        function toggle(panel: string): void { if (["launcher", "notifications", "power", "connections", "ethernet", "bluetooth", "media", "mixer", "system"].includes(panel)) root.toggle(panel); }
+        function toggle(panel: string): void { if (["launcher", "notifications", "calendar", "power", "connections", "ethernet", "bluetooth", "media", "mixer", "system"].includes(panel)) root.toggle(panel); }
         function clipboard(position: string): void {
             try { clipboardPopup.toggle(JSON.parse(position)); }
             catch (error) { console.warn("Invalid clipboard position:", error); }

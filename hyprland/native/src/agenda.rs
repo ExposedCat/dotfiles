@@ -213,6 +213,8 @@ fn clocks() -> Result<Vec<Value>> {
         > = lib.get(b"gweather_location_deserialize")?;
         let name: libloading::Symbol<Text> = lib.get(b"gweather_location_get_name")?;
         let zone: libloading::Symbol<Text> = lib.get(b"gweather_location_get_timezone_str")?;
+        let country: Option<libloading::Symbol<Text>> =
+            lib.get(b"gweather_location_get_country").ok();
         let world = Object(world());
         let mut result = vec![];
         for i in 0..locations.n_children() {
@@ -228,39 +230,51 @@ fn clocks() -> Result<Vec<Value>> {
                 let zone = text(zone(location.0));
                 if let Ok(tz) = zone.parse::<chrono_tz::Tz>() {
                     let now = chrono::Utc::now().with_timezone(&tz);
-                    result.push(json!({"name":text(name(location.0)),"timezone":zone,"offset":now.offset().fix().local_minus_utc()}));
+                    result.push(json!({
+                        "name": text(name(location.0)),
+                        "timezone": zone,
+                        "offset": now.offset().fix().local_minus_utc(),
+                        "country": country.as_ref().map(|get_country| text(get_country(location.0))),
+                    }));
                 }
             }
         }
         Ok(result)
     }
 }
+
+fn local_midnight(date: NaiveDate) -> Result<i64> {
+    Ok(Local
+        .from_local_datetime(&date.and_time(NaiveTime::MIN))
+        .earliest()
+        .context("Invalid local midnight")?
+        .timestamp())
+}
+
 pub fn main(args: &[String]) -> Result<()> {
     if args.first().is_some_and(|arg| arg == "--check-libraries") {
         let _api = Eds::load()?;
         let _weather = library("libgweather-4.so.0")?;
         return emit(&json!({"available":true}));
     }
-    let selected = if args.first().is_some_and(|a| a == "--date") {
-        NaiveDate::parse_from_str(arg(args, 1)?, "%Y-%m-%d")?
-    } else {
-        Local::now().date_naive()
+    let parse_date = |index| -> Result<NaiveDate> {
+        Ok(NaiveDate::parse_from_str(arg(args, index)?, "%Y-%m-%d")?)
     };
-    let start = Local
-        .from_local_datetime(&selected.and_time(NaiveTime::MIN))
-        .earliest()
-        .context("Invalid local midnight")?
-        .timestamp();
-    let end = Local
-        .from_local_datetime(
-            &selected
-                .succ_opt()
-                .context("Date is out of range")?
-                .and_time(NaiveTime::MIN),
-        )
-        .earliest()
-        .context("Invalid local midnight")?
-        .timestamp();
+    let (first, until) = if args.first().is_some_and(|a| a == "--range") {
+        (parse_date(1)?, parse_date(2)?)
+    } else {
+        let date = if args.first().is_some_and(|a| a == "--date") {
+            parse_date(1)?
+        } else {
+            Local::now().date_naive()
+        };
+        (date, date.succ_opt().context("Date is out of range")?)
+    };
+    if first >= until {
+        bail!("Calendar range must end after it starts");
+    }
+    let start = local_midnight(first)?;
+    let end = local_midnight(until)?;
     let clocks = clocks().unwrap_or_default();
     let api = Arc::new(Eds::load()?);
     let registry = unsafe {

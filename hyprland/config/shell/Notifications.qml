@@ -21,6 +21,7 @@ Scope {
     readonly property bool bannerFrozen: presentationPaused || popups.some(e => !!hovered[e.id] || replying[e.id] === "banner")
     onCenterOpenChanged: {
         if (!centerOpen) return;
+        markRead();
         const ids = new Set(entries.concat(popups, queuedPopups).map(e => e.id));
         for (const id of ids) dismissBanner(id);
         // Keep an in-progress banner reply and its draft in the center.
@@ -189,7 +190,10 @@ Scope {
         n.sendInlineReply(text);
         remove(id);
     }
-    function markRead() { entries = entries.map(e => Object.assign({}, e, {read: true})); persist(); }
+    function markRead() {
+        if (!unread) return;
+        entries = entries.map(e => e.read ? e : Object.assign({}, e, {read: true}));
+    }
     function invoke(id, action) {
         const n = live[id];
         if (!n) return;
