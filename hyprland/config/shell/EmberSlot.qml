@@ -12,6 +12,7 @@ Item {
     readonly property bool landed: occupied && motion?.dock === root && !motion.moving
     property bool caret: false
     property var motionKey: null
+    property point motionOffset: Qt.point(0, 0)
     readonly property bool occupied: ember ? ember.active && ember.target === root
         : !!shell && shell.emberEnabled && shell.emberTarget === root
 }

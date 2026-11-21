@@ -386,30 +386,36 @@ Workspace feedback shows the workspace list and selected workspace of the
 monitor where the switch occurred. Expanded workspace controls follow the
 focused monitor while the pill remains on the main display.
 
-Hover widens the pill to reveal workspaces and app tray icons on the left,
-with media, sound, system statistics, network, Bluetooth, and power
-controls on the right. A moon/sun button sits flush against the left of those
-controls and toggles the system light/dark preference and the matching Adwaita
-or adw-gtk3 variant. Its icon follows the current preference, including external
-changes. Spaces separate the workspaces, tray, date group,
-and controls. The gaps on both sides of the tray share the available room; the
-date-to-controls gap matches them. The numeric date (`11.15`) appears to the left of the stationary
-clock; the weekday replaces EN/RU beside it as the layout label fades out.
-The notification dot fades and scales into a reserved slot in the expanded
-pill, keeping its controls and clock stationary. While expanding, the pill
-accepts hover across its destination so moving onto appearing controls keeps it open.
-The microphone and screen-sharing buttons appear after the notification dot, or
-after the layout label when the dot is hidden. Click the microphone to mute or
-unmute the inputs currently in use. Click the screen-sharing button to stop
-active portal shares. Local recordings use the recording-area outline.
-The sound icon reflects mute state. Leaving collapses it after 240 ms; an open menu or tray menu keeps it
-expanded. Media, mixer, system, network, Bluetooth, power, and notifications grow from the
-same floating surface, with a constant 20-pixel corner radius and a single
-220 ms geometry animation. Popup content retains its size and screen position
-through the closing fade; header coordinates stay on whole pixels during morphs.
-The pill has a translucent brown gradient without a border, sheen, or outer
-shadow. Compositor background blur is restricted to its painted body. Its
-background adapts [Ricelin’s PillBody](https://github.com/Gakuseei/Ricelin/blob/main/configs/quickshell/pill/PillBody.qml);
+Hover expands the pill downward into a split popup centered on the clock. The
+clock grows above the date, with notifications in the upper-right corner.
+The warm weather tile on the left shows the location, icon, conditions, and
+temperature. Click it for current details, a seven-day forecast, and city or
+postal-code search. The pill saves the selected location locally, refreshes the forecast
+every 15 minutes, and keeps the last available forecast if an update fails.
+Weather forecasts and location search use [Open-Meteo](https://open-meteo.com/),
+with location data from [GeoNames](https://www.geonames.org/).
+Workspaces sit underneath the weather and tray icons sit underneath the
+control grid. The grid holds appearance, sound, system statistics, network,
+Bluetooth, power, media when available, and any active privacy controls.
+The moon/sun button toggles the system light/dark preference and the matching
+Adwaita or adw-gtk3 variant.
+While expanding, the pill accepts hover across its destination so moving onto
+the appearing controls keeps it open. In the compact pill, the microphone and
+screen-sharing buttons follow the notification dot or the layout label.
+Click the microphone to mute or unmute the inputs currently in use.
+Click the screen-sharing button to stop active portal shares. Local recordings
+use the recording-area outline. The sound icon reflects mute state. Leaving
+collapses the popup after 240 ms. An open tray menu keeps it expanded. Weather,
+media, mixer, system, network, Bluetooth, power, and notifications grow from the
+same floating surface with a single 220 ms geometry animation. The hover popup
+rounds its corners from 20 to 31 pixels as it grows. Popup content retains its
+size and screen position through the closing fade, and header coordinates stay
+on whole pixels during morphs.
+The compact pill and detail views use a translucent brown tint over compositor
+blur. The split popup uses the mockup's radial fill, thin rim, top inset
+highlights, and soft shadow. The compositor blurs only the painted layer area.
+The original background adapts
+[Ricelin’s PillBody](https://github.com/Gakuseei/Ricelin/blob/main/configs/quickshell/pill/PillBody.qml);
 the MIT attribution is retained in `shell/RICELIN-LICENSE.txt`.
 The native surface stays fixed while its input region follows the pill, keeping
 hover stable and allowing clicks through empty space. Opening a view lets an
@@ -476,8 +482,8 @@ open power and notifications on release. The gesture observer uses Hyprland's Lu
 Input timestamps reject late IPC messages so a delayed hide cannot strand the
 pill after release. The pill stays available over fullscreen applications.
 
-Panel buttons have no hover highlights or tooltips; icon-button hints are used
-for accessibility. Tray menus use the shell's dark colors and typography, with
+The split popup highlights hovered controls. Icon-button hints are used for
+accessibility. Tray menus use the shell's dark colors and typography, with
 checks, disabled actions, separators, and navigable submenus. Clickable controls
 use a pointer cursor. Bluetooth uses a fixed-height scrolling viewport.
 Quickshell uses Adwaita Sans Regular with 18px text throughout the bar, launcher,

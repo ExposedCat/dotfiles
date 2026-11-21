@@ -29,6 +29,7 @@ ShellRoot {
     property alias notifications: notifications
     property alias clock: clock
     property alias agenda: agenda
+    property alias weather: weather
     property alias pill: bar
     property alias overlays: overlays
     property alias applications: appIndex
@@ -119,6 +120,7 @@ ShellRoot {
     Notifications { id: notifications; singlePopup: false; presentationPaused: root.panel === "notifications"; centerOpen: root.panel === "notifications"; statePath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/dotfiles/hyprland/notifications.json" }
     BluetoothController { id: bluetoothController; shell: root }
     Agenda { id: agenda; shell: root }
+    Weather { id: weather; shell: root }
     Variants {
         model: Quickshell.screens
         ScreenCorners {
@@ -144,7 +146,7 @@ ShellRoot {
     }
     IpcHandler {
         target: "shell"
-        function toggle(panel: string): void { if (["launcher", "notifications", "calendar", "power", "connections", "ethernet", "bluetooth", "media", "mixer", "system"].includes(panel)) root.toggle(panel); }
+        function toggle(panel: string): void { if (["launcher", "notifications", "calendar", "power", "connections", "ethernet", "bluetooth", "media", "mixer", "system", "weather"].includes(panel)) root.toggle(panel); }
         function clipboard(position: string): void {
             try { clipboardPopup.toggle(JSON.parse(position)); }
             catch (error) { console.warn("Invalid clipboard position:", error); }

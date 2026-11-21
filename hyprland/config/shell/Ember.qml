@@ -8,7 +8,19 @@ Item {
     property bool ready: false
     property bool hasPosition: false
     property Item restingTarget: null
-    property Item pointerTarget: null
+    property Item pointerHoldArea: null
+    property Item hoveredTarget: null
+    property Item lastPointerTarget: null
+    readonly property Item pointerTarget: {
+        if (hoveredTarget) return hoveredTarget;
+        if (!pointerHoldArea || !lastPointerTarget?.visible || !lastPointerTarget.enabled) return null;
+        // Gaps inside a control group keep the marker on its last button.
+        for (let item = lastPointerTarget; item; item = item.parent) {
+            if (item === pointerHoldArea) return lastPointerTarget;
+        }
+        return null;
+    }
+    onPointerHoldAreaChanged: { if (!pointerHoldArea) lastPointerTarget = null; }
     property Item keyboardTarget: null
     property bool keyboardLast: false
     readonly property Item interactionTarget: keyboardLast ? (keyboardTarget || pointerTarget) : (pointerTarget || keyboardTarget)
@@ -74,17 +86,18 @@ Item {
     function follow(slot, inside, keyboard) {
         if (inside) {
             if (keyboard) keyboardTarget = slot;
-            else pointerTarget = slot;
+            else { hoveredTarget = slot; lastPointerTarget = slot; }
             keyboardLast = keyboard;
         } else if (keyboard) {
             if (keyboardTarget === slot) keyboardTarget = null;
-        } else if (pointerTarget === slot) {
-            pointerTarget = null;
+        } else if (hoveredTarget === slot) {
+            hoveredTarget = null;
         }
     }
     function locate() {
         if (!target) return;
-        const p = target.mapToItem(root, 0, 0);
+        const offset = target.motionOffset;
+        const p = target.mapToItem(root, offset?.x ?? 0, offset?.y ?? 0);
         destination = Qt.rect(p.x, p.y, target.width, target.height);
     }
     function depart() {
@@ -115,11 +128,11 @@ Item {
     }
     Component.onCompleted: { ready = true; if (target) depart(); }
     onTargetChanged: { if (ready) depart(); }
+    onTravelChanged: { if (flight.running) locate(); }
     Connections {
         target: root.target
-        function onMotionKeyChanged() { if (root.ready && root.dock === root.target) root.depart(); }
+        function onMotionKeyChanged() { if (root.ready && root.active) root.depart(); }
     }
-    Timer { interval: 16; repeat: true; running: flight.running; onTriggered: root.locate() }
     NumberAnimation {
         id: flight; target: root; property: "travel"; to: 1; duration: 480; easing.type: Easing.Linear
         onFinished: { root.locate(); root.dock = root.target; }

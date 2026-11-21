@@ -14,9 +14,12 @@ Item {
         const selected = selectedId ? spaces.findIndex(w => String(w.id) === selectedId) : -1;
         return selected >= 0 ? selected : shell.fixture ? Math.min(fixtureActive, Math.max(0, spaces.length - 1)) : Math.max(0, spaces.findIndex(w => w.active));
     }
-    readonly property real gap: 10
-    readonly property real dot: 7
-    readonly property real activeWidth: Math.max(dot, 66 - Math.max(0, spaces.length - 1) * (dot + gap))
+    property real gap: 10
+    property real dot: 7
+    property real minimumActiveWidth: dot
+    property color activeColor: theme.focusColor
+    property color inactiveColor: Qt.alpha(theme.secondary, 0.4)
+    readonly property real activeWidth: Math.max(minimumActiveWidth, 66 - Math.max(0, spaces.length - 1) * (dot + gap))
     implicitWidth: floating ? activeWidth + Math.max(0, spaces.length - 1) * (dot + gap) : Math.max(108, spaces.length * (dot + gap) + 32) + theme.panelWing * 2
     implicitHeight: theme.panelHeight
     function activate(index) {
@@ -38,7 +41,7 @@ Item {
                 width: index === root.current ? root.activeWidth : root.dot
                 height: 26
                 Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.InOutCubic } }
-                Rectangle { anchors.centerIn: parent; width: root.dot; height: root.dot; radius: height / 2; color: root.floating ? Qt.alpha(root.theme.secondary, 0.4) : "#5e6074" }
+                Rectangle { anchors.centerIn: parent; width: root.dot; height: root.dot; radius: height / 2; color: root.floating ? root.inactiveColor : "#5e6074" }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.activate(parent.index) }
                 Accessible.role: Accessible.Button
                 Accessible.name: "Workspace " + modelData.id
@@ -50,11 +53,18 @@ Item {
         }
     }
     Item {
+        id: marker
+        readonly property real settledX: dots.x + root.current * (root.dot + root.gap)
         width: root.activeWidth; height: root.dot
-        EmberSlot { id: activeSlot; shell: root.shell; motionKey: root.current; anchors.fill: parent }
-        Rectangle { objectName: "workspaceActiveFallback"; anchors.fill: parent; radius: height / 2; color: root.floating && root.shell.emberEnabled ? "#cc7855" : root.theme.text; visible: !activeSlot.occupied }
+        EmberSlot {
+            id: activeSlot
+            shell: root.shell; motionKey: root.current; anchors.fill: parent
+            // Land at the new workspace while its dots are still sliding.
+            motionOffset: Qt.point(marker.settledX - marker.x, 0)
+        }
+        Rectangle { objectName: "workspaceActiveFallback"; anchors.fill: parent; radius: height / 2; color: root.floating && root.shell.emberEnabled ? root.activeColor : root.theme.text; visible: !activeSlot.occupied }
         y: Math.round((root.height - height) / 2)
-        x: dots.x + root.current * (root.dot + root.gap)
+        x: settledX
         Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.InOutCubic } }
         Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.InOutCubic } }
     }
