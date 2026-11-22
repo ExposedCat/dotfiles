@@ -68,16 +68,20 @@ Item {
             radius = Math.min(w, h) / 2;
         } else {
             const u = Math.min(1, (t - landingStart) / (1 - landingStart));
-            // A small landing overshoot gives the bead weight without wobbling text.
-            const v = u - 1, spring = 1 + 2.2 * v * v * v + 1.2 * v * v;
             center = end;
-            w = mix(beadSize, destination.width, spring); h = mix(beadSize, destination.height, spring);
-            radius = mix(beadSize / 2, target ? target.shapeRadius : originRadius, spring);
             const landing = outCubic(u);
-            alpha = mix(1, target ? target.shapeOpacity : originOpacity, landing);
-            const thickness = target?.shapeBorderWidth ?? 0;
-            border = thickness * landing;
-            fill = thickness > 0 ? 1 - landing : 1;
+            const opacity = target?.shapeOpacity ?? originOpacity;
+            alpha = mix(1, opacity, landing);
+            // When a button draws its own highlight, fade the bead at its
+            // center. Expanding a fading bead briefly floods the whole button.
+            if (opacity > 0) {
+                const v = u - 1, spring = 1 + 2.2 * v * v * v + 1.2 * v * v;
+                w = mix(beadSize, destination.width, spring); h = mix(beadSize, destination.height, spring);
+                radius = mix(beadSize / 2, target ? target.shapeRadius : originRadius, spring);
+                const thickness = target?.shapeBorderWidth ?? 0;
+                border = thickness * landing;
+                fill = thickness > 0 ? 1 - landing : 1;
+            }
         }
         return {rect: Qt.rect(center.x - w / 2, center.y - h / 2, Math.max(1, w), Math.max(1, h)),
             radius: Math.max(0, radius), alpha: alpha, border: border, fill: fill};
@@ -122,7 +126,7 @@ Item {
         origin = bounds; originRadius = radius; originOpacity = alpha; originBorder = border; originFill = fill;
         redirecting = continuing;
         takeoffEnd = continuing ? 0.06 : 0.22;
-        travel = continuing && bounds.width <= 12 && bounds.height <= 12 ? takeoffEnd : 0;
+        travel = continuing && bounds.width <= 12 && bounds.height <= 12 && alpha >= 0.99 ? takeoffEnd : 0;
         flight.duration = continuing ? 280 : 430;
         flight.restart();
     }
@@ -146,12 +150,13 @@ Item {
         id: shape
         enabled: false
         objectName: "emberShape"
+        readonly property bool dockedBead: root.dock?.shapeOpacity === 0
         parent: root.dock || root
-        x: root.dock ? 0 : root.geometry.x
-        y: root.dock ? 0 : root.geometry.y
-        width: root.dock ? root.dock.width : root.geometry.width
-        height: root.dock ? root.dock.height : root.geometry.height
-        radius: root.dock ? root.dock.shapeRadius : root.pose.radius
+        x: root.dock ? (root.dock.width - width) / 2 : root.geometry.x
+        y: root.dock ? (root.dock.height - height) / 2 : root.geometry.y
+        width: root.dock ? (dockedBead ? root.beadSize : root.dock.width) : root.geometry.width
+        height: root.dock ? (dockedBead ? root.beadSize : root.dock.height) : root.geometry.height
+        radius: root.dock ? (dockedBead ? root.beadSize / 2 : root.dock.shapeRadius) : root.pose.radius
         readonly property real fillOpacity: root.dock ? ((root.dock.shapeBorderWidth ?? 0) > 0 ? 0 : 1) : root.pose.fill
         color: Qt.alpha(root.color, fillOpacity)
         border.color: root.color

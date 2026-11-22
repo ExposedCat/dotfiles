@@ -399,7 +399,6 @@ PanelWindow {
                     visible: opacity > 0
                     enabled: bar.hasUnreadNotifications || (bar.popupOpen && opacity > 0.95)
                     theme: colors
-                    emberSlot.shapeOpacity: 0
                     hint: "Notifications"; onClicked: bar.openPanel("notifications")
                     ShellIcon {
                         name: "bell"

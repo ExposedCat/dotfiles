@@ -41,6 +41,8 @@ Item {
         height: root.actionsHeight
         radius: 21.25
         hint: root.shell.weather.summary
+        // The tile owns hover and focus, and the arrow owns the landing.
+        emberSlot.parent: forecastArrow
         emberSlot.shapeOpacity: 0
         onClicked: root.panelRequested("weather")
 
@@ -73,11 +75,18 @@ Item {
                 }
                 ShellIcon {
                     id: forecastArrow
+                    readonly property Item marker: weatherTile.emberSlot
+                    readonly property real fillProgress: !marker.occupied ? 0 : marker.landed ? 1
+                        : marker.motion?.phase === "landing" ? 1 - marker.motion.pose.alpha : 0
                     anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                     width: 17.5; height: 17.5
                     name: "arrow-up-right"
-                    tint: root.theme.weatherAccent
+                    tint: Qt.tint(root.theme.weatherAccent, Qt.alpha(root.theme.overviewAccent, fillProgress))
                     opacity: 0.9
+                    Behavior on tint {
+                        enabled: !forecastArrow.marker.occupied
+                        ColorAnimation { duration: 100 }
+                    }
                 }
             }
             Row {
@@ -134,7 +143,6 @@ Item {
         iconSize: 23
         iconTint: danger ? root.theme.overviewPowerInk : root.theme.overviewInk
         color: highlighted ? root.theme.overviewButtonHover : danger ? root.theme.overviewPowerFill : root.theme.overviewButton
-        emberSlot.shapeOpacity: 0
     }
 
     Rectangle {
