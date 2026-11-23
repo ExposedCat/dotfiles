@@ -126,7 +126,7 @@ Flickable {
             implicitHeight: conditions.implicitHeight + 26
             theme: root.theme
             radius: root.theme.overviewTileRadius
-            weather: true
+            glassStops: root.theme.weatherGlassStops
 
             ColumnLayout {
                 id: conditions

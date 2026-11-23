@@ -4,18 +4,21 @@ Canvas {
     id: root
     required property var theme
     required property real radius
-    property bool weather: false
+    property var glassStops: null
     property bool highlighted: false
     property bool frameOnly: false
+    property real resolutionScale: 1
+    readonly property real rimWidth: 1.25 * resolutionScale
     property var panelGradient: null
     property real overviewBlend: 0
     property color rimColor: theme.overviewRim
-    property color highlightColor: theme.overviewHighlight
+    property color highlightColor: glassStops ? theme.glassHighlight : theme.overviewHighlight
     property bool highlightInsideRim: true
 
     onWidthChanged: requestPaint()
     onHeightChanged: requestPaint()
     onRadiusChanged: requestPaint()
+    onGlassStopsChanged: requestPaint()
     onHighlightedChanged: requestPaint()
     onPanelGradientChanged: requestPaint()
     onOverviewBlendChanged: { if (panelGradient) requestPaint(); }
@@ -37,7 +40,7 @@ Canvas {
     }
 
     function insetHighlight(ctx, x, y, w, h, r, color) {
-        const edge = 1.25;
+        const edge = rimWidth;
         const corner = Math.max(0, Math.min(r, w / 2, h / 2));
         // The translated top edge gives the inset shadow its tapered corners.
         ctx.beginPath();
@@ -53,7 +56,7 @@ Canvas {
     }
 
     function strokeRim(ctx, w, h, r, color) {
-        const edge = 1.25;
+        const edge = rimWidth;
         framePath(ctx, edge / 2, edge / 2, w - edge, h - edge, r - edge / 2);
         ctx.strokeStyle = color;
         ctx.lineWidth = edge;
@@ -69,15 +72,13 @@ Canvas {
             x + dx * reach, y + dy * reach);
     }
 
-    function paintWeather(ctx, w, h) {
+    function paintGlass(ctx, w, h) {
         const wash = linearGradient(ctx, w, h, 132);
-        wash.addColorStop(0, theme.weatherTileTop);
-        wash.addColorStop(0.66, theme.weatherTileMiddle);
-        wash.addColorStop(1, theme.weatherTileBottom);
+        for (const [position, color] of glassStops) wash.addColorStop(position, color);
         ctx.fillStyle = wash;
         ctx.fillRect(0, 0, w, h);
-        if (highlighted) strokeRim(ctx, w, h, radius, theme.weatherHoverRim);
-        else insetHighlight(ctx, 0, 0, w, h, radius, theme.weatherHighlight);
+        if (highlighted) strokeRim(ctx, w, h, radius, theme.glassHoverRim);
+        else insetHighlight(ctx, 0, 0, w, h, radius, highlightColor);
     }
 
     function paintGradients(ctx, w, h, layers) {
@@ -86,7 +87,7 @@ Canvas {
             ctx.globalAlpha *= layer.strength;
             let wash, x = 0, y = 0, rx = 1, ry = 1;
             if (layer.angle !== undefined) {
-                wash = linearGradient(ctx, w, layer.referenceHeight ?? h, layer.angle);
+                wash = linearGradient(ctx, w, layer.referenceHeight === undefined ? h : layer.referenceHeight * resolutionScale, layer.angle);
             } else {
                 x = layer.center[0] * w;
                 y = layer.center[1] * h;
@@ -106,7 +107,7 @@ Canvas {
 
     function paintFrame(ctx, w, h) {
         if (rimColor.a > 0) strokeRim(ctx, w, h, radius, rimColor);
-        const inset = highlightInsideRim && rimColor.a > 0 ? 1.25 : 0;
+        const inset = highlightInsideRim && rimColor.a > 0 ? rimWidth : 0;
         insetHighlight(ctx, inset, inset, w - 2 * inset, h - 2 * inset, radius - inset, highlightColor);
     }
 
@@ -119,7 +120,7 @@ Canvas {
         framePath(ctx, 0, 0, w, h, radius);
         ctx.clip();
         if (frameOnly) paintFrame(ctx, w, h);
-        else if (weather) paintWeather(ctx, w, h);
+        else if (glassStops) paintGlass(ctx, w, h);
         else {
             if (panelGradient) {
                 ctx.fillStyle = theme.overviewBase;

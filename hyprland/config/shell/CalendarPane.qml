@@ -7,21 +7,31 @@ Flickable {
     id: root
     required property var shell
     required property var theme
+    required property real heightBudget
     readonly property var agenda: shell.agenda
     readonly property string selectedKey: agenda.dayKey(agenda.selectedDate)
     readonly property string todayKey: agenda.dayKey(shell.clock.date)
     readonly property bool showClockFlags: agenda.clocks.some(clock => countryFlag(clock.country).length > 0)
     readonly property bool showSidebar: agenda.configured || agenda.clocks.length > 0
-    readonly property int preferredMonthWidth: 576
-    readonly property int minimumMonthWidth: 436
+    readonly property int monthColumns: 3
+    readonly property int monthRows: Math.ceil(agenda.monthCount / monthColumns)
     readonly property int cardGap: 14
     readonly property int cardPadding: 10
+    readonly property real monthScale: Math.max(0.5, Math.min(1,
+        heightBudget / (316 * monthRows + cardGap * (monthRows - 1))))
+    readonly property int monthGap: Math.floor(cardGap * monthScale)
+    readonly property int monthPadding: Math.floor(cardPadding * monthScale)
+    readonly property int preferredGridWidth: 281 * monthColumns + monthGap * (monthColumns - 1)
+    readonly property int minimumGridWidth: 211 * monthColumns + monthGap * (monthColumns - 1)
     readonly property int sidebarMinimumWidth: 180
     readonly property bool showCalendarWarning: agenda.unavailable && (agenda.eventsOn(selectedKey).length > 0 || agenda.eventsOn(agenda.dayKey(agenda.nextDate)).length > 0)
-    readonly property int daySpacing: 2
-    readonly property int monthHeadingHeight: 36
-    readonly property int weekdayHeight: 26
-    readonly property int monthHeadingSpacing: 6
+    readonly property int daySpacing: Math.max(1, Math.floor(2 * monthScale))
+    readonly property int monthHeadingHeight: Math.floor(36 * monthScale)
+    readonly property int weekdayHeight: Math.floor(26 * monthScale)
+    readonly property int monthHeadingSpacing: Math.floor(6 * monthScale)
+    readonly property int dayMarkerSize: Math.max(2, Math.floor(3 * monthScale))
+    readonly property font monthFont: Qt.font({family: theme.fontFamily, weight: theme.fontWeight,
+        pixelSize: Math.max(11, Math.floor(theme.bodySize * monthScale)), features: theme.textFont.features})
     property date transitionStart: agenda.rangeStart
     property int monthDirection: 0
     property real monthProgress: 0
@@ -37,7 +47,7 @@ Flickable {
     readonly property Item emberTarget: {
         if (hoveredEvent) return hoveredEvent.emberSlot;
         if (monthDirection) return null;
-        for (let i = 0; i < Math.min(4, months.created); i++) {
+        for (let i = 0; i < Math.min(agenda.monthCount, months.created); i++) {
             const slot = months.itemAt(i)?.selectedSlot;
             if (slot) return slot;
         }
@@ -47,7 +57,7 @@ Flickable {
     implicitHeight: content.implicitHeight
     clip: true
     boundsBehavior: Flickable.StopAtBounds
-    contentWidth: Math.max(width, minimumMonthWidth + (showSidebar ? cardGap + sidebarMinimumWidth : 0))
+    contentWidth: Math.max(width, minimumGridWidth + (showSidebar ? cardGap + sidebarMinimumWidth : 0))
     contentHeight: content.height
     ScrollBar.vertical: ScrollBar {}
     ScrollBar.horizontal: ScrollBar {}
@@ -78,7 +88,7 @@ Flickable {
     function selectDay(date) {
         const start = agenda.rangeStart;
         if (date < start) moveMonth(-1);
-        else if (date >= agenda.monthOffset(start, 4)) moveMonth(1);
+        else if (date >= agenda.monthOffset(start, agenda.monthCount)) moveMonth(1);
         agenda.selectDate(date);
     }
 
@@ -124,23 +134,37 @@ Flickable {
         spacing: root.cardGap
         Item {
             id: monthGrid
-            readonly property real monthWidth: (width - root.cardGap) / 2
-            readonly property real columnStride: monthWidth + root.cardGap
-            readonly property int cellHeight: Math.max(30, Math.min(36, Math.round((monthWidth - 2 * root.cardPadding - 6 * root.daySpacing) / 7)))
-            readonly property int monthHeight: 2 * root.cardPadding + root.monthHeadingHeight
+            readonly property real monthWidth: (width - root.monthGap * (root.monthColumns - 1)) / root.monthColumns
+            readonly property real columnStride: monthWidth + root.monthGap
+            readonly property int cellHeight: Math.max(Math.floor(30 * root.monthScale),
+                Math.min(Math.floor(36 * root.monthScale), Math.round((monthWidth - 2 * root.monthPadding - 6 * root.daySpacing) / 7)))
+            readonly property int monthHeight: 2 * root.monthPadding + root.monthHeadingHeight
                 + root.monthHeadingSpacing + root.weekdayHeight + 6 * (cellHeight + root.daySpacing)
-            readonly property int rowStride: monthHeight + root.cardGap
+            readonly property int rowStride: monthHeight + root.monthGap
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignTop
-            Layout.minimumWidth: root.minimumMonthWidth
-            Layout.preferredWidth: root.preferredMonthWidth
-            Layout.maximumWidth: root.preferredMonthWidth
-            implicitHeight: rowStride + monthHeight
+            Layout.minimumWidth: root.minimumGridWidth
+            Layout.preferredWidth: root.preferredGridWidth
+            Layout.maximumWidth: root.preferredGridWidth
+            implicitHeight: rowStride * root.monthRows - root.monthGap
 
             function slotX(slot) {
-                // The two offscreen slots extend the top row to the left and the bottom row to the right.
-                const column = slot < 0 ? -1 : slot >= 4 ? 2 : slot % 2;
+                const column = slot < 0 ? -1 : slot >= root.agenda.monthCount ? root.monthColumns : slot % root.monthColumns;
                 return column * columnStride;
+            }
+
+            function slotY(slot) {
+                const row = Math.max(0, Math.min(root.monthRows - 1, Math.floor(slot / root.monthColumns)));
+                return row * rowStride;
+            }
+
+            function fromSlot(index) { return index - (root.monthDirection < 0 ? 1 : 0); }
+            function toSlot(index) { return index - (root.monthDirection > 0 ? 1 : 0); }
+
+            function slidePosition(index) {
+                const from = fromSlot(index), to = toSlot(index), progress = root.monthProgress;
+                return Qt.point(Math.round(slotX(from) * (1 - progress) + slotX(to) * progress),
+                    Math.round(slotY(from) * (1 - progress) + slotY(to) * progress));
             }
 
             Item {
@@ -148,6 +172,7 @@ Flickable {
                 clip: true
 
                 Item {
+                    id: stationaryMonths
                     anchors.fill: parent
                     // Mask the stationary months where the moving month crosses between rows.
                     layer.enabled: root.monthDirection !== 0
@@ -160,11 +185,12 @@ Flickable {
                         property int created: 0
                         onItemAdded: created++
                         onItemRemoved: created--
-                        model: 5
+                        model: root.agenda.monthCount + 1
                         MonthSlide {
                             required property int index
                             monthIndex: index
-                            visible: (!root.monthDirection || index !== 2) && x < monthGrid.width && x + width > 0
+                            parent: root.monthDirection && crossesRow ? crossingMonths : stationaryMonths
+                            visible: x < monthGrid.width && x + width > 0
                         }
                     }
                 }
@@ -173,28 +199,29 @@ Flickable {
                     anchors.fill: parent
                     visible: false
                     layer.enabled: root.monthDirection !== 0
-                    Rectangle {
-                        x: crossingMonth.x - root.daySpacing
-                        y: crossingMonth.y - root.daySpacing
-                        width: crossingMonth.width + 2 * root.daySpacing
-                        height: crossingMonth.height + 2 * root.daySpacing
-                        color: "white"
+                    Repeater {
+                        model: root.monthRows - 1
+                        Rectangle {
+                            required property int index
+                            readonly property point slidePoint: monthGrid.slidePosition((index + 1) * root.monthColumns)
+                            x: slidePoint.x - root.daySpacing
+                            y: slidePoint.y - root.daySpacing
+                            width: monthGrid.monthWidth + 2 * root.daySpacing
+                            height: monthGrid.monthHeight + 2 * root.daySpacing
+                            color: "white"
+                        }
                     }
                 }
-                MonthSlide {
-                    id: crossingMonth
-                    monthIndex: 2
-                    visible: root.monthDirection !== 0
-                }
+                Item { id: crossingMonths; anchors.fill: parent }
             }
             MonthNavigation {
                 id: previousMonth
-                anchors { left: parent.left; top: parent.top; margins: root.cardPadding }
+                anchors { left: parent.left; top: parent.top; margins: root.monthPadding }
                 icon: "chevron-left"
                 hint: "Previous month"; onClicked: root.moveMonth(-1)
             }
             MonthNavigation {
-                anchors { right: parent.right; top: parent.top; margins: root.cardPadding }
+                anchors { right: parent.right; top: parent.top; margins: root.monthPadding }
                 icon: "chevron-right"
                 hint: "Next month"; onClicked: root.moveMonth(1)
             }
@@ -288,30 +315,29 @@ Flickable {
             theme: root.theme; radius: parent.radius
             frameOnly: true
             rimColor: "transparent"
-            highlightColor: parent.warm ? root.theme.weatherHighlight : root.theme.overviewHighlight
+            highlightColor: parent.warm ? root.theme.glassHighlight : root.theme.overviewHighlight
         }
     }
 
     component MonthNavigation: ShellButton {
         theme: root.theme
         implicitWidth: root.monthHeadingHeight; implicitHeight: root.monthHeadingHeight
-        iconSize: 22; radius: 12
+        iconSize: Math.floor(22 * root.monthScale); radius: Math.floor(12 * root.monthScale)
         iconTint: root.theme.overviewInk
         color: hovered ? root.theme.overviewButtonHover : root.theme.overviewButton
     }
 
     component MonthSlide: CalendarMonth {
         required property int monthIndex
-        readonly property int fromSlot: monthIndex - (root.monthDirection < 0 ? 1 : 0)
-        readonly property int toSlot: monthIndex - (root.monthDirection > 0 ? 1 : 0)
-        readonly property int edgeSlot: root.monthProgress < 0.5 ? fromSlot : toSlot
-        readonly property real row: (fromSlot < 2 ? 0 : 1) * (1 - root.monthProgress) + (toSlot < 2 ? 0 : 1) * root.monthProgress
+        readonly property bool crossesRow: monthIndex > 0 && monthIndex < root.agenda.monthCount && monthIndex % root.monthColumns === 0
+        readonly property int edgeSlot: root.monthProgress < 0.5 ? monthGrid.fromSlot(monthIndex) : monthGrid.toSlot(monthIndex)
+        readonly property point slidePoint: monthGrid.slidePosition(monthIndex)
         first: root.agenda.monthOffset(root.monthDirection > 0 ? root.transitionStart : root.agenda.rangeStart, monthIndex)
         cellHeight: monthGrid.cellHeight
         showPreviousDays: edgeSlot === 0
-        showNextDays: edgeSlot === 3
-        x: Math.round(monthGrid.slotX(fromSlot) * (1 - root.monthProgress) + monthGrid.slotX(toSlot) * root.monthProgress)
-        y: Math.round(monthGrid.rowStride * row)
+        showNextDays: edgeSlot === root.agenda.monthCount - 1
+        x: slidePoint.x
+        y: slidePoint.y
         width: monthGrid.monthWidth
         height: monthGrid.monthHeight
         enabled: !root.monthDirection
@@ -335,14 +361,14 @@ Flickable {
         }
         CalendarCard { anchors.fill: parent }
         ColumnLayout {
-            anchors { fill: parent; margins: root.cardPadding }
+            anchors { fill: parent; margins: root.monthPadding }
             spacing: root.monthHeadingSpacing
 
             Text {
                 Layout.fillWidth: true
                 Layout.preferredHeight: root.monthHeadingHeight
                 horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                font: root.theme.textFont; color: root.theme.overviewInk
+                font: root.monthFont; color: root.theme.overviewInk
                 text: Qt.formatDateTime(month.first, "MMMM yyyy")
                 opacity: {
                     if (!root.monthDirection || month.y >= previousMonth.y + previousMonth.height) return 1;
@@ -362,7 +388,7 @@ Flickable {
                         required property string modelData
                         Layout.fillWidth: true; Layout.preferredHeight: root.weekdayHeight
                         horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                        font: root.theme.textFont; color: root.theme.overviewSecondary; text: modelData
+                        font: root.monthFont; color: root.theme.overviewSecondary; text: modelData
                     }
                 }
                 Repeater {
@@ -434,30 +460,30 @@ Flickable {
                         Text {
                             id: dateNumber
                             anchors.centerIn: parent; anchors.verticalCenterOffset: -2
-                            font: root.theme.textFont; text: day.modelData.getDate()
+                            font: root.monthFont; text: day.modelData.getDate()
                             color: day.showSelection && (!dateSlot.occupied || dateSlot.landed) ? root.theme.background : root.theme.overviewInk
                         }
                         Row {
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.top: dateNumber.bottom
                             visible: !root.hoveredEvent
-                            spacing: 3
+                            spacing: root.dayMarkerSize
                             Repeater {
                                 model: day.eventCount < 4 ? day.eventCount : day.eventCount === 4 ? 2 : 0
-                                Rectangle { width: 3; height: 3; radius: 1.5; color: dateNumber.color }
+                                Rectangle { width: root.dayMarkerSize; height: width; radius: width / 2; color: dateNumber.color }
                             }
                             Rectangle {
                                 visible: day.eventCount >= 4
-                                width: day.eventCount === 4 ? 10 : 16
-                                height: 3; radius: 1.5; color: dateNumber.color
+                                width: Math.round((day.eventCount === 4 ? 10 : 16) * root.monthScale)
+                                height: root.dayMarkerSize; radius: height / 2; color: dateNumber.color
                             }
                         }
                         Rectangle {
                             anchors.top: dateNumber.bottom
-                            readonly property real markerWidth: 16
+                            readonly property real markerWidth: 16 * root.monthScale
                             x: (day.width - markerWidth) / 2
                             width: day.spanEnd ? day.spanEnd.x + day.spanEnd.width / 2 - day.x - x + markerWidth / 2 : 0
-                            height: 3; radius: 1.5
+                            height: root.dayMarkerSize; radius: height / 2
                             visible: !!day.spanEnd
                             color: root.theme.overviewAccent
                         }

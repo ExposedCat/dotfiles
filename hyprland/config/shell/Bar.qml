@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import QtQuick.Window
 import Quickshell
 import Quickshell.Hyprland
@@ -92,7 +91,7 @@ PanelWindow {
     Timer { id: unload; interval: 120000; onTriggered: { const keep = {}; for (const name of ["launcher", "media", "mixer"]) if (bar.retained[name]) keep[name] = true; bar.retained = keep; } }
     property real paneWidth: 620
     property real paneHeight: 480
-    property real calendarHeight: 660
+    property real calendarHeight: 1348
     readonly property int calendarInset: 21
     property real mediaHeight: 240
     property real systemHeight: 480
@@ -214,7 +213,7 @@ PanelWindow {
     property rect animatedGeometry: targetGeometry
     Behavior on animatedGeometry {
         enabled: !bar.dragPressed && !bar.idleHidden
-        PropertyAnimation { duration: 220; easing.type: Easing.InOutCubic }
+        PropertyAnimation { id: pillResize; duration: 220; easing.type: Easing.InOutCubic }
     }
     readonly property rect pillGeometry: Qt.rect(pill.x, pill.y, pill.width, pill.height)
     readonly property rect paneGeometry: Qt.rect(pill.x + panelLoader.x, pill.y + panelLoader.y, panelLoader.width, panelLoader.height)
@@ -275,7 +274,7 @@ PanelWindow {
         // layout must not be resized to the compact pill while still visible.
         const portalWidth = portalPane?.desiredWidth || (shell.portal.data.kind === "share" ? 680 : shell.portal.data.kind === "access" ? 440 : 560);
         const maxHeight = name === "bluetooth" && panelCentered ? height - bluetoothY - 12 : height - 24;
-        paneWidth = Math.min(width - 24, name === "authentication" ? (authenticationPane?.desiredWidth || 480) : name === "credentials" ? (credentialPane?.desiredWidth || 460) : ["ethernet", "bluetooth"].includes(name) ? 460 : name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "weather" ? 584 : name === "mixer" ? 540 : name === "calendar" ? 960 : name === "power" ? 480 : 620);
+        paneWidth = Math.min(width - 24, name === "authentication" ? (authenticationPane?.desiredWidth || 480) : name === "credentials" ? (credentialPane?.desiredWidth || 460) : ["ethernet", "bluetooth"].includes(name) ? 460 : name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "weather" ? 584 : name === "mixer" ? 540 : name === "calendar" ? 1256 : name === "power" ? 480 : 620);
         paneHeight = Math.min(maxHeight, name === "authentication" ? (authenticationPane?.desiredHeight || 260) : name === "credentials" ? (credentialPane?.desiredHeight || 340) : name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? mixerHeight : name === "notifications" ? 816 : name === "calendar" ? calendarHeight : name === "bluetooth" ? bluetoothHeight : name === "ethernet" ? networkHeight : name === "media" ? mediaHeight : name === "system" ? systemHeight : name === "weather" ? weatherHeight : name === "power" ? powerHeight : 220);
         retain(name); shownPanel = name;
     }
@@ -362,31 +361,16 @@ PanelWindow {
         transform: Translate { y: bar.idleHidden && !bar.feedbackReveal ? Math.round(-12 * (1 - bar.hiddenPanelReveal)) : 0 }
         opacity: bar.feedbackReveal ? 1 : bar.shell.pillHidden ? 0 : bar.idleHidden ? bar.hiddenPanelReveal : 1
         onHeightChanged: bar.finishPanelClose()
-        PillBackground {
+        PillBackdrop {
             anchors.fill: parent
             theme: colors
-            visible: !pill.panelGradient
-            radius: bar.pillRadius + Math.round(11 * bar.overviewOpacity)
-        }
-        RectangularShadow {
-            anchors.fill: parent
-            radius: pill.frameRadius
-            blur: 45
-            offset: Qt.vector2d(0, 20)
-            color: colors.overviewShadow
-            opacity: pill.panelGradient ? 1 : bar.overviewOpacity
-            visible: opacity > 0
-            enabled: false
-        }
-        PillOverviewSurface {
-            anchors.fill: parent
-            theme: colors
-            radius: pill.frameRadius
+            compactHeight: bar.headerHeight
+            compactRadius: bar.pillRadius
+            frameRadius: pill.frameRadius
             panelGradient: pill.panelGradient
             overviewBlend: bar.overviewOpacity
-            opacity: panelGradient ? 1 : bar.overviewOpacity
-            visible: opacity > 0
-            enabled: false
+            resizing: pillResize.running
+            targetArea: bar.targetWidth * bar.targetHeight
         }
         ClippingRectangle {
             anchors.fill: parent
@@ -552,7 +536,9 @@ PanelWindow {
                         required property string modelData
                         anchors.fill: parent
                         active: !!bar.retained[modelData]
-                        opacity: modelData === bar.shownPanel && (bar.shell.panel || bar.hiddenPanelVisible) && pill.height > bar.headerHeight + 30 ? 1 : 0
+                        asynchronous: modelData === "calendar"
+                        opacity: modelData === bar.shownPanel && (bar.shell.panel || bar.hiddenPanelVisible)
+                            && pill.height > bar.headerHeight + 30 && (!asynchronous || status === Loader.Ready) ? 1 : 0
                         visible: opacity > 0
                         enabled: modelData === bar.shell.panel
                         // Fade the notification stack as one image so its back
@@ -613,6 +599,7 @@ PanelWindow {
         id: calendarComponent
         CalendarPane {
             shell: bar.shell; theme: colors
+            heightBudget: bar.height - 24 - 2 * bar.calendarInset
             bottomMargin: panelLoader.bottomInset
             onImplicitHeightChanged: bar.calendarHeight = implicitHeight + 2 * bar.calendarInset
             Component.onCompleted: bar.calendarHeight = implicitHeight + 2 * bar.calendarInset

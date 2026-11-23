@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 
 Item {
     id: root
@@ -23,11 +24,18 @@ Item {
         const regions = [];
         for (let i = 0; i < banners.count; ++i) {
             const banner = banners.itemAt(i);
-            if (banner) regions.push(banner.inputRegion);
+            if (banner?.enabled) regions.push(banner.inputRegion);
         }
         return regions;
     }
     implicitHeight: column.implicitHeight
+
+    function refreshInputMask() {
+        // Forward changes from the dynamic region list, once per event turn
+        // even when several interactive banners move together.
+        const mask = root.QsWindow.window?.mask;
+        if (mask) mask.changed();
+    }
 
     function syncPopups() {
         const groups = active ? store.popupGroups : [];
@@ -99,6 +107,7 @@ Item {
                 theme: root.theme; store: root.store; group: root.popupData[entryId]
                 presented: wanted
                 onRetired: root.retire(entryId)
+                onInputGeometryChanged: Qt.callLater(root.refreshInputMask)
             }
         }
     }

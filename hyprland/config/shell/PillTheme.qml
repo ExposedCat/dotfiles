@@ -71,8 +71,10 @@ ShellTheme {
     readonly property color weatherTileTop: "#684735"
     readonly property color weatherTileMiddle: "#50372d"
     readonly property color weatherTileBottom: "#4b342c"
-    readonly property color weatherHighlight: "#20f8d3b8"
-    readonly property color weatherHoverRim: "#36ffddc6"
+    readonly property var weatherGlassStops: [[0, weatherTileTop], [0.66, weatherTileMiddle], [1, weatherTileBottom]]
+    readonly property var compactGlassStops: [[0, "#ed3b302a"], [0.66, "#ed332923"], [1, "#ed2e2520"]]
+    readonly property color glassHighlight: "#20f8d3b8"
+    readonly property color glassHoverRim: "#36ffddc6"
     readonly property color weatherAccent: "#ffe2cf"
     readonly property color weatherCondition: "#ffe7d4"
 

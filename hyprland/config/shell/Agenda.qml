@@ -5,7 +5,8 @@ import Quickshell.Io
 Scope {
     id: root
     required property var shell
-    property date rangeStart: monthOffset(shell.clock.date, 0)
+    readonly property int monthCount: 12
+    property date rangeStart: new Date(shell.clock.date.getFullYear(), 0, 1)
     property date selectedDate: shell.clock.date
     readonly property date nextDate: dayAfter(selectedDate)
     property var requestedRange: null
@@ -16,7 +17,7 @@ Scope {
     property bool unavailable: false
     property bool ready: false
     readonly property int refreshInterval: 300000
-    readonly property int cachedMonthLimit: 24
+    readonly property int cachedMonthLimit: 2 * (monthCount + 1) + 1
     readonly property string cachePath: (Quickshell.env("XDG_CACHE_HOME") || Quickshell.env("HOME") + "/.cache") + "/dotfiles/hyprland/agenda.json"
     function dayKey(date) { return Qt.formatDateTime(date, "yyyy-MM-dd"); }
     function monthKey(date) { return Qt.formatDateTime(date, "yyyy-MM"); }
@@ -36,7 +37,7 @@ Scope {
         if (!ready || reader.running) return;
         const first = rangeStart;
         // Include the following day even when the last visible date is selected.
-        const until = dayAfter(monthOffset(first, 4));
+        const until = dayAfter(monthOffset(first, monthCount));
         if (!shell.fixture && !force && rangeIsFresh(first, until)) {
             unavailable = false;
             return;
@@ -90,9 +91,9 @@ Scope {
         if (storedMonths.length <= cachedMonthLimit) return;
 
         // Protect today, the displayed range, and the fetch that just finished.
-        const keep = new Set();
-        for (const start of [shell.clock.date, rangeStart, fetchedStart]) {
-            for (let offset = 0; offset <= 4; offset++) {
+        const keep = new Set([monthKey(shell.clock.date)]);
+        for (const start of [rangeStart, fetchedStart]) {
+            for (let offset = 0; offset <= monthCount; offset++) {
                 const month = monthKey(monthOffset(start, offset));
                 if (recency[month] !== undefined) keep.add(month);
             }
@@ -118,7 +119,7 @@ Scope {
         return String(date.getUTCHours()).padStart(2, "0") + ":" + String(date.getUTCMinutes()).padStart(2, "0");
     }
     onRangeStartChanged: {
-        const monthAfter = monthOffset(rangeStart, 4);
+        const monthAfter = monthOffset(rangeStart, monthCount);
         if (selectedDate < rangeStart) selectDate(rangeStart);
         else if (selectedDate >= monthAfter)
             selectDate(new Date(monthAfter.getFullYear(), monthAfter.getMonth(), 0));

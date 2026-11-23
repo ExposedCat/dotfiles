@@ -7,7 +7,6 @@ Item {
     required property var theme
     required property var store
     required property var group
-    readonly property var entry: group.entries[0]
     property bool expanded: false
     property real unfold: expanded && cardModel.count > 1 ? 1 : 0
     Behavior on unfold { NumberAnimation { duration: 220; easing.type: Easing.InOutCubic } }
@@ -28,6 +27,7 @@ Item {
     property bool retiredSent: false
     readonly property alias inputRegion: input
     signal retired()
+    signal inputGeometryChanged()
     x: offset
     opacity: Math.min(1, arrival)
     transform: [
@@ -70,16 +70,10 @@ Item {
         enabled: !root.ready
         function onFrameSwapped() { root.ready = true; entrance.start(); root.animate(); }
     }
-    // Follow the visible card all the way out; retire the region with its item.
-    onArrivalChanged: input.changed()
     Region {
-        id: input; item: root
-        // Dynamically assigned region lists can lose child change forwarding.
-        // Invalidate the native mask as well so it follows expansion and motion.
-        onChanged: {
-            const window = root.QsWindow.window;
-            if (window?.mask && window.mask !== input) window.mask.changed();
-        }
+        id: input
+        item: root.enabled ? root : null
+        onChanged: { if (root.enabled) root.inputGeometryChanged(); }
     }
     function syncCards() {
         if (!group) return;
@@ -114,7 +108,6 @@ Item {
             if (!groupHover.hovered && root.presented) root.store.hoverPopupGroup(root.group.key, false);
         }
     }
-    PillTheme { id: colors }
     Item {
         // Leave headroom for a new member to fall onto an existing stack,
         // while clipping hidden cards below the group's animated height.
@@ -150,7 +143,7 @@ Item {
                         target: bannerCard; property: "landing"; from: 0; to: 1
                         duration: 300; easing.type: Easing.OutCubic
                     }
-                    theme: colors; store: root.store; entry: root.cardData[entryId]
+                    theme: root.theme; store: root.store; entry: root.cardData[entryId]
                     manageHover: false
                     groupControls: index === 0 && cardModel.count > 1
                     groupCount: cardModel.count
@@ -164,7 +157,7 @@ Item {
             id: stack
             width: root.width
             y: 32 + (root.firstCard ? root.firstCard.height : 0)
-            theme: colors; count: root.stackCount
+            theme: root.theme; count: root.stackCount
             opacity: 1 - root.unfold
             visible: count > 0 && opacity > 0
         }

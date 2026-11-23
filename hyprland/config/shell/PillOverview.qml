@@ -53,7 +53,7 @@ Item {
             z: -1
             enabled: false
             theme: root.theme
-            weather: true
+            glassStops: root.theme.weatherGlassStops
             radius: weatherTile.radius
             highlighted: weatherTile.hovered || (root.shell.emberEnabled && root.shell.emberTarget === weatherTile.emberSlot)
         }
