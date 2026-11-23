@@ -55,7 +55,6 @@ Item {
             theme: root.theme
             glassStops: root.theme.weatherGlassStops
             radius: weatherTile.radius
-            highlighted: weatherTile.hovered || (root.shell.emberEnabled && root.shell.emberTarget === weatherTile.emberSlot)
         }
 
         Column {

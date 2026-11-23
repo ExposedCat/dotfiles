@@ -74,7 +74,13 @@ ShellTheme {
     readonly property var weatherGlassStops: [[0, weatherTileTop], [0.66, weatherTileMiddle], [1, weatherTileBottom]]
     readonly property var compactGlassStops: [[0, "#ed3b302a"], [0.66, "#ed332923"], [1, "#ed2e2520"]]
     readonly property color glassHighlight: "#20f8d3b8"
-    readonly property color glassHoverRim: "#36ffddc6"
+    readonly property var notificationGlassStops: [
+        [[0, "#30241e"], [0.66, "#291f1a"], [1, "#231a16"]],
+        [[0, "#2b201a"], [0.66, "#241914"], [1, "#1f1712"]],
+        [[0, "#2f221b"], [0.66, "#291e18"], [1, "#251a14"]]
+    ]
+    readonly property var selectedGlassStops: [[0, "#604439"], [0.66, "#50362c"], [1, "#432e25"]]
+    readonly property color selectedGlassInk: "#ffe0cf"
     readonly property color weatherAccent: "#ffe2cf"
     readonly property color weatherCondition: "#ffe7d4"
 

@@ -16,19 +16,18 @@ Scope {
     readonly property bool loading: waitingQuick || waitingFiles
     property string notice: ""
     property string fileNotice: ""
-    property string actionMessage: ""
     property string actionError: ""
     property bool actionPending: false
-    property string pendingToken: ""
+    property bool closeAfterAction: false
     property var favorites: ({})
     readonly property string path: shell.helper
     readonly property bool active: shell.panel === "launcher"
-    signal actionFinished(string message, bool close)
+    signal closeRequested()
 
     function search(text) {
         query = text;
         generation++;
-        quick = []; files = []; notice = ""; fileNotice = ""; actionMessage = ""; actionError = "";
+        quick = []; files = []; notice = ""; fileNotice = ""; actionError = "";
         waitingQuick = true; waitingFiles = true;
         if (shell.fixture) {
             const data = shell.fixtureData.launcherResults || {};
@@ -45,22 +44,22 @@ Scope {
         else if (active && !worker.running) worker.running = true;
     }
     function act(result, action) {
-        if (!result || actionPending) return;
-        const close = action === "open" || action === "reveal";
+        if (!active || !result || actionPending) return;
+        const close = ["open", "reveal", "copy", "copy-code"].includes(action);
+        actionError = "";
         if (shell.fixture) {
             if (action === "favorite") {
                 const next = Object.assign({}, favorites);
                 next[result.id] = !isFavorite(result); favorites = next;
             }
             shell.fixtureEvent("launcher-action", {id: result.id, action: action});
-            actionMessage = action === "favorite" ? "Favorite updated" : action === "copy" ? "Copied" : "Opened";
-            actionFinished(actionMessage, close);
+            if (close) closeRequested();
             return;
         }
-        if (!ready || !worker.running) { actionMessage = "Search is starting; try again in a moment"; return; }
+        if (!ready || !worker.running) { actionError = "Search is starting; try again in a moment"; return; }
         actionPending = true;
-        pendingToken = close ? "close" : action;
-        worker.write(JSON.stringify({op: "action", resultId: result.id, action: action, token: pendingToken,
+        closeAfterAction = close;
+        worker.write(JSON.stringify({op: "action", resultId: result.id, action: action,
             appId: result.appId || "", name: result.name}) + "\n");
     }
     function isFavorite(result) {
@@ -70,15 +69,15 @@ Scope {
     function response(data) {
         if (data.ready) { ready = true; sendQuery(); return; }
         if (data.action) {
+            const close = closeAfterAction;
             actionPending = false;
+            closeAfterAction = false;
             actionError = data.error || "";
-            actionMessage = data.error || data.message || "";
             if (!data.error) {
                 const next = Object.assign({}, favorites);
                 next[data.resultId] = !!data.favorite; favorites = next;
-                actionFinished(actionMessage, data.token === "close");
-                // Empty search is the recent/favorites view; refresh it after edits.
-                if (!query) search(query);
+                if (close && active) closeRequested();
+                else if (active && !query) search(query);
             }
             return;
         }
@@ -88,7 +87,7 @@ Scope {
     }
     onActiveChanged: {
         if (active) { idle.stop(); search(query); }
-        else idle.restart();
+        else { closeAfterAction = false; idle.restart(); }
     }
     Timer { id: debounce; interval: 80; onTriggered: root.sendQuery() }
     Timer { id: idle; interval: 120000; onTriggered: { if (!root.active) { worker.running = false; root.ready = false; } } }
@@ -104,7 +103,7 @@ Scope {
         }
         stderr: SplitParser { onRead: line => console.warn("Launcher:", line) }
         onExited: (code, status) => {
-            root.ready = false; root.actionPending = false;
+            root.ready = false; root.actionPending = false; root.closeAfterAction = false;
             root.waitingQuick = false; root.waitingFiles = false;
             if (code !== 0 && root.active) root.notice = "Search stopped; type to retry";
         }

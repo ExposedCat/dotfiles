@@ -136,7 +136,7 @@ Item {
                 symbolicColor: root.theme.text
                 Layout.preferredWidth: root.inCenter ? 40 : root.isBanner ? 56 : 48
                 Layout.preferredHeight: Layout.preferredWidth
-                Layout.alignment: root.isBanner ? Qt.AlignVCenter : Qt.AlignTop
+                Layout.alignment: root.inCenter || root.isBanner ? Qt.AlignVCenter : Qt.AlignTop
                 sourceSize.width: 112; sourceSize.height: 112
                 fillMode: iconSource.startsWith("image://icon/") ? Image.PreserveAspectFit : Image.PreserveAspectCrop
                 asynchronous: true

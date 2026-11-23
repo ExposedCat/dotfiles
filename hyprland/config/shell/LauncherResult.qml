@@ -9,10 +9,12 @@ Rectangle {
     required property int index
     property bool selected: false
     property bool favorite: false
+    property bool canReuseValue: false
     property var emberShell: null
     readonly property alias emberSlot: selectionSlot
     signal pointerMoved(real x, real y)
     signal activated()
+    signal reuseRequested()
     height: 52; radius: 10
     color: selected && !selectionSlot.occupied ? Qt.alpha(theme.hover, 0.58) : "transparent"
     border.width: selected && !selectionSlot.occupied ? 1 : 0; border.color: Qt.alpha(theme.border, 0.22)
@@ -22,6 +24,11 @@ Rectangle {
         anchors.fill: parent
         shapeRadius: root.radius
         shapeOpacity: 0.42
+    }
+    MouseArea {
+        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+        onPositionChanged: mouse => root.pointerMoved(mouse.x, mouse.y)
+        onClicked: root.activated()
     }
     RowLayout {
         anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
@@ -50,11 +57,16 @@ Rectangle {
             color: root.theme.secondary; elide: Text.ElideRight
         }
         Text { text: "★"; visible: root.favorite; color: "#cc7855"; font: root.theme.textFont }
-    }
-    MouseArea {
-        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-        onPositionChanged: mouse => root.pointerMoved(mouse.x, mouse.y)
-        onClicked: root.activated()
+        ShellButton {
+            visible: root.canReuseValue
+            theme: root.theme
+            text: "Tab"
+            Accessible.name: "Use result in search (Tab)"
+            activeFocusOnTab: false
+            Layout.preferredHeight: 30
+            color: Qt.alpha(root.theme.surface, 0.8)
+            onClicked: root.reuseRequested()
+        }
     }
     Accessible.role: Accessible.Button
     Accessible.name: modelData.name + ". " + (modelData.description || "")

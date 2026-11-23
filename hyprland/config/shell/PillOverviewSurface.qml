@@ -5,7 +5,6 @@ Canvas {
     required property var theme
     required property real radius
     property var glassStops: null
-    property bool highlighted: false
     property bool frameOnly: false
     property real resolutionScale: 1
     readonly property real rimWidth: 1.25 * resolutionScale
@@ -19,7 +18,6 @@ Canvas {
     onHeightChanged: requestPaint()
     onRadiusChanged: requestPaint()
     onGlassStopsChanged: requestPaint()
-    onHighlightedChanged: requestPaint()
     onPanelGradientChanged: requestPaint()
     onOverviewBlendChanged: { if (panelGradient) requestPaint(); }
     onRimColorChanged: requestPaint()
@@ -77,8 +75,7 @@ Canvas {
         for (const [position, color] of glassStops) wash.addColorStop(position, color);
         ctx.fillStyle = wash;
         ctx.fillRect(0, 0, w, h);
-        if (highlighted) strokeRim(ctx, w, h, radius, theme.glassHoverRim);
-        else insetHighlight(ctx, 0, 0, w, h, radius, highlightColor);
+        insetHighlight(ctx, 0, 0, w, h, radius, highlightColor);
     }
 
     function paintGradients(ctx, w, h, layers) {

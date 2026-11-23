@@ -81,7 +81,13 @@ ColumnLayout {
     spacing: 6
     RowLayout {
         Layout.fillWidth: true
-        ShellButton { theme: root.theme; icon: root.shell.notifications.dnd ? "bell-off" : "bell"; text: "Do not disturb"; selected: root.shell.notifications.dnd; onClicked: root.shell.notifications.dnd = !root.shell.notifications.dnd }
+        PillToggle {
+            theme: root.theme
+            text: "Do not disturb"
+            selected: root.shell.notifications.dnd
+            icon: selected ? "bell-off" : "bell"
+            onClicked: root.shell.notifications.dnd = !root.shell.notifications.dnd
+        }
         Item { Layout.fillWidth: true }
         ShellButton { theme: root.theme; icon: "list-x"; hint: "Clear notifications"; enabled: root.shell.notifications.entries.length > 0; onClicked: root.shell.notifications.clear() }
     }

@@ -22,6 +22,7 @@ hl.bind(mainMod .. " + R", function() pill.open("launcher") end)
 hl.bind(mainMod .. " + space", function() pill.open("launcher") end)
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd(helper .. " lock"))
 hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd(helper .. " clipboard"))
+hl.bind(mainMod .. " + 0", hl.dsp.exec_cmd(capture .. " select color"))
 hl.bind("Print", hl.dsp.exec_cmd(capture .. " select region"))
 hl.bind("ALT + Print", hl.dsp.exec_cmd(capture .. " select window"))
 hl.bind("CTRL + SHIFT + ALT + R", hl.dsp.exec_cmd(capture .. " select record"))
@@ -44,11 +45,13 @@ hl.bind("SUPER + SHIFT + Page_Down", function() workspaces.step(1, true) end)
 hl.bind("CTRL + ALT + SHIFT + left", function() workspaces.step(-1, true) end)
 hl.bind("CTRL + ALT + SHIFT + right", function() workspaces.step(1, true) end)
 
--- Switch workspaces with mainMod + [0-9]
+-- Switch workspaces with mainMod + [1-9]
 -- Move active window to a workspace with mainMod + SHIFT + [0-9]
 for i = 1, 10 do
     local key = i % 10 -- 10 maps to key 0
-    hl.bind(mainMod .. " + " .. key, function() workspaces.select(i) end)
+    if key ~= 0 then
+        hl.bind(mainMod .. " + " .. key, function() workspaces.select(i) end)
+    end
     hl.bind(mainMod .. " + SHIFT + " .. key, function() workspaces.select(i, true) end)
 end
 

@@ -13,14 +13,12 @@ ColumnLayout {
     Applications { id: localIndex; shell: root.shell }
     LauncherProviders {
         id: providers; shell: root.shell
-        onActionFinished: (message, close) => { root.copied = message === "Copied"; if (close && !root.shell.pill?.launcherDragged) root.shell.panel = ""; }
+        onCloseRequested: root.shell.panel = ""
     }
     readonly property var indexStore: shell.applications || localIndex
     readonly property var installedApps: indexStore.apps
     readonly property var apps: indexStore.apps
     readonly property string error: indexStore.error
-    property bool launching: false
-    property bool copied: false
     readonly property bool loading: indexStore.loading || providers.loading
     readonly property var matches: Fuzzy.rank(apps, search.text, indexStore.usage)
     readonly property bool filtered: /^(files?|f|chars?|characters?|emoji|symbols?|bookmarks?|bm|web)\s/i.test(search.text) || /^(\/|~\/|file:\/\/)/.test(search.text)
@@ -66,21 +64,27 @@ ColumnLayout {
         selectionExplicit = true;
         list.currentIndex = index;
         selectedId = selected ? selected.id : "";
-        copied = false; providers.actionMessage = "";
     }
     onResultsChanged: Qt.callLater(maintainSelection)
-    function selectFilter(prefix) { search.text = prefix; search.forceActiveFocus(); search.cursorPosition = search.text.length; }
+    function replaceQuery(text) {
+        search.text = text;
+        focusSearch();
+        search.cursorPosition = text.length;
+    }
+    function canReuseResult(row) {
+        return !!row?.value && ["calculation", "arithmetic", "currency"].includes(row.kind);
+    }
     function defaultAction(row) { return ["app", "file", "bookmark", "web"].includes(row.kind) ? "open" : "copy"; }
     function launch() { if (selected) act(defaultAction(selected)); }
     function act(action) {
         if (!selected) return;
-        if (action === "browse" && selected.directory) { selectFilter(selected.path + "/"); return; }
+        if (action === "browse" && selected.directory) { replaceQuery(selected.path + "/"); return; }
         if (selected.kind === "app" && action === "open") indexStore.record(selected.appId);
         providers.act(selected, action);
     }
     function focusSearch() { search.forceActiveFocus(); }
     function activate() {
-        launching = false; copied = false; selectedId = ""; selectionExplicit = false;
+        selectedId = ""; selectionExplicit = false;
         pointerPosition = Qt.point(-1, -1);
         indexStore.refresh();
         if (search.text) search.clear();
@@ -105,7 +109,7 @@ ColumnLayout {
         ShellIcon { x: 13; y: Math.round((parent.height - height) / 2); name: "search"; width: 24; height: 24; opacity: 0.8 }
         EmberSlot { id: caretSlot; shell: root.shell; x: search.cursorRectangle.x; y: search.cursorRectangle.y; width: 3; height: search.cursorRectangle.height || 19; shapeRadius: 1.5; caret: true }
         onTextChanged: {
-            root.copied = false; root.selectedId = ""; root.selectionExplicit = false;
+            root.selectedId = ""; root.selectionExplicit = false;
             providers.search(text); Qt.callLater(root.maintainSelection);
         }
         Keys.onDownPressed: root.moveSelection(1)
@@ -117,8 +121,14 @@ ColumnLayout {
                 root.act("favorite"); event.accepted = true;
             } else if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.selected?.kind === "file") {
                 root.act("reveal"); event.accepted = true;
-            } else if (event.key === Qt.Key_Tab && root.selected?.directory) {
-                root.act("browse"); event.accepted = true;
+            } else if (event.key === Qt.Key_Tab && event.modifiers === Qt.NoModifier) {
+                if (root.canReuseResult(root.selected)) {
+                    root.replaceQuery(root.selected.value);
+                    event.accepted = true;
+                } else if (root.selected?.directory) {
+                    root.act("browse");
+                    event.accepted = true;
+                }
             }
         }
         onAccepted: root.launch()
@@ -165,6 +175,8 @@ ColumnLayout {
             emberShell: root.shell
             selected: ListView.isCurrentItem
             favorite: providers.isFavorite(modelData)
+            canReuseValue: root.canReuseResult(modelData)
+            onReuseRequested: root.replaceQuery(modelData.value)
             onPointerMoved: (x, y) => {
                 const p = mapToItem(root, x, y);
                 if (root.pointerPosition.x >= 0 && (Math.abs(p.x - root.pointerPosition.x) > 0.5 || Math.abs(p.y - root.pointerPosition.y) > 0.5))

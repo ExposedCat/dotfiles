@@ -12,6 +12,7 @@ Item {
     Repeater {
         model: root.count
         Item {
+            id: layer
             required property int index
             readonly property int depth: index + 1
             x: depth * 8; y: index * root.step
@@ -21,6 +22,7 @@ Item {
                 width: parent.width; height: 80
                 y: parent.height - height
                 theme: root.theme; inset: root.inset
+                depth: layer.depth
             }
         }
     }

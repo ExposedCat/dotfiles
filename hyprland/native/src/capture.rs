@@ -153,7 +153,7 @@ fn capture_window(directory: &Path, cursor: bool) -> Result<()> {
     frame_window(&window)?.write_to(&mut png, ImageFormat::Png)?;
     save_screenshot(png.into_inner())
 }
-fn capture_outputs(monitors: &Value, directory: &Path) -> Result<Value> {
+fn capture_outputs(monitors: &Value, directory: &Path, with_cursor: bool) -> Result<Value> {
     let mut outputs = vec![];
     let mut jobs = vec![];
     for (i, m) in rows(monitors).iter().enumerate() {
@@ -170,15 +170,17 @@ fn capture_outputs(monitors: &Value, directory: &Path) -> Result<Value> {
         }
         let plain = directory.join(format!("screen-{i}.ppm"));
         let cursor = directory.join(format!("screen-{i}-cursor.ppm"));
-        for (path, with_cursor) in [(&plain, false), (&cursor, true)] {
-            let mut c = command(&["grim", "-t", "ppm"]);
-            if with_cursor {
-                c.arg("-c");
-            }
-            c.args(["-o", s(m, "name")]).arg(path);
-            jobs.push(c);
+        let mut capture = command(&["grim", "-t", "ppm", "-o", s(m, "name")]);
+        capture.arg(&plain);
+        jobs.push(capture);
+        let mut output = json!({"name":m["name"],"x":m["x"],"y":m["y"],"width":w/scale,"height":h/scale,"scale":scale,"focused":m["focused"],"plain":url::Url::from_file_path(plain).unwrap().as_str()});
+        if with_cursor {
+            let mut capture = command(&["grim", "-c", "-t", "ppm", "-o", s(m, "name")]);
+            capture.arg(&cursor);
+            jobs.push(capture);
+            output["cursor"] = json!(url::Url::from_file_path(cursor).unwrap().as_str());
         }
-        outputs.push(json!({"name":m["name"],"x":m["x"],"y":m["y"],"width":w/scale,"height":h/scale,"scale":scale,"focused":m["focused"],"plain":url::Url::from_file_path(plain).unwrap().as_str(),"cursor":url::Url::from_file_path(cursor).unwrap().as_str()}));
+        outputs.push(output);
     }
     // At most four grim processes, matching the original capture batch.
     while !jobs.is_empty() {
@@ -283,7 +285,7 @@ fn open_warm(directory: &Path) -> Result<bool> {
     Ok(true)
 }
 fn select(mode: &str) -> Result<()> {
-    if !["region", "window", "record"].contains(&mode) {
+    if !["region", "window", "record", "color"].contains(&mode) {
         bail!("Invalid capture mode");
     }
     if mode == "record" && recording() {
@@ -297,30 +299,67 @@ fn select(mode: &str) -> Result<()> {
     let dir = tempfile::Builder::new()
         .prefix("dotfiles-capture-")
         .tempdir_in(runtime()?)?;
-    let preferences = preferences();
     if mode == "window" {
-        return capture_window(dir.path(), preferences["cursor"] == true);
+        return capture_window(dir.path(), preferences()["cursor"] == true);
     }
+    let picker = mode == "color";
     let monitors = json(&["hyprctl", "monitors", "-j"])?;
-    let outputs = capture_outputs(&monitors, dir.path())?;
+    let outputs = capture_outputs(&monitors, dir.path(), !picker)?;
     if rows(&outputs).is_empty() {
         bail!("No active displays are available");
     }
-    let data = json!({"mode":mode,"outputs":outputs,"render":dir.path().join("render.png"),"selection":null,"preferences":preferences});
+    if picker {
+        atomic_json(
+            &dir.path().join("session.json"),
+            &json!({"outputs": outputs}),
+        )?;
+        run_capture_ui(dir.path(), "color-picker.qml")?;
+        return copy_picked_color(dir.path(), &outputs);
+    }
+    let data = json!({"mode":mode,"outputs":outputs,"render":dir.path().join("render.png"),"selection":null,"preferences":preferences()});
     atomic_json(&dir.path().join("session.json"), &data)?;
     if open_warm(dir.path())? {
         return Ok(());
     }
+    run_capture_ui(dir.path(), "capture.qml")
+}
+fn run_capture_ui(directory: &Path, config: &str) -> Result<()> {
     let mut c = command(&[
         "quickshell",
         "--path",
-        &root().join("tools/capture.qml").to_string_lossy(),
+        &root().join("tools").join(config).to_string_lossy(),
     ]);
-    c.env("DOTFILES_CAPTURE_SESSION", dir.path());
+    c.env("DOTFILES_CAPTURE_SESSION", directory);
     if !c.status()?.success() {
         bail!("Capture UI failed");
     }
     Ok(())
+}
+fn copy_picked_color(directory: &Path, outputs: &Value) -> Result<()> {
+    let result = match fs::read(directory.join("result.json")) {
+        Ok(result) => serde_json::from_slice::<Value>(&result)?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    let output = rows(outputs)
+        .iter()
+        .find(|output| output["name"] == result["output"])
+        .context("The selected display is unavailable")?;
+    let path = url::Url::parse(s(output, "plain"))?
+        .to_file_path()
+        .map_err(|_| anyhow::anyhow!("Invalid display capture path"))?;
+    let image = image::open(path)?.into_rgb8();
+    let coordinate = |key| result[key].as_u64().and_then(|n| u32::try_from(n).ok());
+    let pixel = coordinate("x")
+        .zip(coordinate("y"))
+        .and_then(|(x, y)| image.get_pixel_checked(x, y))
+        .context("The selected pixel is outside the display capture")?;
+    let [r, g, b] = pixel.0;
+    status(
+        command(&["wl-copy", "--type", "text/plain"]),
+        Some(format!("#{r:02X}{g:02X}{b:02X}").into_bytes()),
+        Duration::from_secs(5),
+    )
 }
 fn session(args: &[String]) -> Result<(PathBuf, Value, Vec<String>)> {
     let mut args = args.to_vec();

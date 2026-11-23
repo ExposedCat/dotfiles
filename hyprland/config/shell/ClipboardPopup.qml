@@ -102,6 +102,7 @@ PanelWindow {
         error = "";
         entries = shell.fixture ? (shell.fixtureData.clipboard || []) : [];
         list.currentIndex = 0;
+        list.positionViewAtBeginning();
         if (!shell.fixture) {
             loading = true;
             readHistory.running = true;
@@ -255,17 +256,42 @@ PanelWindow {
             clip: true
             spacing: root.entryGap
             boundsBehavior: Flickable.StopAtBounds
-            highlightMoveDuration: 0
-            keyNavigationEnabled: true
+            // A hovered edge row can be partially visible. Only the keyboard
+            // should scroll the selected row into view.
+            highlightFollowsCurrentItem: false
             activeFocusOnTab: true
             model: root.entries
             PillWheel { id: wheel; flickable: list; duration: 150 }
             onModelChanged: wheel.stop()
-            onCurrentIndexChanged: { if (root.opened) wheel.stop(); }
+            function moveSelection(by) {
+                if (!count) return;
+                wheel.stop();
+                currentIndex = root.clamp(currentIndex + by, 0, count - 1);
+                positionViewAtIndex(currentIndex, ListView.Contain);
+            }
+            Keys.onUpPressed: moveSelection(-1)
+            Keys.onDownPressed: moveSelection(1)
             Keys.onReturnPressed: root.accept(currentIndex)
             Keys.onEnterPressed: root.accept(currentIndex)
             Keys.onEscapePressed: root.close()
             KeyNavigation.tab: clearButton.enabled ? clearButton : list
+            HoverHandler {
+                parent: list
+                enabled: list.enabled && root.progress >= 0.95
+                property point lastPosition: Qt.point(-1, -1)
+                onHoveredChanged: { if (!hovered) lastPosition = Qt.point(-1, -1); }
+                onPointChanged: {
+                    // Scrolling moves the content under a stationary pointer.
+                    const position = point.scenePosition;
+                    if (!hovered || (position.x === lastPosition.x && position.y === lastPosition.y)) return;
+                    lastPosition = position;
+                    const content = list.contentItem.mapFromItem(null, position);
+                    const index = list.indexAt(content.x, content.y);
+                    if (index < 0) return;
+                    list.currentIndex = index;
+                    if (!list.activeFocus) list.forceActiveFocus(Qt.MouseFocusReason);
+                }
+            }
             delegate: ClipboardRow {
                 stillImage: root.isImage(modelData)
                 width: list.width

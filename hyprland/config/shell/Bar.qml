@@ -178,7 +178,9 @@ PanelWindow {
     readonly property int notificationGap: 12
     readonly property int notificationSlot: 30
     readonly property bool hasUnreadNotifications: shell.notifications.unread > 0
-    readonly property int notificationSpace: hasUnreadNotifications ? notificationSlot : 0
+    readonly property bool notificationsMuted: shell.notifications.dnd
+    readonly property bool showNotificationIndicator: notificationsMuted || hasUnreadNotifications
+    readonly property int notificationSpace: showNotificationIndicator ? notificationSlot : 0
     readonly property int privacyGap: 8
     readonly property int privacyButtonWidth: 32
     readonly property int privacyButtonSpacing: 2
@@ -457,11 +459,19 @@ PanelWindow {
                     height: Math.round(32 + (expandedSize - 32) * bar.detailsOpacity)
                     radius: height / 2
                     color: Qt.alpha(fill, fill.a * bar.detailsOpacity)
-                    opacity: bar.hasUnreadNotifications ? 1 : bar.detailsOpacity
+                    opacity: bar.showNotificationIndicator ? 1 : bar.detailsOpacity
                     visible: opacity > 0
-                    enabled: bar.hasUnreadNotifications || (bar.popupOpen && opacity > 0.95)
+                    enabled: bar.showNotificationIndicator || (bar.popupOpen && opacity > 0.95)
                     theme: colors
-                    hint: "Notifications"; onClicked: bar.openPanel("notifications")
+                    hint: bar.notificationsMuted ? "Notifications muted" : "Notifications"
+                    onClicked: bar.openPanel("notifications")
+                    ShellIcon {
+                        name: "bell-off"
+                        tint: colors.overviewAccent
+                        anchors.centerIn: parent
+                        opacity: bar.notificationsMuted ? 1 - bar.detailsOpacity : 0
+                        visible: opacity > 0
+                    }
                     ShellIcon {
                         name: "bell"
                         tint: colors.overviewInk
@@ -475,7 +485,8 @@ PanelWindow {
                         x: Math.round((parent.width - width) / 2 + 12 * bar.detailsOpacity)
                         y: Math.round((parent.height - height) / 2 - 10 * bar.detailsOpacity)
                         color: Qt.tint(colors.focusColor, Qt.alpha(colors.overviewAccent, bar.detailsOpacity))
-                        visible: bar.hasUnreadNotifications
+                        opacity: bar.notificationsMuted ? bar.detailsOpacity : 1
+                        visible: bar.hasUnreadNotifications && opacity > 0
                     }
                 }
                 Row {

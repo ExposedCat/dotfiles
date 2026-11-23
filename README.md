@@ -177,13 +177,14 @@ them; Shift+Caps Lock toggles normal Caps Lock.
 | Super+L | Lock with Hyprlock; use your normal login password to unlock |
 | Super+N | Active notifications, calendar, and Do not disturb |
 | Super+M | Power menu (lock, suspend, logout, restart, shut down) |
+| Super+0 | Magnify screen pixels under the crosshair. Left click copies the hex color, Escape or right click cancels |
 | Print | Select and annotate a screenshot area |
 | Alt+Print | Immediately copy and save the current window |
 | Ctrl+Shift+Alt+R | Select a recording area, or stop the active recording |
 | Super+Page Up/Down or Ctrl+Alt+Left/Right | Previous/next workspace on the focused monitor |
 | Super+Shift+Page Up/Down or Ctrl+Alt+Shift+Left/Right | Move the active window to the previous/next workspace on its monitor |
 | Logitech Back/Forward with the OpenLogi mappings below | Previous/next workspace. Hold Shift or Super to move the active window with you. Super also works during a left-button drag |
-| Super+1…0 / Super+Shift+1…0 | Select / move a window to an existing workspace by position on the focused monitor |
+| Super+1…9 / Super+Shift+1…0 | Select / move a window to an existing workspace by position on the focused monitor |
 | Volume and mute keys | PipeWire volume and mute |
 | Play/pause and previous/next keys | Control an MPRIS player, preferring one already playing |
 | Brightness keys | Adjust the focused monitor through DDC/CI in 5-point steps; show its actual brightness in an OSD |

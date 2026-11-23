@@ -133,8 +133,10 @@ ColumnLayout {
         boundsBehavior: Flickable.StopAtBounds
         move: Transition { NumberAnimation { properties: "x,y"; duration: 180; easing.type: Easing.OutCubic } }
         displaced: Transition { NumberAnimation { properties: "x,y"; duration: 180; easing.type: Easing.OutCubic } }
-        PillWheel { flickable: list }
-        ScrollBar.vertical: ScrollBar {}
+        PillWheel { id: wheel; flickable: list; duration: 150 }
+        ScrollBar.vertical: ScrollBar {
+            onPressedChanged: { if (pressed) wheel.stop(); }
+        }
         footer: Item {
             width: list.width
             height: root.bluetooth.searching ? 32 : 0
