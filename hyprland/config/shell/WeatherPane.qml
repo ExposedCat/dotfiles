@@ -8,6 +8,7 @@ Flickable {
     required property var theme
     readonly property var weather: shell.weather
     readonly property bool pickingLocation: !weather.location || changingLocation
+    readonly property Item emberTarget: pickingLocation ? null : locationArrowMarker
     readonly property bool hasSearched: !!weather.searchedQuery && query === weather.searchedQuery
     readonly property string query: search.text.trim()
     property bool changingLocation: false
@@ -118,12 +119,14 @@ Flickable {
             }
         }
 
-        Rectangle {
+        PillOverviewSurface {
             Layout.fillWidth: true
             visible: !root.pickingLocation
             implicitHeight: conditions.implicitHeight + 26
-            radius: 20
-            color: Qt.alpha(root.theme.weatherTileTop, 0.65)
+            theme: root.theme
+            radius: root.theme.overviewTileRadius
+            weather: true
+
             ColumnLayout {
                 id: conditions
                 anchors { fill: parent; topMargin: 13; bottomMargin: 13; leftMargin: 15; rightMargin: 15 }
@@ -162,7 +165,13 @@ Flickable {
                         ShellIcon {
                             name: "chevron-down"
                             Layout.preferredWidth: 16; Layout.preferredHeight: 16
-                            tint: root.theme.overviewSecondary
+                            tint: locationArrowMarker.landed ? root.theme.overviewAccent : root.theme.overviewSecondary
+                            EmberSlot {
+                                id: locationArrowMarker
+                                anchors.fill: parent
+                                shell: root.shell
+                                shapeOpacity: 0
+                            }
                         }
                     }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }

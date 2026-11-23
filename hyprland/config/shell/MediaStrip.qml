@@ -8,6 +8,7 @@ Rectangle {
     required property var player
     property bool showPlayerList: false
     signal playerListRequested()
+    readonly property Item playbackSlot: playPause.enabled ? playPause.emberSlot : null
     readonly property bool playing: shell.media.isPlaying(player)
     readonly property real duration: Math.max(0, player?.length || 0)
     readonly property int coverSize: width < 372 ? 50 : 68
@@ -62,10 +63,13 @@ Rectangle {
                         onClicked: root.shell.media.action(root.player, "previous")
                     }
                     Transport {
+                        id: playPause
                         icon: root.playing ? "pause" : "play"
                         hint: (root.playing ? "Pause " : "Play ") + (root.player?.identity || "media")
                         selected: root.playing
                         enabled: !!root.player?.canTogglePlaying
+                        emberShell: root.shell
+                        emberSlot.shapeOpacity: 0
                         onClicked: root.shell.media.action(root.player, "toggle")
                     }
                     Transport {
@@ -76,6 +80,7 @@ Rectangle {
                     Transport {
                         visible: root.showPlayerList
                         icon: "layers"; hint: "Show all media players"
+                        emberSlot.shapeOpacity: 0
                         onClicked: root.playerListRequested()
                     }
                 }

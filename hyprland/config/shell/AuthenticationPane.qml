@@ -67,7 +67,7 @@ Item {
                 width: 3; height: password.cursorRectangle.height || 19; shapeRadius: 1.5; caret: true
             }
             background: Rectangle {
-                radius: 10; color: root.theme.surface
+                radius: 10; color: root.theme.background
                 Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 10 } height: 2; radius: 1; color: root.theme.focusColor; visible: password.activeFocus && !root.shell.emberEnabled }
             }
             onAccepted: root.submit()

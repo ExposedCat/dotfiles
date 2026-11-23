@@ -188,7 +188,7 @@ ShellRoot {
                 root.gesture(parts[1], parts[2] || "");
                 return;
             }
-            if (event.name === "workspacev2" && !root.panel && !root.pill.expanded) {
+            if (event.name === "workspacev2" && !root.panel && (!bar.expanded || bar.desktopExpanded)) {
                 const comma = event.data.indexOf(",");
                 const identity = comma >= 0 ? event.data.slice(0, comma) : event.data;
                 const workspace = Hyprland.workspaces.values.find(w => String(w.id) === identity);

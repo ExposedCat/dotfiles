@@ -233,7 +233,12 @@ PanelWindow {
         width: root.blend(root.origin.width, root.destination.width)
         height: root.blend(root.origin.height, root.destination.height)
         opacity: Math.min(1, root.progress * 4)
-        PillBackground { anchors.fill: parent; theme: root.theme }
+        PillOverviewSurface {
+            anchors.fill: parent
+            radius: 20
+            theme: root.theme
+            panelGradient: theme.popupGradients.clipboard
+        }
         ListView {
             id: list
             objectName: "clipboardEntries"

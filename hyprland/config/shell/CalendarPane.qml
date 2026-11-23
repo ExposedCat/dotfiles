@@ -37,7 +37,7 @@ Flickable {
     readonly property Item emberTarget: {
         if (hoveredEvent) return hoveredEvent.emberSlot;
         if (monthDirection) return null;
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < Math.min(4, months.created); i++) {
             const slot = months.itemAt(i)?.selectedSlot;
             if (slot) return slot;
         }
@@ -150,6 +150,9 @@ Flickable {
                     }
                     Repeater {
                         id: months
+                        property int created: 0
+                        onItemAdded: created++
+                        onItemRemoved: created--
                         model: 5
                         MonthSlide {
                             required property int index
@@ -311,8 +314,8 @@ Flickable {
         readonly property Item selectedSlot: {
             const selected = root.agenda.selectedDate;
             if (selected.getFullYear() !== first.getFullYear() || selected.getMonth() !== first.getMonth()) return null;
-            const offset = (first.getDay() + 6) % 7;
-            return cells.itemAt(offset + selected.getDate() - 1)?.emberSlot || null;
+            const index = (first.getDay() + 6) % 7 + selected.getDate() - 1;
+            return index < cells.created ? cells.itemAt(index)?.emberSlot || null : null;
         }
         CalendarCard { anchors.fill: parent }
         ColumnLayout {
@@ -348,6 +351,9 @@ Flickable {
                 }
                 Repeater {
                     id: cells
+                    property int created: 0
+                    onItemAdded: created++
+                    onItemRemoved: created--
                     model: month.days
                     Item {
                         id: day

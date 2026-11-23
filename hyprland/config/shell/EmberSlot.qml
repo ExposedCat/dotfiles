@@ -5,6 +5,7 @@ Item {
     id: root
     required property var shell
     property Item ember: null
+    property EmberHoverGroup hoverGroup: null
     property real shapeRadius: Math.min(width, height) / 2
     property real shapeOpacity: 1
     property real shapeBorderWidth: 0

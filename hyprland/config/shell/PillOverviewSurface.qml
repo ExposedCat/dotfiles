@@ -7,6 +7,8 @@ Canvas {
     property bool weather: false
     property bool highlighted: false
     property bool frameOnly: false
+    property var panelGradient: null
+    property real overviewBlend: 0
     property color rimColor: theme.overviewRim
     property color highlightColor: theme.overviewHighlight
     property bool highlightInsideRim: true
@@ -15,6 +17,8 @@ Canvas {
     onHeightChanged: requestPaint()
     onRadiusChanged: requestPaint()
     onHighlightedChanged: requestPaint()
+    onPanelGradientChanged: requestPaint()
+    onOverviewBlendChanged: { if (panelGradient) requestPaint(); }
     onRimColorChanged: requestPaint()
     onHighlightColorChanged: requestPaint()
     onHighlightInsideRimChanged: requestPaint()
@@ -56,14 +60,17 @@ Canvas {
         ctx.stroke();
     }
 
-    function paintWeather(ctx, w, h) {
-        // CSS linear-gradient(132deg) spans the opposing corners.
-        const angle = 132 * Math.PI / 180;
+    function linearGradient(ctx, w, h, degrees) {
+        const angle = degrees * Math.PI / 180;
         const dx = Math.sin(angle), dy = -Math.cos(angle);
-        const reach = (w * dx + h * dy) / 2;
+        const reach = (w * Math.abs(dx) + h * Math.abs(dy)) / 2;
         const x = w / 2, y = h / 2;
-        const wash = ctx.createLinearGradient(x - dx * reach, y - dy * reach,
+        return ctx.createLinearGradient(x - dx * reach, y - dy * reach,
             x + dx * reach, y + dy * reach);
+    }
+
+    function paintWeather(ctx, w, h) {
+        const wash = linearGradient(ctx, w, h, 132);
         wash.addColorStop(0, theme.weatherTileTop);
         wash.addColorStop(0.66, theme.weatherTileMiddle);
         wash.addColorStop(1, theme.weatherTileBottom);
@@ -73,22 +80,28 @@ Canvas {
         else insetHighlight(ctx, 0, 0, w, h, radius, theme.weatherHighlight);
     }
 
-    function paintPanel(ctx, w, h) {
-        // A farthest-corner ellipse centered at 42% -34%, as in the mockup.
-        const x = 0.42 * w, y = -0.34 * h;
-        const rx = (w - x) * Math.SQRT2, ry = (h - y) * Math.SQRT2;
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.scale(rx, ry);
-        const wash = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-        wash.addColorStop(0, theme.overviewGlow);
-        wash.addColorStop(0.49, theme.overviewMiddle);
-        wash.addColorStop(0.87, theme.overviewBase);
-        wash.addColorStop(1, theme.overviewBase);
-        ctx.fillStyle = wash;
-        ctx.fillRect(-x / rx, -y / ry, w / rx, h / ry);
-        ctx.restore();
-        paintFrame(ctx, w, h);
+    function paintGradients(ctx, w, h, layers) {
+        for (const layer of layers) {
+            ctx.save();
+            ctx.globalAlpha *= layer.strength;
+            let wash, x = 0, y = 0, rx = 1, ry = 1;
+            if (layer.angle !== undefined) {
+                wash = linearGradient(ctx, w, layer.referenceHeight ?? h, layer.angle);
+            } else {
+                x = layer.center[0] * w;
+                y = layer.center[1] * h;
+                // The overview uses a farthest-corner ellipse.
+                rx = layer.radii ? layer.radii[0] * w : (w - x) * Math.SQRT2;
+                ry = layer.radii ? layer.radii[1] * h : (h - y) * Math.SQRT2;
+                ctx.translate(x, y);
+                ctx.scale(rx, ry);
+                wash = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+            }
+            for (const [position, color] of layer.stops) wash.addColorStop(position, color);
+            ctx.fillStyle = wash;
+            ctx.fillRect(-x / rx, -y / ry, w / rx, h / ry);
+            ctx.restore();
+        }
     }
 
     function paintFrame(ctx, w, h) {
@@ -107,6 +120,18 @@ Canvas {
         ctx.clip();
         if (frameOnly) paintFrame(ctx, w, h);
         else if (weather) paintWeather(ctx, w, h);
-        else paintPanel(ctx, w, h);
+        else {
+            if (panelGradient) {
+                ctx.fillStyle = theme.overviewBase;
+                ctx.fillRect(0, 0, w, h);
+                paintGradients(ctx, w, h, panelGradient);
+            }
+            if (!panelGradient || overviewBlend > 0) {
+                ctx.globalAlpha = panelGradient ? overviewBlend : 1;
+                paintGradients(ctx, w, h, theme.overviewGradient);
+                ctx.globalAlpha = 1;
+            }
+            paintFrame(ctx, w, h);
+        }
     }
 }

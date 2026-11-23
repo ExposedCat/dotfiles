@@ -28,8 +28,8 @@ ClippingRectangle {
     radius: 10
     implicitHeight: richText.item?.implicitHeight ?? 44
     clip: true
-    color: staticFocus && !mediaOutline ? Qt.tint(theme.surface, Qt.alpha(theme.focusColor, 0.42))
-        : pointer.containsMouse ? Qt.alpha(theme.hover, 0.72) : theme.surface
+    color: staticFocus && !mediaOutline ? Qt.tint(theme.background, Qt.alpha(theme.focusColor, 0.42))
+        : pointer.containsMouse ? Qt.tint(theme.background, theme.overviewButtonHover) : theme.background
     Accessible.role: Accessible.Button
     Accessible.name: modelData.preview || "Formatted text"
     Accessible.onPressAction: activated()

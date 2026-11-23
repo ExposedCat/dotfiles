@@ -91,45 +91,68 @@ Item {
                 id: tabs
                 objectName: "shareTabs"
                 Layout.fillWidth: true; implicitHeight: 42
-                readonly property var options: [{id: "screen", name: "Monitors"}, {id: "window", name: "Windows"}, {id: "workspace", name: "Workspaces"}]
+                readonly property var options: [
+                    {id: "screen", name: "Monitors"},
+                    {id: "window", name: "Windows"},
+                    {id: "workspace", name: "Workspaces"}
+                ]
                 readonly property int index: options.findIndex(option => option.id === root.tab)
-                readonly property real tabWidth: (width - 6) / options.length
-                readonly property Item selectedSlot: index >= 0 && index < shareTabs.count ? shareTabs.itemAt(index)?.emberSlot ?? null : null
+                readonly property Item selectedSlot: tabRow.children.find(control => control.chosen)?.emberSlot || null
                 activeFocusOnTab: true
                 Accessible.role: Accessible.PageTabList
                 Accessible.name: "Sharing sources"
                 Keys.onRightPressed: root.setTab(options[Math.min(options.length - 1, index + 1)].id)
                 Keys.onLeftPressed: root.setTab(options[Math.max(0, index - 1)].id)
                 Rectangle {
-                    anchors.fill: parent; radius: 12; color: "#181310"
-                    border.width: tabs.activeFocus ? 1 : 0
-                    border.color: Qt.alpha(portalTheme.focusColor, 0.4)
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                    height: 1
+                    color: portalTheme.overviewRim
                 }
-                Repeater {
-                    id: shareTabs
-                    model: tabs.options
-                    Item {
-                        id: tabControl
-                        required property var modelData
-                        required property int index
-                        property alias emberSlot: tabSlot
-                        x: 3 + index * tabs.tabWidth; width: tabs.tabWidth; height: tabs.height
-                        Accessible.role: Accessible.PageTab; Accessible.name: modelData.name; Accessible.selected: root.tab === modelData.id
-                        Accessible.onPressAction: root.setTab(modelData.id)
-                        Rectangle {
-                            anchors.fill: tabSlot
-                            radius: tabSlot.shapeRadius
-                            color: Qt.alpha(portalTheme.focusColor, 0.24)
-                            visible: root.tab === tabControl.modelData.id && !tabSlot.occupied
+                RowLayout {
+                    id: tabRow
+                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                    width: Math.min(implicitWidth, tabs.width)
+                    spacing: tabs.width < 340 ? 6 : 18
+                    Repeater {
+                        model: tabs.options
+                        Item {
+                            id: tabControl
+                            required property var modelData
+                            property alias emberSlot: tabSlot
+                            readonly property bool chosen: root.tab === modelData.id
+                            readonly property color ink: chosen || tabHover.hovered ? portalTheme.overviewInk : portalTheme.overviewSecondary
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            Layout.fillHeight: true
+                            implicitWidth: tabLabel.implicitWidth + 20
+                            Accessible.role: Accessible.PageTab
+                            Accessible.name: modelData.name
+                            Accessible.selected: chosen
+                            Accessible.onPressAction: root.setTab(modelData.id)
+                            Text {
+                                id: tabLabel
+                                anchors { centerIn: parent; verticalCenterOffset: -2 }
+                                width: Math.min(implicitWidth, tabControl.width)
+                                text: tabControl.modelData.name
+                                elide: Text.ElideRight
+                                font: portalTheme.textFont
+                                color: tabControl.ink
+                            }
+                            Rectangle {
+                                anchors.fill: tabSlot
+                                radius: tabSlot.shapeRadius
+                                color: portalTheme.overviewAccent
+                                visible: tabControl.chosen && !tabSlot.occupied
+                            }
+                            EmberSlot {
+                                id: tabSlot
+                                shell: null; ember: root.controlEmber
+                                anchors { left: tabLabel.left; right: tabLabel.right; bottom: parent.bottom }
+                                height: 3; shapeRadius: 1.5
+                            }
+                            HoverHandler { id: tabHover }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { tabs.forceActiveFocus(); root.setTab(tabControl.modelData.id); } }
                         }
-                        EmberSlot {
-                            id: tabSlot
-                            shell: null; ember: root.controlEmber
-                            anchors.fill: parent; anchors.topMargin: 3; anchors.bottomMargin: 3
-                            shapeRadius: 10; shapeOpacity: 0.44
-                        }
-                        Text { anchors.centerIn: parent; text: modelData.name; color: root.tab === modelData.id ? portalTheme.text : "#e2dad4"; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize; Behavior on color { ColorAnimation { duration: 120 } } }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { tabs.forceActiveFocus(); root.setTab(tabControl.modelData.id); } }
                     }
                 }
             }

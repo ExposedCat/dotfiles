@@ -12,6 +12,12 @@ EmberSlot {
         }
         return null;
     }
+    hoverGroup: {
+        for (let item = control; item; item = item.parent) {
+            if (item.emberHoverGroup) return item.emberHoverGroup;
+        }
+        return null;
+    }
     shapeOpacity: 0.42
     property bool trackHover: true
     property Item registeredEmber: null

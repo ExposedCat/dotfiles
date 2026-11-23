@@ -192,9 +192,10 @@ In OpenLogi, assign **Scroll Up** to Back and **Scroll Down** to Forward.
 To carry a window across workspaces, start dragging with Super+left mouse button,
 tap Back or Forward, then release the left button where you want to drop it.
 
-Brightness, volume, and microphone feedback appears for 1.6 seconds in a compact
-pill with the level bar and, when there are unread notifications, the notification
-dot. It also appears when the idle pill is hidden in fullscreen or disabled.
+Brightness, volume, and microphone changes show a level bar for 1.6 seconds.
+The visible pill keeps the clock and keyboard layout alongside the level.
+While the pill is hidden by fullscreen, a hotkey, or holding Super, feedback
+shows the level bar and an unread notification dot when applicable.
 Brightness levels are read back from the monitor, which requires DDC/CI to be
 enabled on the display.
 
@@ -370,7 +371,11 @@ manual locking. Startup stops the legacy idle service even if an old lock
 verification marker remains.
 
 The persistent Quickshell desktop lives in `hyprland/config/shell/`. The main HP
-OMEN (DP-3) has one floating pill, centered 8 pixels below the top edge.
+OMEN (DP-3) has one floating pill. When its active workspace is empty, the pill
+automatically expands into the overview at the center of the display. Panels
+opened from there stay in the middle of the display. Bluetooth keeps the
+overview's top edge fixed and grows downward as devices appear. When a window
+appears, the pill returns to its compact position 8 pixels below the top edge.
 Super+Ctrl+Shift+F toggles its visibility until pressed again. The pill also
 hides automatically while its monitor's active workspace has a fullscreen app.
 Super still opens the launcher while the pill is hidden, fading and sliding it
@@ -388,8 +393,9 @@ Workspace feedback shows the workspace list and selected workspace of the
 monitor where the switch occurred. Expanded workspace controls follow the
 focused monitor while the pill remains on the main display.
 
-Hover expands the pill downward into a split popup centered on the clock. The
-clock grows above the date, with notifications in the upper-right corner.
+On a workspace with windows, hover expands the pill downward into a split popup
+centered on the clock. The clock grows above the date, with notifications in
+the upper-right corner.
 The warm weather tile on the left shows the location, icon, conditions, and
 temperature. Click it for current details, a seven-day forecast, and city or
 postal-code search. The pill saves the selected location locally, refreshes the forecast
@@ -407,9 +413,9 @@ screen-sharing buttons follow the notification dot or the layout label.
 Click the microphone to mute or unmute the inputs currently in use.
 Click the screen-sharing button to stop active portal shares. Local recordings
 use the recording-area outline. The sound icon reflects mute state. Leaving
-collapses the popup after 240 ms. An open tray menu keeps it expanded. Weather,
-media, mixer, system, network, Bluetooth, power, and notifications grow from the
-same floating surface with a single 220 ms geometry animation. The hover popup
+the hover popup collapses it after 240 ms. An open tray menu keeps it expanded.
+Weather, media, mixer, system, network, Bluetooth, power, and notifications
+grow from the same floating surface with a single 220 ms geometry animation. The hover popup
 rounds its corners from 20 to 31 pixels as it grows. Popup content retains its
 size and screen position through the closing fade, and header coordinates stay
 on whole pixels during morphs.

@@ -28,6 +28,37 @@ ShellTheme {
     readonly property color overviewGlow: "#66483a"
     readonly property color overviewMiddle: "#3b2e28"
     readonly property color overviewBase: "#29211e"
+    readonly property var overviewGradient: [ellipticalWash([0.42, -0.34], null, 0.49, 0.87)]
+    readonly property var popupGradients: ({
+        mixer: [linearWash(137, 0.30, 0.88, 0.93)],
+        weather: [ellipticalWash([0.35, 0.09], [0.98, 0.78], 0.40, 0.83, 0.71)],
+        calendar: [ellipticalWash([0.45, -0.21], [0.97, 1.10], 0.42, 0.83)],
+        ethernet: [ellipticalWash([0.04, -0.14], [1.30, 1.64], 0.44, 0.95)],
+        media: [linearWash(265, 0.32, 0.87, 0.83)],
+        power: [linearWash(0, 0.51, 1, 0.66)],
+        bluetooth: [{
+            // Reveal more of the wash as devices appear, without stretching it.
+            angle: 180, referenceHeight: 340, strength: 0.76,
+            stops: [[0, overviewBase], [0.16, overviewMiddle], [0.33, overviewGlow],
+                [0.43, overviewGlow], [0.64, overviewMiddle], [0.94, overviewBase]]
+        }],
+        system: [
+            ellipticalWash([0.91, 0.10], [0.92, 0.69], 0.39, 0.91),
+            ellipticalWash([0.14, 0.84], [0.75, 0.49], 0.48, 0.98, 0.59, true)
+        ],
+        notifications: [linearWash(106, 0.34, 0.89, 0.70)],
+        launcher: [linearWash(180, 0.25, 0.70, 0.83)],
+        clipboard: [linearWash(47, 0.46, 0.92, 0.81)],
+        tray: [ellipticalWash([0.50, -0.10], [1.45, 0.96], 0.45, 0.90, 0.84)],
+        share: [
+            ellipticalWash([0.74, 1.08], [1.03, 0.83], 0.43, 0.93, 0.80),
+            ellipticalWash([0.31, -0.10], [1.20, 0.55], 0.49, 1, 0.45, true)
+        ],
+        apps: [ellipticalWash([-0.11, 0.18], [1.14, 0.93], 0.41, 0.86, 0.92)],
+        access: [linearWash(118, 0.25, 0.81, 0.61)],
+        credentials: [ellipticalWash([0.48, 0.45], [1.10, 0.73], 0.37, 0.85, 0.69)],
+        authentication: [linearWash(83, 0.38, 0.87, 0.67)]
+    })
     readonly property color overviewInk: "#fff7f1"
     readonly property color overviewSecondary: "#d5c3b8"
     readonly property color overviewAccent: "#edac8d"
@@ -44,6 +75,15 @@ ShellTheme {
     readonly property color weatherHoverRim: "#36ffddc6"
     readonly property color weatherAccent: "#ffe2cf"
     readonly property color weatherCondition: "#ffe7d4"
+
+    function linearWash(angle, middle, edge, strength): var {
+        return {angle, strength, stops: [[0, overviewGlow], [middle, overviewMiddle], [edge, overviewBase]]};
+    }
+
+    function ellipticalWash(center, radii, middle, edge, strength = 1, fadeOut = false): var {
+        return {center, radii, strength, stops: [[0, overviewGlow], [middle, overviewMiddle],
+            [edge, fadeOut ? Qt.alpha(overviewMiddle, 0) : overviewBase]]};
+    }
 
     function weatherIconColor(name): color {
         if (name.includes("-night")) return "#c8bdf2";

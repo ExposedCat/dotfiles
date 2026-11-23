@@ -11,8 +11,13 @@ PanelWindow {
     required property var theme
     readonly property alias pillTheme: colors
     readonly property var monitorInfo: shell.fixture ? null : Hyprland.monitorFor(screen)
-    readonly property bool fullscreen: shell.fixture ? !!shell.fixtureData.fullscreen : !!(monitorInfo && monitorInfo.activeWorkspace && monitorInfo.activeWorkspace.hasFullscreen)
+    readonly property var activeWorkspace: monitorInfo?.activeWorkspace
+    readonly property bool fullscreen: shell.fixture ? !!shell.fixtureData.fullscreen : !!activeWorkspace?.hasFullscreen
+    readonly property bool workspaceEmpty: shell.fixture ? shell.fixtureData.workspaceEmpty === true
+        : occupancy.emptyOutputs.includes(screen?.name)
+    WorkspaceOccupancy { id: occupancy; enabled: !bar.shell.fixture && !!bar.screen }
     readonly property bool idleHidden: shell.pillSuppressed || (fullscreen && !shell.superHeld)
+    readonly property bool pillConcealed: idleHidden || shell.pillHidden
     // Value feedback can briefly reveal the pill even while its idle state is hidden.
     readonly property bool hidden: !feedbackReveal && (shell.pillHidden || (!shell.panel && idleHidden))
     // Standalone views fade and slide at full size when there is no idle pill.
@@ -33,10 +38,14 @@ PanelWindow {
     readonly property var spaces: shell.fixture
         ? (shell.fixtureData.workspacesByMonitor?.[workspaceOutput] || shell.fixtureData.workspaces || [{id: 1, active: true}, {id: 2, active: false}, {id: 3, active: false}])
         : Hyprland.workspaces.values.filter(w => w.id > 0 && w.monitor && w.monitor.name === workspaceOutput).sort((a,b) => a.id - b.id)
-    readonly property bool expanded: hoverExpanded || shell.panel.length > 0 || trayMenu.visible
+    readonly property bool desktopOverviewAvailable: workspaceEmpty && !pillConcealed
+    readonly property bool desktopExpanded: desktopOverviewAvailable && !shell.panel
+    readonly property bool expanded: desktopExpanded || (!pillConcealed && (hoverExpanded || trayMenu.visible))
+        || shell.panel.length > 0
     readonly property bool popupOpen: expanded && !shell.panel && !hiddenPanelVisible
     readonly property point pointerPosition: hover.point.position
-    readonly property string pillState: hidden ? "hidden" : shell.panel || (feedbackVisible ? "osd" : expanded ? "expanded" : "compact")
+    readonly property string pillState: hidden ? "hidden" : shell.panel || (popupOpen ? "expanded"
+        : valueFeedbackVisible || workspaceFeedbackVisible ? "osd" : "compact")
     // Track the pointer on the fixed native surface, not the animated header.
     readonly property bool pillHovered: hover.hovered && (
         (hover.point.position.x >= pill.x && hover.point.position.x < pill.x + pill.width
@@ -46,7 +55,7 @@ PanelWindow {
             && hover.point.position.y >= expansionTarget.y && hover.point.position.y < expansionTarget.y + expansionTarget.height))
     // Workspace feedback can give way to the full overview. A value OSD or
     // temporary suppression can end while the pointer is still on the pill.
-    readonly property bool canExpandOnHover: pillHovered && !hidden && !shell.panel && !valueFeedbackVisible && !suppressHover
+    readonly property bool canExpandOnHover: !workspaceEmpty && pillHovered && !hidden && !shell.panel && !valueFeedbackVisible && !suppressHover
     onPillHoveredChanged: {
         if (pillHovered) collapse.stop();
         else collapse.restart();
@@ -54,16 +63,23 @@ PanelWindow {
     property bool hoverExpanded: false
     property bool suppressHover: false
     property string shownPanel: ""
+    property bool panelCentered: false
     readonly property var paneNames: ["launcher", "portal", "credentials", "authentication", "notifications", "calendar", "bluetooth", "ethernet", "power", "media", "mixer", "system", "weather"]
     readonly property bool paneHasSearch: ["launcher", "portal", "credentials", "authentication", "weather"].includes(shell.panel)
     property var retained: ({})
-    readonly property bool valueFeedback: shell.osd.visible && shell.osd.kind !== "workspace"
-    readonly property bool feedbackVisible: !expanded && !hiddenPanelVisible && shell.osd.visible
-        && (valueFeedback || (!idleHidden && !shell.pillHidden))
-    readonly property bool valueFeedbackVisible: feedbackVisible && valueFeedback
-    readonly property bool feedbackReveal: valueFeedbackVisible && (idleHidden || shell.pillHidden)
-    readonly property real feedbackLeft: feedbackVisible && shell.osd.kind === "workspace" ? workspaceWing.naturalWidth + 14 : 0
-    onHoverExpandedChanged: { if (hoverExpanded) warm.restart(); }
+    readonly property bool workspaceFeedbackVisible: !expanded && !hiddenPanelVisible && !pillConcealed
+        && shell.osd.visible && shell.osd.kind === "workspace"
+    readonly property bool valueFeedbackVisible: !panelVisible && shell.osd.visible && shell.osd.kind !== "workspace"
+    readonly property bool feedbackReveal: valueFeedbackVisible && pillConcealed
+    readonly property real feedbackLeft: workspaceFeedbackVisible ? workspaceWing.naturalWidth + 14 : 0
+    readonly property int valueFeedbackGap: 14
+    readonly property real feedbackRight: valueFeedbackVisible && !feedbackReveal ? valueWing.naturalWidth + valueFeedbackGap : 0
+    onPillConcealedChanged: { if (pillConcealed) trayMenu.visible = false; }
+    onWorkspaceEmptyChanged: {
+        trayMenu.visible = false;
+        if (workspaceEmpty) hoverExpanded = false;
+    }
+    onPopupOpenChanged: { if (popupOpen) warm.restart(); }
     function retain(name) {
         if (retained[name]) return;
         const next = Object.assign({}, retained); next[name] = true; retained = next;
@@ -82,6 +98,8 @@ PanelWindow {
     property real weatherHeight: 220
     property real networkHeight: 270
     property real bluetoothHeight: 340
+    property real bluetoothTop: theme.panelGap
+    property real powerHeight: colors.overviewControlSize + 2 * overviewInset
     property real mixerHeight: 2 * (colors.overviewControlSize + 2 * colors.overviewControlPadding + overviewInset) + colors.overviewGap
     property bool launcherDragged: false
     property point launcherPosition: Qt.point(0, 0)
@@ -143,6 +161,7 @@ PanelWindow {
     onNetworkHeightChanged: { if (shell.panel === "ethernet") selectPanel("ethernet"); }
     onBluetoothHeightChanged: { if (shell.panel === "bluetooth") selectPanel("bluetooth"); }
     onMixerHeightChanged: { if (shell.panel === "mixer") selectPanel("mixer"); }
+    onPowerHeightChanged: { if (shell.panel === "power") selectPanel("power"); }
     readonly property int headerHeight: 40
     onWeatherHeightChanged: { if (shell.panel === "weather") selectPanel("weather"); }
     readonly property int overviewTop: 123
@@ -169,16 +188,28 @@ PanelWindow {
     readonly property real compactWidth: Math.ceil((compactContentWidth + 36 + compactRightSpace) / 2) * 2
     readonly property real valueFeedbackWidth: 2 * sideInset + notificationSpace + valueWing.naturalWidth
     readonly property real popupWidth: Math.min(width - 24, 2 * overviewInset + Math.ceil(overview.implicitWidth / 2) * 2)
-    readonly property real popupX: Math.round(Math.max(12, Math.min(width - popupWidth - 12, clockCenter - popupWidth / 2)))
-    readonly property real targetWidth: Math.min(width - 24, shell.panel || hiddenPanelVisible ? paneWidth : popupOpen ? popupWidth : valueFeedbackVisible ? valueFeedbackWidth : compactWidth + feedbackLeft)
-    readonly property real targetHeight: shell.panel || hiddenPanelVisible ? paneHeight : popupOpen ? popupHeight : headerHeight
+    readonly property real popupX: desktopExpanded ? Math.round((width - popupWidth) / 2)
+        : Math.round(Math.max(12, Math.min(width - popupWidth - 12, clockCenter - popupWidth / 2)))
+    function centeredY(itemHeight) { return Math.max(theme.panelGap, Math.round((height - itemHeight) / 2)); }
+    readonly property real popupY: desktopExpanded ? centeredY(popupHeight) : theme.panelGap
+    readonly property real bluetoothY: Math.min(bluetoothTop, Math.floor(height / 2))
+    readonly property bool panelVisible: !!shell.panel || hiddenPanelVisible
+    readonly property real targetWidth: Math.min(width - 24, panelVisible ? paneWidth : popupOpen ? popupWidth
+        : feedbackReveal ? valueFeedbackWidth : compactWidth + feedbackLeft + feedbackRight)
+    readonly property real targetHeight: panelVisible ? paneHeight : popupOpen ? popupHeight : headerHeight
+    readonly property real targetY: {
+        if (pinnedLauncher) return launcherPosition.y;
+        if (panelVisible && panelCentered) return shownPanel === "bluetooth" ? bluetoothY : centeredY(targetHeight);
+        return popupOpen ? popupY : theme.panelGap;
+    }
     // Animate position and size together, including the return from a drag.
     // Standalone views use the reveal animation instead of the compact morph.
     // Snap all painted coordinates to whole pixels to avoid text shimmer.
     readonly property rect targetGeometry: Qt.rect(
         pinnedLauncher ? launcherPosition.x : popupOpen ? popupX
-            : (width - targetWidth) / 2 + (hiddenPanelVisible || valueFeedbackVisible ? 0 : (-feedbackLeft + (!expanded ? compactRightSpace : 0)) / 2),
-        pinnedLauncher ? launcherPosition.y : theme.panelGap, targetWidth, targetHeight)
+            : (width - targetWidth) / 2 + (!expanded && !hiddenPanelVisible && !feedbackReveal
+                ? (compactRightSpace + feedbackRight - feedbackLeft) / 2 : 0),
+        targetY, targetWidth, targetHeight)
     property rect animatedGeometry: targetGeometry
     Behavior on animatedGeometry {
         enabled: !bar.dragPressed && !bar.idleHidden
@@ -187,7 +218,8 @@ PanelWindow {
     readonly property rect pillGeometry: Qt.rect(pill.x, pill.y, pill.width, pill.height)
     readonly property rect paneGeometry: Qt.rect(pill.x + panelLoader.x, pill.y + panelLoader.y, panelLoader.width, panelLoader.height)
     readonly property var activePane: panelLoader.item
-    readonly property real detailsOpacity: valueFeedbackVisible ? 0 : Math.min(1, Math.max(0, (pill.height - headerHeight) / (popupHeight - headerHeight)))
+    readonly property real detailsOpacity: feedbackReveal ? 0 : Math.min(1, Math.max(0, (pill.height - headerHeight) / (popupHeight - headerHeight)))
+    readonly property real overviewControlLeft: popupX + overviewInset - pill.x
     readonly property real overviewOpacity: detailsOpacity * header.opacity
     PillTheme { id: colors }
     TextMetrics { id: clockMetrics; font: colors.textFont; text: "00:00" }
@@ -205,7 +237,7 @@ PanelWindow {
     // Keep that destination interactive throughout hover expansion.
     Item {
         id: expansionTarget
-        x: bar.popupX; y: bar.theme.panelGap
+        x: bar.popupX; y: bar.popupY
         width: bar.popupWidth; height: bar.popupHeight
     }
     Region { id: expansionInput; item: expansionTarget }
@@ -241,8 +273,9 @@ PanelWindow {
         // Retain this geometry until the closing fade has finished. The popup's
         // layout must not be resized to the compact pill while still visible.
         const portalWidth = portalPane?.desiredWidth || (shell.portal.data.kind === "share" ? 680 : shell.portal.data.kind === "access" ? 440 : 560);
-        paneWidth = Math.min(width - 24, name === "authentication" ? (authenticationPane?.desiredWidth || 480) : name === "credentials" ? (credentialPane?.desiredWidth || 460) : ["ethernet", "bluetooth"].includes(name) ? 460 : name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "weather" ? 584 : name === "mixer" ? 540 : name === "calendar" ? 960 : 620);
-        paneHeight = Math.min(height - 24, name === "authentication" ? (authenticationPane?.desiredHeight || 260) : name === "credentials" ? (credentialPane?.desiredHeight || 340) : name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? mixerHeight : name === "notifications" ? 816 : name === "calendar" ? calendarHeight : name === "bluetooth" ? bluetoothHeight : name === "ethernet" ? networkHeight : name === "media" ? mediaHeight : name === "system" ? systemHeight : name === "weather" ? weatherHeight : 220);
+        const maxHeight = name === "bluetooth" && panelCentered ? height - bluetoothY - 12 : height - 24;
+        paneWidth = Math.min(width - 24, name === "authentication" ? (authenticationPane?.desiredWidth || 480) : name === "credentials" ? (credentialPane?.desiredWidth || 460) : ["ethernet", "bluetooth"].includes(name) ? 460 : name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "weather" ? 584 : name === "mixer" ? 540 : name === "calendar" ? 960 : name === "power" ? 480 : 620);
+        paneHeight = Math.min(maxHeight, name === "authentication" ? (authenticationPane?.desiredHeight || 260) : name === "credentials" ? (credentialPane?.desiredHeight || 340) : name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? mixerHeight : name === "notifications" ? 816 : name === "calendar" ? calendarHeight : name === "bluetooth" ? bluetoothHeight : name === "ethernet" ? networkHeight : name === "media" ? mediaHeight : name === "system" ? systemHeight : name === "weather" ? weatherHeight : name === "power" ? powerHeight : 220);
         retain(name); shownPanel = name;
     }
     Connections {
@@ -277,13 +310,17 @@ PanelWindow {
             if (bar.shell.panel) bar.launcherDragged = false;
             if (bar.shell.panel) {
                 unload.stop();
+                // Keep the origin through resizes and switches between panels.
+                if (!bar.shownPanel) bar.panelCentered = bar.desktopOverviewAvailable;
+                if (bar.shell.panel === "bluetooth" && bar.panelCentered && bar.shownPanel !== "bluetooth")
+                    bar.bluetoothTop = bar.centeredY(bar.popupHeight);
                 bar.selectPanel(bar.shell.panel);
                 trayMenu.visible = false;
                 if (bar.paneHasSearch) { if (panelLoader.item) panelLoader.item.activate(); focusDelay.restart(); }
             } else {
                 unload.restart();
                 if (bar.launcherDragged) bar.suppressHoverBriefly();
-                else bar.hoverExpanded = !bar.idleHidden && !bar.shell.pillHidden && !bar.suppressHover && bar.pillHovered;
+                else bar.hoverExpanded = !bar.workspaceEmpty && !bar.idleHidden && !bar.shell.pillHidden && !bar.suppressHover && bar.pillHovered;
                 bar.finishPanelClose();
             }
         }
@@ -313,6 +350,10 @@ PanelWindow {
         id: pill
         objectName: "floatingPill"
         readonly property Item controlEmber: ember
+        readonly property string gradientKey: bar.shownPanel === "portal" ? bar.shell.portal.data.kind || "apps" : bar.shownPanel
+        readonly property var panelGradient: colors.popupGradients[gradientKey] || null
+        readonly property real frameRadius: ["portal", "notifications", "credentials", "authentication"].includes(bar.shownPanel)
+            ? bar.pillRadius : bar.overviewRadius
         width: Math.round(bar.animatedGeometry.width / 2) * 2
         height: Math.round(bar.animatedGeometry.height)
         x: Math.round(bar.animatedGeometry.x)
@@ -321,42 +362,30 @@ PanelWindow {
         opacity: bar.feedbackReveal ? 1 : bar.shell.pillHidden ? 0 : bar.idleHidden ? bar.hiddenPanelReveal : 1
         onHeightChanged: bar.finishPanelClose()
         PillBackground {
-            id: pillBackground
             anchors.fill: parent
             theme: colors
-            radius: ["mixer", "calendar"].includes(bar.shownPanel) ? bar.overviewRadius
-                : bar.pillRadius + Math.round(11 * bar.overviewOpacity)
-            tint: bar.shownPanel === "mixer" ? "#dc332823" : "transparent"
+            visible: !pill.panelGradient
+            radius: bar.pillRadius + Math.round(11 * bar.overviewOpacity)
+        }
+        RectangularShadow {
+            anchors.fill: parent
+            radius: pill.frameRadius
+            blur: 45
+            offset: Qt.vector2d(0, 20)
+            color: colors.overviewShadow
+            opacity: pill.panelGradient ? 1 : bar.overviewOpacity
+            visible: opacity > 0
+            enabled: false
         }
         PillOverviewSurface {
             anchors.fill: parent
             theme: colors
-            radius: pillBackground.radius
-            visible: bar.shownPanel === "mixer" || bar.shownPanel === "calendar"
-            frameOnly: true
-        }
-        Item {
-            width: bar.popupWidth
-            height: bar.popupHeight
-            opacity: bar.overviewOpacity
+            radius: pill.frameRadius
+            panelGradient: pill.panelGradient
+            overviewBlend: bar.overviewOpacity
+            opacity: panelGradient ? 1 : bar.overviewOpacity
             visible: opacity > 0
             enabled: false
-            transform: Scale {
-                xScale: pill.width / Math.max(1, bar.popupWidth)
-                yScale: pill.height / Math.max(1, bar.popupHeight)
-            }
-            RectangularShadow {
-                anchors.fill: parent
-                radius: bar.overviewRadius
-                blur: 45
-                offset: Qt.vector2d(0, 20)
-                color: colors.overviewShadow
-            }
-            PillOverviewSurface {
-                anchors.fill: parent
-                theme: colors
-                radius: bar.overviewRadius
-            }
         }
         Item {
             anchors.fill: parent
@@ -365,6 +394,11 @@ PanelWindow {
             Item {
                 id: header
                 objectName: "pillHeader"
+                readonly property EmberHoverGroup emberHoverGroup: EmberHoverGroup {
+                    parent: header
+                    enabled: bar.popupOpen && !bar.hidden
+                    holdHeight: overview.y + overview.actionsHeight
+                }
                 width: parent.width; height: Math.min(pill.height, bar.popupHeight)
                 visible: !bar.idleHidden || bar.feedbackReveal
                 opacity: !visible || bar.shownPanel ? 0 : 1
@@ -373,12 +407,12 @@ PanelWindow {
 
                 Item {
                     id: timeButton
-                    visible: !bar.valueFeedbackVisible
-                    // Enlarge around the compact clock's horizontal center.
+                    visible: !bar.feedbackReveal
                     readonly property real expandedWidth: Math.min(264, bar.popupWidth - 2 * bar.overviewInset)
+                    readonly property real expandedCenter: bar.popupX + bar.popupWidth / 2
                     width: Math.round(bar.compactClockWidth + (expandedWidth - bar.compactClockWidth) * bar.detailsOpacity)
                     height: Math.round(bar.headerHeight + (bar.overviewTop - 7 - bar.headerHeight) * bar.detailsOpacity)
-                    x: Math.round(bar.clockCenter - width / 2) - pill.x
+                    x: Math.round(bar.clockCenter + (expandedCenter - bar.clockCenter) * bar.detailsOpacity - width / 2) - pill.x
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
                     Accessible.name: "Calendar"
@@ -412,21 +446,23 @@ PanelWindow {
                 }
                 Text {
                     id: layoutLabel
+                    readonly property real compactX: bar.layoutLeft - pill.x
+                    readonly property real feedbackProgress: bar.valueFeedbackVisible ? bar.detailsOpacity : 0
                     width: Math.ceil(implicitWidth)
-                    x: bar.layoutLeft - pill.x
-                    y: Math.round((bar.headerHeight - height) / 2)
+                    x: Math.round(compactX + (bar.overviewControlLeft - compactX) * feedbackProgress)
+                    y: Math.round((bar.headerHeight - height) / 2 + 24 * feedbackProgress)
                     text: bar.shell.layoutLabel
                     font: colors.textFont
                     color: colors.secondary
-                    opacity: 1 - bar.detailsOpacity
-                    visible: !bar.valueFeedbackVisible && opacity > 0
+                    opacity: bar.valueFeedbackVisible ? 1 : 1 - bar.detailsOpacity
+                    visible: !bar.feedbackReveal && opacity > 0
                 }
                 ShellButton {
                     objectName: "pillNotificationIndicator"
                     readonly property int expandedSize: 45
                     readonly property bool highlighted: hovered || (bar.shell.emberEnabled && bar.emberTarget === emberSlot)
                     readonly property color fill: highlighted ? colors.overviewButtonHover : colors.overviewButton
-                    readonly property real compactX: bar.valueFeedbackVisible ? bar.sideInset : layoutLabel.x + layoutLabel.width + bar.notificationGap
+                    readonly property real compactX: bar.feedbackReveal ? bar.sideInset : layoutLabel.compactX + layoutLabel.width + bar.notificationGap
                     readonly property real expandedX: bar.popupX + bar.popupWidth - bar.overviewInset - expandedSize - pill.x
                     x: Math.round(compactX + (expandedX - compactX) * bar.detailsOpacity)
                     y: Math.round(4 + 17 * bar.detailsOpacity)
@@ -456,10 +492,10 @@ PanelWindow {
                     }
                 }
                 Row {
-                    x: layoutLabel.x + layoutLabel.width + bar.notificationSpace + bar.privacyGap
+                    x: layoutLabel.compactX + layoutLabel.width + bar.notificationSpace + bar.privacyGap
                     y: 4; spacing: bar.privacyButtonSpacing
                     opacity: 1 - bar.detailsOpacity
-                    visible: !bar.valueFeedbackVisible && opacity > 0
+                    visible: !bar.feedbackReveal && opacity > 0
                     enabled: opacity > 0.5
                     ShellButton {
                         objectName: "pillMicrophoneIndicator"
@@ -479,7 +515,7 @@ PanelWindow {
                 }
                 PillOverview {
                     id: overview
-                    x: bar.popupX + bar.overviewInset - pill.x; y: bar.overviewTop
+                    x: bar.overviewControlLeft; y: bar.overviewTop
                     width: Math.max(0, bar.popupWidth - 2 * bar.overviewInset)
                     height: implicitHeight
                     shell: bar.shell; theme: colors; spaces: bar.spaces
@@ -494,11 +530,11 @@ PanelWindow {
             }
             Item {
                 id: panelLoader
-                readonly property real inset: bar.shownPanel === "mixer" ? bar.overviewInset
+                readonly property real inset: ["mixer", "power"].includes(bar.shownPanel) ? bar.overviewInset
                     : bar.shownPanel === "calendar" ? bar.calendarInset
                     : ["launcher", "portal", "credentials", "authentication"].includes(bar.shownPanel) ? 12 : 24
                 x: bar.launcherDragged ? inset : Math.round((bar.width - bar.paneWidth) / 2) - pill.x + inset
-                y: ["mixer", "calendar"].includes(bar.shownPanel) ? inset : ["launcher", "portal", "credentials", "authentication"].includes(bar.shownPanel) ? 8 : 16
+                y: ["mixer", "calendar", "power"].includes(bar.shownPanel) ? inset : ["launcher", "portal", "credentials", "authentication"].includes(bar.shownPanel) ? 8 : 16
                 width: bar.paneWidth - inset * 2
                 height: bar.paneHeight - y - (["notifications", "calendar"].includes(bar.shownPanel) ? y : inset)
                 readonly property var item: bar.shownPanel ? paneSlots.itemAt(bar.paneNames.indexOf(bar.shownPanel))?.item || null : null
@@ -534,17 +570,20 @@ PanelWindow {
         id: workspaceWing; objectName: "workspaceWing"
         parent: header
         shell: bar.shell; theme: colors; spaces: bar.spaces; workspace: true
-        showing: bar.feedbackVisible && bar.shell.osd.kind === "workspace" && !bar.hidden
-        visible: !bar.valueFeedbackVisible && reveal > 0
+        showing: bar.workspaceFeedbackVisible
+        visible: !bar.feedbackReveal && reveal > 0
         x: bar.sideInset; y: 0
     }
     PillWing {
         id: valueWing; objectName: "valueWing"
+        readonly property real compactX: bar.feedbackReveal ? bar.sideInset + bar.notificationSpace
+            : layoutLabel.compactX + layoutLabel.width + bar.compactRightSpace + bar.valueFeedbackGap
         parent: header
         shell: bar.shell; theme: colors; spaces: bar.spaces
         showing: bar.valueFeedbackVisible
         visible: showing && reveal > 0
-        x: bar.sideInset + bar.notificationSpace; y: 0
+        x: Math.round(compactX + (bar.overviewControlLeft - compactX) * bar.detailsOpacity)
+        y: Math.round(48 * bar.detailsOpacity)
     }
     Component {
         id: launcherComponent
@@ -591,7 +630,14 @@ PanelWindow {
             Component.onCompleted: bar.weatherHeight = Math.max(164, implicitHeight + 40)
         }
     }
-    Component { id: powerComponent; PowerPane { shell: bar.shell; theme: colors } }
+    Component {
+        id: powerComponent
+        PowerPane {
+            shell: bar.shell; theme: colors
+            onImplicitHeightChanged: bar.powerHeight = implicitHeight + 2 * bar.overviewInset
+            Component.onCompleted: bar.powerHeight = implicitHeight + 2 * bar.overviewInset
+        }
+    }
     Component {
         id: mediaComponent
         MediaPane {
@@ -618,7 +664,7 @@ PanelWindow {
     }
     readonly property Item emberTarget: {
         if (hidden) return null;
-        if (feedbackVisible) return shell.osd.kind === "workspace" ? workspaceWing.workspaceIndicator.emberSlot : null;
+        if (workspaceFeedbackVisible) return workspaceWing.workspaceIndicator.emberSlot;
         if (!expanded) return null;
         if (ember.interactionTarget) return ember.interactionTarget;
         if (shell.panel) return panelLoader.item?.emberTarget || null;
@@ -633,8 +679,6 @@ PanelWindow {
         anchors.fill: parent
         clip: true
         z: 10
-        pointerHoldArea: bar.popupOpen && bar.pillHovered
-            && bar.pointerPosition.y < pill.y + overview.y + overview.actionsHeight ? header : null
         target: bar.emberTarget
         active: bar.shell.emberEnabled && !!target && !bar.hidden
     }

@@ -147,14 +147,9 @@ Item {
         shell: root.shell; theme: root.theme; spaces: root.spaces; floating: true
     }
 
-    component Control: ShellButton {
-        readonly property bool highlighted: hovered || (root.shell.emberEnabled && root.shell.emberTarget === emberSlot)
+    component Control: PillControl {
         theme: root.theme
         width: root.controlSize; height: root.controlSize
-        radius: root.theme.overviewControlRadius
-        iconSize: root.theme.overviewControlIconSize
-        iconTint: danger ? root.theme.overviewPowerInk : root.theme.overviewInk
-        color: highlighted ? root.theme.overviewButtonHover : danger ? root.theme.overviewPowerFill : root.theme.overviewButton
     }
 
     Rectangle {

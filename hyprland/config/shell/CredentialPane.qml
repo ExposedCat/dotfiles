@@ -95,7 +95,7 @@ Item {
         }
         Text { visible: text.length > 0; Layout.fillWidth: true; text: root.request.body || ""; textFormat: Text.PlainText; color: root.theme.secondary; font: root.theme.textFont; wrapMode: Text.Wrap }
         Rectangle {
-            visible: !!root.request.code; Layout.fillWidth: true; implicitHeight: 86; radius: 14; color: root.theme.surface
+            visible: !!root.request.code; Layout.fillWidth: true; implicitHeight: 86; radius: 14; color: root.theme.background
             Text { anchors.centerIn: parent; text: (root.request.code || "").split("").join("  "); color: root.theme.text; font.family: "monospace"; font.pixelSize: 30; font.weight: Font.DemiBold }
             Rectangle { visible: !!root.request.displayOnly; anchors { bottom: parent.bottom; left: parent.left; margins: 8 } width: (parent.width - 16) * Math.min(6, root.request.entered || 0) / 6; height: 3; radius: 2; color: "#cc7855"; Behavior on width { NumberAnimation { duration: 120 } } }
         }
@@ -143,7 +143,7 @@ Item {
                             shapeRadius: 1.5; caret: true
                         }
                         background: Rectangle {
-                            radius: 10; color: root.theme.surface
+                            radius: 10; color: fieldRow.modelData.secret ? root.theme.background : root.theme.surface
                             Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 10 } height: 2; radius: 1; visible: input.activeFocus && !root.shell.emberEnabled; color: root.theme.focusColor }
                         }
                         onTextChanged: { const next = Object.assign({}, root.values); next[fieldRow.modelData.key] = text; root.values = next }

@@ -8,19 +8,17 @@ Item {
     property bool ready: false
     property bool hasPosition: false
     property Item restingTarget: null
-    property Item pointerHoldArea: null
     property Item hoveredTarget: null
     property Item lastPointerTarget: null
     readonly property Item pointerTarget: {
         if (hoveredTarget) return hoveredTarget;
-        if (!pointerHoldArea || !lastPointerTarget?.visible || !lastPointerTarget.enabled) return null;
-        // Gaps inside a control group keep the marker on its last button.
-        for (let item = lastPointerTarget; item; item = item.parent) {
-            if (item === pointerHoldArea) return lastPointerTarget;
-        }
-        return null;
+        return lastPointerTarget?.visible && lastPointerTarget.enabled && lastPointerTarget.hoverGroup?.holding
+            ? lastPointerTarget : null;
     }
-    onPointerHoldAreaChanged: { if (!pointerHoldArea) lastPointerTarget = null; }
+    Connections {
+        target: root.lastPointerTarget?.hoverGroup || null
+        function onHoldingChanged() { if (!target?.holding) root.lastPointerTarget = null; }
+    }
     property Item keyboardTarget: null
     property bool keyboardLast: false
     readonly property Item interactionTarget: keyboardLast ? (keyboardTarget || pointerTarget) : (pointerTarget || keyboardTarget)

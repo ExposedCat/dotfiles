@@ -73,11 +73,11 @@ PopupWindow {
     QsMenuOpener { id: rootMenu; menu: popup.visible && popup.trayItem ? popup.trayItem.menu : null }
     Component { id: submenu; QsMenuOpener { property string heading: "" } }
 
-    Rectangle {
+    PillOverviewSurface {
         anchors.fill: parent
-        color: popup.theme.background
-        border.width: 1; border.color: popup.theme.overviewRim
+        theme: popup.theme
         radius: 19
+        panelGradient: theme.popupGradients.tray
     }
     FocusScope {
         id: content
