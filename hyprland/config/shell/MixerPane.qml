@@ -14,7 +14,7 @@ Flickable {
     contentWidth: width
     contentHeight: channels.implicitHeight
     flickableDirection: Flickable.VerticalFlick
-    interactive: contentHeight > height
+    interactive: contentHeight + bottomMargin > height
     boundsBehavior: Flickable.StopAtBounds
     clip: true
     PillWheel { flickable: root }

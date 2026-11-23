@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Widgets
 
 PanelWindow {
     id: root
@@ -225,9 +226,12 @@ PanelWindow {
         }
     }
 
-    Item {
+    ClippingRectangle {
         id: body
         objectName: "clipboardHistory"
+        color: "transparent"
+        radius: 20
+        clip: true
         x: root.blend(root.origin.x, root.destination.x)
         y: root.blend(root.origin.y, root.destination.y)
         width: root.blend(root.origin.width, root.destination.width)
@@ -235,7 +239,7 @@ PanelWindow {
         opacity: Math.min(1, root.progress * 4)
         PillOverviewSurface {
             anchors.fill: parent
-            radius: 20
+            radius: body.radius
             theme: root.theme
             panelGradient: theme.popupGradients.clipboard
         }
@@ -244,6 +248,8 @@ PanelWindow {
             objectName: "clipboardEntries"
             anchors.fill: parent
             anchors.margins: root.entryGap
+            anchors.bottomMargin: 0
+            bottomMargin: root.entryGap
             opacity: root.opened ? root.clamp((root.progress - 0.42) * 2.5, 0, 1) : Math.min(1, root.progress * 2)
             enabled: root.opened && !clearHistory.running
             clip: true

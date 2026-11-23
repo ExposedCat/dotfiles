@@ -10,7 +10,7 @@ Flickable {
     contentHeight: rows.implicitHeight
     clip: true
     boundsBehavior: Flickable.StopAtBounds
-    interactive: contentHeight > height
+    interactive: contentHeight + bottomMargin > height
     flickableDirection: Flickable.VerticalFlick
     PillWheel { flickable: root }
 

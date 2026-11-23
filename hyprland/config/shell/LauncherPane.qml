@@ -9,6 +9,7 @@ ColumnLayout {
     id: root
     required property var shell
     required property var theme
+    property real scrollBottomPadding: 0
     Applications { id: localIndex; shell: root.shell }
     LauncherProviders {
         id: providers; shell: root.shell
@@ -147,6 +148,7 @@ ColumnLayout {
     ListView {
         id: list; objectName: "pillApps"
         Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 2
+        bottomMargin: providers.actionError ? 0 : root.scrollBottomPadding
         model: root.results; currentIndex: count ? 0 : -1
         boundsBehavior: Flickable.StopAtBounds
         // Use ListView's animated tracking while the shared dot draws the highlight.
@@ -180,6 +182,7 @@ ColumnLayout {
     }
     Text {
         Layout.fillWidth: true
+        Layout.bottomMargin: root.scrollBottomPadding
         visible: !!providers.actionError
         text: providers.actionError; textFormat: Text.PlainText; wrapMode: Text.WordWrap
         font: root.theme.textFont

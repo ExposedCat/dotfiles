@@ -75,6 +75,13 @@ Flickable {
         monthTransition.start();
     }
 
+    function selectDay(date) {
+        const start = agenda.rangeStart;
+        if (date < start) moveMonth(-1);
+        else if (date >= agenda.monthOffset(start, 4)) moveMonth(1);
+        agenda.selectDate(date);
+    }
+
     NumberAnimation {
         id: monthTransition
         target: root; property: "monthProgress"
@@ -113,7 +120,7 @@ Flickable {
     RowLayout {
         id: content
         width: root.contentWidth
-        height: Math.max(root.height, implicitHeight)
+        height: Math.max(root.height - root.bottomMargin, implicitHeight)
         spacing: root.cardGap
         Item {
             id: monthGrid
@@ -196,6 +203,7 @@ Flickable {
         ColumnLayout {
             id: sidebar
             Layout.fillWidth: true
+            Layout.fillHeight: true
             Layout.alignment: Qt.AlignTop
             Layout.minimumWidth: root.sidebarMinimumWidth
             Layout.preferredWidth: 328
@@ -205,6 +213,7 @@ Flickable {
             Flickable {
                 id: events
                 Layout.fillWidth: true
+                Layout.fillHeight: true
                 Layout.preferredHeight: Math.min(eventDays.implicitHeight, Math.max(160, monthGrid.implicitHeight
                     - (clocks.visible ? clocks.implicitHeight + sidebar.spacing : 0)))
                 visible: root.agenda.configured
@@ -233,6 +242,8 @@ Flickable {
                     }
                 }
             }
+
+            Item { Layout.fillHeight: true; visible: !events.visible }
 
             CalendarCard {
                 id: clocks
@@ -293,9 +304,12 @@ Flickable {
         required property int monthIndex
         readonly property int fromSlot: monthIndex - (root.monthDirection < 0 ? 1 : 0)
         readonly property int toSlot: monthIndex - (root.monthDirection > 0 ? 1 : 0)
+        readonly property int edgeSlot: root.monthProgress < 0.5 ? fromSlot : toSlot
         readonly property real row: (fromSlot < 2 ? 0 : 1) * (1 - root.monthProgress) + (toSlot < 2 ? 0 : 1) * root.monthProgress
         first: root.agenda.monthOffset(root.monthDirection > 0 ? root.transitionStart : root.agenda.rangeStart, monthIndex)
         cellHeight: monthGrid.cellHeight
+        showPreviousDays: edgeSlot === 0
+        showNextDays: edgeSlot === 3
         x: Math.round(monthGrid.slotX(fromSlot) * (1 - root.monthProgress) + monthGrid.slotX(toSlot) * root.monthProgress)
         y: Math.round(monthGrid.rowStride * row)
         width: monthGrid.monthWidth
@@ -307,6 +321,8 @@ Flickable {
         id: month
         required property date first
         required property int cellHeight
+        required property bool showPreviousDays
+        required property bool showNextDays
         readonly property var days: {
             const start = (first.getDay() + 6) % 7;
             return Array.from({length: 42}, (_, i) => new Date(first.getFullYear(), first.getMonth(), 1 - start + i));
@@ -362,6 +378,7 @@ Flickable {
                         readonly property Item emberSlot: dateSlot
                         readonly property string key: root.agenda.dayKey(modelData)
                         readonly property bool inMonth: modelData.getMonth() === month.first.getMonth()
+                        readonly property bool shown: inMonth || (modelData < month.first ? month.showPreviousDays : month.showNextDays)
                         readonly property bool today: inMonth && key === root.todayKey
                         readonly property bool selected: inMonth && key === root.selectedKey
                         readonly property real highlightSize: Math.min(width, height)
@@ -396,7 +413,10 @@ Flickable {
                             return last;
                         }
                         Layout.fillWidth: true; Layout.preferredHeight: month.cellHeight
-                        opacity: inMonth ? 1 : 0.35
+                        // Keep the empty cells in the grid to preserve weekday alignment.
+                        opacity: shown ? (inMonth ? 1 : 0.35) : 0
+                        enabled: shown
+                        Accessible.ignored: !shown
 
                         Rectangle {
                             anchors.centerIn: parent
@@ -441,8 +461,8 @@ Flickable {
                             visible: !!day.spanEnd
                             color: root.theme.overviewAccent
                         }
-                        HoverHandler { id: dayHover; enabled: day.inMonth; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { enabled: day.inMonth; onTapped: root.agenda.selectDate(day.modelData) }
+                        HoverHandler { id: dayHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: root.selectDay(day.modelData) }
                     }
                 }
             }

@@ -6,6 +6,7 @@ ColumnLayout {
     id: root
     required property var shell
     required property var theme
+    property real scrollBottomPadding: 0
     property Item lastNotificationTarget: null
     readonly property Item hoveredNotificationTarget: {
         const count = notificationList.count;
@@ -88,6 +89,7 @@ ColumnLayout {
         id: notificationList
         objectName: "notificationList"
         Layout.fillWidth: true; Layout.fillHeight: true
+        bottomMargin: root.scrollBottomPadding
         clip: true; spacing: 14
         model: groupModel
         boundsBehavior: Flickable.StopAtBounds

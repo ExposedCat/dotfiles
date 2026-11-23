@@ -6,13 +6,15 @@ WheelHandler {
     property int duration: 0
     target: null
     acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-    enabled: flickable.contentHeight > flickable.height
+    readonly property real scrollExtent: Math.max(0, flickable.contentHeight
+        + flickable.topMargin + flickable.bottomMargin - flickable.height)
+    enabled: scrollExtent > 0
     onEnabledChanged: { if (!enabled) glide.stop(); }
 
     function stop() { glide.stop(); }
     function bounded(position) {
-        const top = flickable.originY;
-        return Math.max(top, Math.min(top + Math.max(0, flickable.contentHeight - flickable.height), position));
+        const top = flickable.originY - flickable.topMargin;
+        return Math.max(top, Math.min(top + scrollExtent, position));
     }
 
     readonly property NumberAnimation glide: NumberAnimation {

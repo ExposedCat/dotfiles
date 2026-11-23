@@ -4,6 +4,7 @@ import QtQuick.Window
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
+import Quickshell.Widgets
 
 PanelWindow {
     id: bar
@@ -387,8 +388,10 @@ PanelWindow {
             visible: opacity > 0
             enabled: false
         }
-        Item {
+        ClippingRectangle {
             anchors.fill: parent
+            color: "transparent"
+            radius: panelLoader.scrollsToBottom ? pill.frameRadius : 0
             clip: true
             MouseArea { anchors.fill: parent; onWheel: event => event.accepted = false }
             Item {
@@ -533,10 +536,14 @@ PanelWindow {
                 readonly property real inset: ["mixer", "power"].includes(bar.shownPanel) ? bar.overviewInset
                     : bar.shownPanel === "calendar" ? bar.calendarInset
                     : ["launcher", "portal", "credentials", "authentication"].includes(bar.shownPanel) ? 12 : 24
+                readonly property real bottomInset: ["notifications", "calendar"].includes(bar.shownPanel) ? y : inset
+                // Give these scroll views the full height. Their own margins
+                // add the inset at the end of the scroll range.
+                readonly property bool scrollsToBottom: ["launcher", "notifications", "calendar", "bluetooth", "weather", "media", "mixer"].includes(bar.shownPanel)
                 x: bar.launcherDragged ? inset : Math.round((bar.width - bar.paneWidth) / 2) - pill.x + inset
                 y: ["mixer", "calendar", "power"].includes(bar.shownPanel) ? inset : ["launcher", "portal", "credentials", "authentication"].includes(bar.shownPanel) ? 8 : 16
                 width: bar.paneWidth - inset * 2
-                height: bar.paneHeight - y - (["notifications", "calendar"].includes(bar.shownPanel) ? y : inset)
+                height: bar.paneHeight - y - (scrollsToBottom ? 0 : bottomInset)
                 readonly property var item: bar.shownPanel ? paneSlots.itemAt(bar.paneNames.indexOf(bar.shownPanel))?.item || null : null
                 Repeater {
                     id: paneSlots
@@ -589,6 +596,7 @@ PanelWindow {
         id: launcherComponent
         LauncherPane {
             shell: bar.shell; theme: colors
+            scrollBottomPadding: panelLoader.bottomInset
             onDragStarted: (x, y) => bar.beginLauncherDrag(x, y)
             onDragMoved: (x, y) => bar.moveLauncherDrag(x, y)
             onDragFinished: bar.endLauncherDrag()
@@ -597,11 +605,15 @@ PanelWindow {
     Component { id: authenticationComponent; AuthenticationPane { shell: bar.shell; theme: colors } }
     Component { id: credentialComponent; CredentialPane { shell: bar.shell; theme: colors } }
     Component { id: portalComponent; PortalPane { shell: bar.shell; theme: colors } }
-    Component { id: notificationsComponent; NotificationCenter { shell: bar.shell; theme: colors } }
+    Component {
+        id: notificationsComponent
+        NotificationCenter { shell: bar.shell; theme: colors; scrollBottomPadding: panelLoader.bottomInset }
+    }
     Component {
         id: calendarComponent
         CalendarPane {
             shell: bar.shell; theme: colors
+            bottomMargin: panelLoader.bottomInset
             onImplicitHeightChanged: bar.calendarHeight = implicitHeight + 2 * bar.calendarInset
             Component.onCompleted: bar.calendarHeight = implicitHeight + 2 * bar.calendarInset
         }
@@ -610,6 +622,7 @@ PanelWindow {
         id: bluetoothComponent
         BluetoothMenu {
             shell: bar.shell; theme: colors
+            scrollBottomPadding: panelLoader.bottomInset
             onImplicitHeightChanged: bar.bluetoothHeight = implicitHeight + 40
             Component.onCompleted: bar.bluetoothHeight = implicitHeight + 40
         }
@@ -626,6 +639,7 @@ PanelWindow {
         id: weatherComponent
         WeatherPane {
             shell: bar.shell; theme: colors
+            bottomMargin: panelLoader.bottomInset
             onImplicitHeightChanged: bar.weatherHeight = Math.max(164, implicitHeight + 40)
             Component.onCompleted: bar.weatherHeight = Math.max(164, implicitHeight + 40)
         }
@@ -642,6 +656,7 @@ PanelWindow {
         id: mediaComponent
         MediaPane {
             shell: bar.shell; theme: colors
+            bottomMargin: panelLoader.bottomInset
             onImplicitHeightChanged: bar.mediaHeight = implicitHeight + 40
             Component.onCompleted: bar.mediaHeight = implicitHeight + 40
         }
@@ -650,6 +665,7 @@ PanelWindow {
         id: mixerComponent
         MixerPane {
             shell: bar.shell; theme: colors
+            bottomMargin: panelLoader.bottomInset
             onImplicitHeightChanged: bar.mixerHeight = implicitHeight + 2 * bar.overviewInset
             Component.onCompleted: bar.mixerHeight = implicitHeight + 2 * bar.overviewInset
         }

@@ -7,6 +7,7 @@ ColumnLayout {
     id: root
     required property var shell
     required property var theme
+    property real scrollBottomPadding: 0
     readonly property var bluetooth: shell.bluetooth
     property string selectedAddress: ""
     property bool powerSelected: false
@@ -126,6 +127,7 @@ ColumnLayout {
         objectName: "bluetooth-devices"
         Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0
         implicitHeight: Math.min(380, contentHeight)
+        bottomMargin: emptyState.visible ? 0 : root.scrollBottomPadding
         clip: true; spacing: 6
         model: deviceModel
         boundsBehavior: Flickable.StopAtBounds
@@ -252,6 +254,8 @@ ColumnLayout {
         }
     }
     Text {
+        id: emptyState
+        Layout.bottomMargin: root.scrollBottomPadding
         Layout.fillWidth: true; font: root.theme.textFont; color: root.theme.secondary; wrapMode: Text.Wrap
         visible: (!root.shell.fixture && !root.bluetooth.adapter) || (root.bluetooth.enabled && !root.bluetooth.searching && list.count === 0)
         text: !root.shell.fixture && !root.bluetooth.adapter ? "Bluetooth unavailable" : "No devices found"

@@ -26,6 +26,7 @@ Flickable {
     contentWidth: width
     boundsBehavior: Flickable.StopAtBounds
     clip: true
+    PillWheel { flickable: root }
 
     function focusSearch() {
         if (pickingLocation) search.forceActiveFocus();
