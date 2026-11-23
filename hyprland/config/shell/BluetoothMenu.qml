@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Quickshell.Services.UPower
 
 ColumnLayout {
     id: root
@@ -37,6 +38,23 @@ ColumnLayout {
         if (icon.includes("mouse")) return "mouse";
         if (icon.includes("audio")) return "speaker";
         return "bluetooth";
+    }
+    function powerDevice(device) {
+        if (shell.fixture || !device.connected) return null;
+        const parts = device.address.toLowerCase().split(":");
+        if (parts.length !== 6) return null;
+        const address = new RegExp("(^|[^0-9a-f])" + parts.join("[:_-]") + "($|[^0-9a-f])");
+        return UPower.devices.values.find(power => {
+            const path = power.nativePath;
+            return !!path && (path === device.dbusPath || address.test(path.toLowerCase()));
+        }) || null;
+    }
+    function batteryIcon(level, charging) {
+        if (charging) return "battery-charging";
+        if (level < 10) return "battery-exclamation-point";
+        if (level < 30) return "battery-low";
+        if (level < 75) return "battery-medium";
+        return "battery-full";
     }
     function restoreFocus() {
         if (powerSelected) powerSwitch.forceActiveFocus();
@@ -80,7 +98,6 @@ ColumnLayout {
         Layout.fillWidth: true; spacing: 10
         ShellIcon { objectName: "bluetooth-header-icon"; name: root.bluetooth.enabled ? "bluetooth" : "bluetooth-off"; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
         Text { text: "Bluetooth"; color: root.theme.text; font: root.theme.textFont; Layout.fillWidth: true }
-        Spinner { running: root.bluetooth.searching; visible: running; Layout.preferredWidth: 16; Layout.preferredHeight: 16 }
         Switch {
             id: powerSwitch
             objectName: "bluetooth-power"
@@ -116,12 +133,32 @@ ColumnLayout {
         displaced: Transition { NumberAnimation { properties: "x,y"; duration: 180; easing.type: Easing.OutCubic } }
         PillWheel { flickable: list }
         ScrollBar.vertical: ScrollBar {}
+        footer: Item {
+            width: list.width
+            height: root.bluetooth.searching ? 32 : 0
+            Spinner {
+                objectName: "bluetooth-discovery"
+                anchors.centerIn: parent; width: 17; height: 17
+                running: root.bluetooth.searching; visible: running
+                Accessible.name: "Discovering Bluetooth devices"
+            }
+        }
         delegate: ColumnLayout {
             id: deviceRow
             required property string address
             required property bool remembered
             required property int index
             readonly property var device: root.deviceData[address] || ({address: address, name: address, connected: false})
+            readonly property var output: device.connected ? root.shell.audio.bluetoothOutput(address) : null
+            readonly property var alternative: output ? root.shell.audio.alternativeOutput(address) : null
+            readonly property var power: root.powerDevice(device)
+            readonly property real battery: {
+                if (!device.connected) return NaN;
+                const level = (root.shell.fixture || device.batteryAvailable) && Number.isFinite(device.battery)
+                    ? device.battery : power?.percentage;
+                return Number.isFinite(level) ? Math.max(0, Math.min(100, Math.round(level * 100))) : NaN;
+            }
+            readonly property bool charging: root.shell.fixture ? !!device.charging : power?.state === UPowerDeviceState.Charging
             readonly property bool pending: root.bluetooth.busy(device)
             width: list.width; height: implicitHeight; spacing: 0
             Rectangle {
@@ -130,45 +167,82 @@ ColumnLayout {
                 Layout.fillWidth: true; implicitHeight: 1; Layout.topMargin: 10; Layout.bottomMargin: 10
                 color: Qt.alpha(root.theme.text, 0.10)
             }
-            Rectangle {
-                id: button
-                objectName: "bluetooth-device:" + deviceRow.address
-                property alias emberSlot: deviceSlot
-                readonly property string hint: (deviceRow.device.connected ? "Disconnect " : "Connect to ") + label.text
-                Layout.fillWidth: true; implicitHeight: 48; radius: 10
-                color: "transparent"
-                opacity: root.bluetooth.enabled ? 1 : 0.45
-                enabled: root.bluetooth.enabled && !deviceRow.pending && !!root.deviceData[deviceRow.address]
-                activeFocusOnTab: true
-                Accessible.role: Accessible.Button
-                Accessible.name: hint
-                Accessible.description: deviceRow.pending ? (root.bluetooth.pending[deviceRow.address]?.connect === false ? "Disconnecting" : "Connecting") : deviceRow.device.connected ? "Connected" : deviceRow.remembered ? "Paired device" : "Nearby device, pair and connect"
-                function activate() { root.selectDevice(deviceRow.address); root.bluetooth.toggle(deviceRow.device); }
-                Accessible.onPressAction: activate()
-                Keys.onReturnPressed: activate()
-                Keys.onSpacePressed: activate()
-                onActiveFocusChanged: { if (activeFocus) root.selectDevice(deviceRow.address); }
-                Component.onCompleted: { const items = Object.assign({}, root.rowItems); items[deviceRow.address] = button; root.rowItems = items; }
-                Component.onDestruction: {
-                    if (root.rowItems[deviceRow.address] === button) { const items = Object.assign({}, root.rowItems); delete items[deviceRow.address]; root.rowItems = items; }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Rectangle {
+                    id: button
+                    objectName: "bluetooth-device:" + deviceRow.address
+                    property alias emberSlot: deviceSlot
+                    readonly property string hint: (deviceRow.device.connected ? "Disconnect " : "Connect to ") + label.text
+                    Layout.fillWidth: true; implicitHeight: 48; radius: 12
+                    color: deviceRow.remembered ? root.theme.overviewControls : root.theme.overviewButton
+                    opacity: root.bluetooth.enabled ? 1 : 0.45
+                    enabled: root.bluetooth.enabled && !deviceRow.pending && !!root.deviceData[deviceRow.address]
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: hint
+                    Accessible.description: deviceRow.pending ? (root.bluetooth.pending[deviceRow.address]?.connect === false ? "Disconnecting" : "Connecting") : deviceRow.device.connected ? "Connected" : deviceRow.remembered ? "Paired device" : "Nearby device, pair and connect"
+                    function activate() { root.selectDevice(deviceRow.address); root.bluetooth.toggle(deviceRow.device); }
+                    Accessible.onPressAction: activate()
+                    Keys.onReturnPressed: activate()
+                    Keys.onSpacePressed: activate()
+                    onActiveFocusChanged: { if (activeFocus) root.selectDevice(deviceRow.address); }
+                    Component.onCompleted: { const items = Object.assign({}, root.rowItems); items[deviceRow.address] = button; root.rowItems = items; }
+                    Component.onDestruction: {
+                        if (root.rowItems[deviceRow.address] === button) { const items = Object.assign({}, root.rowItems); delete items[deviceRow.address]; root.rowItems = items; }
+                    }
+                    EmberSlot {
+                        id: deviceSlot
+                        objectName: "bluetooth-row:" + deviceRow.address
+                        shell: root.shell
+                        anchors.fill: parent
+                        shapeRadius: button.radius
+                        shapeOpacity: 0.42
+                    }
+                    RowLayout {
+                        anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
+                        spacing: 12
+                        ShellIcon { name: root.deviceIcon(deviceRow.device); Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
+                        Text { id: label; Layout.fillWidth: true; Layout.minimumWidth: 0; text: deviceRow.device.name || deviceRow.device.deviceName || deviceRow.address; textFormat: Text.PlainText; elide: Text.ElideRight; color: root.theme.text; font: root.theme.textFont }
+                        Spinner { objectName: "bluetooth-pending:" + deviceRow.address; running: deviceRow.pending; visible: running; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
+                        Text {
+                            visible: batteryStatus.visible
+                            text: Number.isFinite(deviceRow.battery) ? deviceRow.battery + "%" : ""
+                            font: root.theme.textFont; color: root.theme.overviewSecondary
+                        }
+                        ShellIcon {
+                            id: batteryStatus
+                            objectName: "bluetooth-battery:" + deviceRow.address
+                            visible: root.bluetooth.enabled && !deviceRow.pending && Number.isFinite(deviceRow.battery)
+                            name: visible ? root.batteryIcon(deviceRow.battery, deviceRow.charging) : ""
+                            tint: deviceRow.charging ? root.theme.green : deviceRow.battery < 10 ? root.theme.red : root.theme.overviewSecondary
+                            Layout.preferredWidth: 24; Layout.preferredHeight: 24
+                            Accessible.name: deviceRow.charging ? "Charging" : "Battery"
+                        }
+                        ShellIcon {
+                            objectName: "bluetooth-connected:" + deviceRow.address
+                            name: "bluetooth-connected"; tint: root.theme.overviewAccent
+                            visible: root.bluetooth.enabled && !!deviceRow.device.connected && !deviceRow.pending && !batteryStatus.visible
+                            Layout.preferredWidth: 22; Layout.preferredHeight: 22
+                        }
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { button.forceActiveFocus(Qt.MouseFocusReason); button.activate(); } }
                 }
-                EmberSlot {
-                    id: deviceSlot
-                    objectName: "bluetooth-row:" + deviceRow.address
-                    shell: root.shell
-                    anchors.fill: parent
-                    shapeRadius: button.radius
-                    shapeOpacity: 0.42
+                ShellButton {
+                    objectName: "bluetooth-output:" + deviceRow.address
+                    Layout.preferredWidth: 48; Layout.preferredHeight: 48
+                    visible: !!deviceRow.alternative
+                    enabled: root.bluetooth.enabled && !deviceRow.pending
+                    theme: root.theme; radius: 12
+                    selected: root.shell.audio.sink === deviceRow.output
+                    icon: selected ? "earbuds-off" : "earbuds"
+                    iconTint: selected ? root.theme.overviewAccent : root.theme.overviewInk
+                    hint: selected ? "Use " + (deviceRow.alternative?.description || deviceRow.alternative?.name || "other speakers")
+                        : "Use " + label.text + " for sound"
+                    color: hovered ? root.theme.overviewButtonHover : root.theme.overviewControls
+                    onClicked: root.shell.audio.toggleBluetoothOutput(deviceRow.address)
                 }
-                RowLayout {
-                    anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
-                    spacing: 12
-                    ShellIcon { name: root.deviceIcon(deviceRow.device); Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
-                    Text { id: label; Layout.fillWidth: true; Layout.minimumWidth: 0; text: deviceRow.device.name || deviceRow.device.deviceName || deviceRow.address; textFormat: Text.PlainText; elide: Text.ElideRight; color: root.theme.text; font: root.theme.textFont }
-                    Spinner { objectName: "bluetooth-pending:" + deviceRow.address; running: deviceRow.pending; visible: running; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
-                    ShellIcon { objectName: "bluetooth-connected:" + deviceRow.address; name: "bluetooth-connected"; visible: root.bluetooth.enabled && !!deviceRow.device.connected && !deviceRow.pending; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
-                }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { button.forceActiveFocus(Qt.MouseFocusReason); button.activate(); } }
             }
             Text {
                 Layout.fillWidth: true; Layout.leftMargin: 12; Layout.rightMargin: 12; Layout.topMargin: 6
@@ -179,7 +253,7 @@ ColumnLayout {
     }
     Text {
         Layout.fillWidth: true; font: root.theme.textFont; color: root.theme.secondary; wrapMode: Text.Wrap
-        visible: (!root.shell.fixture && !root.bluetooth.adapter) || (root.bluetooth.enabled && list.count === 0)
+        visible: (!root.shell.fixture && !root.bluetooth.adapter) || (root.bluetooth.enabled && !root.bluetooth.searching && list.count === 0)
         text: !root.shell.fixture && !root.bluetooth.adapter ? "Bluetooth unavailable" : "No devices found"
     }
 }

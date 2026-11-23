@@ -1,6 +1,6 @@
 -- Observe Super without consuming it, so existing shortcuts keep working.
 -- Input keycodes use XKB numbering (evdev + 8), independent of EN/RU layout.
-local down, super, used, hidden = {}, nil, false, false
+local down, super, used, held = {}, nil, false, false
 local pending = nil
 local pressedAt, generation = 0, 0
 local holdDelay = 200
@@ -15,6 +15,18 @@ local function open(panel)
     if super then cancel(); pending = panel
     else send(panel) end
 end
+local function fullscreenPeekAtCursor()
+    if not held then return false end
+    local monitor = hl.get_monitor_at_cursor()
+    local workspace = monitor and hl.get_active_workspace(monitor)
+    if not workspace or not workspace.has_fullscreen then return false end
+
+    -- Find the actual pill output, including when the main monitor is disconnected.
+    for _, layer in ipairs(hl.get_layers({ monitor = monitor, namespace = "dotfiles-bar" })) do
+        if layer.mapped then return true end
+    end
+    return false
+end
 hl.on("input.keyboard.key", function(code, time, state)
     if state == 2 then return end
     if state == 1 then
@@ -22,13 +34,13 @@ hl.on("input.keyboard.key", function(code, time, state)
         down[code] = true
         if code == 133 or code == 134 then
             if super then cancel(); return end
-            super, used, hidden, pressedAt, pending = code, false, false, time, nil
+            super, used, held, pressedAt, pending = code, false, false, time, nil
             for key in pairs(down) do if key ~= code then used = true end end
             generation = generation + 1
             local current = generation
             hl.timer(function()
                 if current == generation and super and (hl.is_key_down(133) or hl.is_key_down(134)) then
-                    hidden = true
+                    held = true
                     send("hide")
                 end
             end, {timeout = holdDelay, type = "oneshot"})
@@ -42,10 +54,10 @@ hl.on("input.keyboard.key", function(code, time, state)
         if pending then send(pending, time)
         elseif not used and duration < holdDelay then send("tap", time)
         else send("show", time) end
-        super, used, hidden, pending = nil, false, false, nil
+        super, used, held, pending = nil, false, false, nil
     end
 end)
 hl.on("config.unload", function()
-    if hidden then send("show", (pressedAt + 1) % 4294967296) end
+    if held then send("show", (pressedAt + 1) % 4294967296) end
 end)
-return { cancel = cancel, open = open }
+return { cancel = cancel, open = open, fullscreenPeekAtCursor = fullscreenPeekAtCursor }

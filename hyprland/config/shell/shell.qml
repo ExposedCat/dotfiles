@@ -9,7 +9,9 @@ ShellRoot {
     readonly property bool fixture: !!Quickshell.env("DOTFILES_SHELL_FIXTURE")
     property var fixtureData: ({})
     property string panel: ""
-    property bool pillHidden: false
+    property bool superHeld: false
+    readonly property bool pillHidden: superHeld && !bar.fullscreen
+    readonly property bool bannersHidden: superHeld !== bar.fullscreen
     property bool pillSuppressed: false
     property real gestureTimestamp: -1
     property string lastGesture: ""
@@ -68,15 +70,19 @@ ShellRoot {
             const value = Number(timestamp);
             if (!Number.isFinite(value)) return;
             if (gestureTimestamp >= 0 && (value - gestureTimestamp + 4294967296) % 4294967296 > 2147483648) return;
-            if (value === gestureTimestamp && action === "hide" && !pillHidden) return;
+            if (value === gestureTimestamp && action === "hide" && !superHeld) return;
             gestureTimestamp = value;
         }
         lastGesture = action;
-        if (action === "hide") pillHidden = true;
-        else if (action === "show") pillHidden = false;
-        else if (action === "visibility") { pillHidden = false; pillSuppressed = !pillSuppressed; }
-        else if (action === "tap") { pillHidden = false; toggle("launcher"); }
-        else if (["launcher", "power", "notifications"].includes(action)) { pillHidden = false; toggle(action); }
+        if (action === "hide") {
+            superHeld = true;
+        } else if (["show", "visibility", "tap", "launcher", "power", "notifications"].includes(action)) {
+            // Restoring the input region can register a hover under a stationary cursor.
+            if (superHeld) bar.suppressHoverBriefly();
+            superHeld = false;
+            if (action === "visibility") pillSuppressed = !pillSuppressed;
+            else if (action !== "show") toggle(action === "tap" ? "launcher" : action);
+        }
     }
     function fixtureEvent(name, data) { console.warn("FIXTURE", JSON.stringify({event: name, data: data})); }
     function desktop(action) {
@@ -101,7 +107,7 @@ ShellRoot {
     OsdState { id: osd }
     Audio {
         id: sound; fixture: root.fixture; fixtureData: root.fixtureData
-        mixerOpen: root.panel === "mixer"
+        deviceControlsOpen: root.panel === "mixer" || root.panel === "bluetooth"
         onFixtureMicMuteRequested: muted => root.fixtureData = Object.assign({}, root.fixtureData, {micMuted: muted})
         onOsdRequested: microphone => osd.showAudio(microphone, microphone ? micVolume : volume, microphone ? micMuted : muted)
     }
@@ -117,7 +123,13 @@ ShellRoot {
     Appearance { id: systemAppearance; shell: root }
     PortalController { id: portalController; shell: root }
     CredentialController { id: credentialController; shell: root }
-    Notifications { id: notifications; singlePopup: false; presentationPaused: root.panel === "notifications"; centerOpen: root.panel === "notifications"; statePath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/dotfiles/hyprland/notifications.json" }
+    Notifications {
+        id: notifications
+        singlePopup: false
+        centerOpen: root.panel === "notifications"
+        presentationPaused: root.bannersHidden || centerOpen
+        statePath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/dotfiles/hyprland/notifications.json"
+    }
     BluetoothController { id: bluetoothController; shell: root }
     Agenda { id: agenda; shell: root }
     Weather { id: weather; shell: root }

@@ -192,10 +192,11 @@ In OpenLogi, assign **Scroll Up** to Back and **Scroll Down** to Forward.
 To carry a window across workspaces, start dragging with Super+left mouse button,
 tap Back or Forward, then release the left button where you want to drop it.
 
-The brightness feedback appears inside the main pill with the adjusted output name, percentage,
-and level bar, then hides after 1.6 seconds. It shares the volume/microphone OSD,
-so the latest control replaces the previous one. Levels are read back from the
-monitor; DDC/CI must be enabled on the display.
+Brightness, volume, and microphone feedback appears for 1.6 seconds in a compact
+pill with the level bar and, when there are unread notifications, the notification
+dot. It also appears when the idle pill is hidden in fullscreen or disabled.
+Brightness levels are read back from the monitor, which requires DDC/CI to be
+enabled on the display.
 
 Each monitor has an independent dynamic workspace list and an empty workspace
 at both ends. Opening a window at either edge adds another empty workspace on
@@ -380,8 +381,9 @@ It overlaps applications and reserves no tiling space. The compact pill shows
 the time and EN/RU keyboard layout, followed by a lit dot while active
 notifications remain. Click the time or dot for the calendar and notification
 center. Volume/microphone/brightness feedback and workspace changes temporarily
-use the pill itself. Notifications appear independently in the top-right corner,
-with the same small gap from the top and right edges.
+use the pill itself. Notifications appear independently in the top-right corner
+of the main display. Fullscreen pauses those banners until Super is held or
+the display leaves fullscreen. Notifications remain available in the center.
 Workspace feedback shows the workspace list and selected workspace of the
 monitor where the switch occurred. Expanded workspace controls follow the
 focused monitor while the pill remains on the main display.
@@ -394,9 +396,9 @@ postal-code search. The pill saves the selected location locally, refreshes the 
 every 15 minutes, and keeps the last available forecast if an update fails.
 Weather forecasts and location search use [Open-Meteo](https://open-meteo.com/),
 with location data from [GeoNames](https://www.geonames.org/).
-Workspaces sit underneath the weather and tray icons sit underneath the
-control grid. The grid holds appearance, sound, system statistics, network,
-Bluetooth, power, media when available, and any active privacy controls.
+Workspaces and tray icons sit in the footer. The grid holds appearance, sound,
+system statistics, network, Bluetooth, power, and any active privacy controls.
+When an MPRIS player is available, an inline strip appears above the footer.
 The moon/sun button toggles the system light/dark preference and the matching
 Adwaita or adw-gtk3 variant.
 While expanding, the pill accepts hover across its destination so moving onto
@@ -432,18 +434,19 @@ screen positions while fading out, and the workspace highlight stays terracotta
 through collapse. Scrollable pill content uses twice the standard wheel step.
 Destructive power actions require a second click to confirm.
 
-The media view fits its artwork, title/artist/album, playback controls, and seek
-wave without empty space below. The wave moves during playback and rests when
-paused. Player selection appears when multiple MPRIS players are available;
-the music button disappears and its open view closes when the last player exits.
-The mixer controls PipeWire output/input
-selection and output and microphone levels/mute.
+The inline player shows album artwork, track details, transport controls, and
+a split seek track with elapsed and total time. When multiple players are open,
+the layers button opens a list with controls for each player. With no players,
+the strip disappears and the players view closes.
+Bluetooth displays battery status when reported. The earbuds button switches
+between the device and the previous basic audio output when another output
+is available.
 Search uses compact result rows with icons, names, and secondary descriptions.
 All sections use the full surface without the clock header.
-Sound has two horizontal sliders for the output and microphone, with thick rounded
-tracks matching the collapsed pill. The active control's entire filled portion turns orange.
-Left-click each leading icon to toggle mute; right-click it to
-choose a device. Device names appear only in that dropdown. Brightness remains on the hardware
+Sound uses the same split track as media for output and microphone volume.
+Unmuted icons and fills are orange. Click the volume or microphone icon to mute
+or unmute. Click the chevron or right-click the mute icon to show devices
+inside the card. Brightness remains on the hardware
 keys with feedback in the pill; opening Sound does not query monitor brightness.
 Notification cards use subtle glass fills in the center and brown glass for
 corner banners. The center keeps the calendar alongside the list without a
@@ -463,19 +466,20 @@ two idle minutes. The launcher clears its query on every opening while keeping
 its application index and provider caches warm.
 The small terracotta marker adapts the idea of [Ricelin's Ame](https://github.com/Gakuseei/Ricelin/blob/main/configs/quickshell/pill/Ame.qml):
 one shape pulls out into a dot, jumps in an arc, then unfolds on landing into
-the active workspace indicator, launcher caret, sound slider fill, media seek
-handle, selected calendar date, notification accent strip, selected metric
-value, or Bluetooth thumb. Popup buttons use the marker as a small focus dot.
+the active workspace indicator, launcher caret, selected calendar date,
+notification accent strip, selected metric value, or Bluetooth thumb.
+In Sound it fades at the slider thumb. Popup buttons use the marker as a small focus dot.
 Fuzzy matching retains Ricelin's MIT
 attribution. Clipboard history animates from the pill to the active text field.
 There is no wallpaper view in the pill.
 
 Tap either Super key alone to expand the pill into the application launcher.
-Holding Super for 200 ms hides the pill; releasing it immediately restores the
-current view. A tap opens the launcher without briefly hiding the pill.
-Using another key with Super cancels the tap and hides the pill while the
-modifier stays held, preserving existing Super shortcuts. Workspace scrolling,
-window dragging, and resizing also cancel the tap. Super+R and Super+Space open
+Holding Super for 200 ms hides the pill and notification banners on the
+windowed main display, or reveals them over a fullscreen app. Releasing Super
+restores that display's usual behavior. A tap opens the launcher directly.
+Using another key with Super cancels the tap, preserving existing shortcuts.
+Workspace scrolling, window dragging, and resizing also cancel the tap.
+Super+R and Super+Space open
 the same integrated launcher when Super is released. Super+M and Super+N likewise
 open power and notifications on release. The gesture observer uses Hyprland's Lua
 `input.keyboard.key` event, so it does not consume keys or depend on EN/RU layout.
@@ -486,7 +490,7 @@ The split popup highlights hovered controls. Icon-button hints are used for
 accessibility. Tray menus use the shell's dark colors and typography, with
 checks, disabled actions, separators, and navigable submenus. Clickable controls
 use a pointer cursor. Bluetooth uses a fixed-height scrolling viewport.
-Quickshell uses Adwaita Sans Regular with 18px text throughout the bar, launcher,
+Quickshell uses Adwaita Sans Regular with 20px text throughout the bar, launcher,
 notifications, menus, media, statistics, and inputs. All shell text binds to the
 shared `textFont` in `shell/ShellTheme.qml`;
 `tools/ShellTheme.qml` links to that shared theme for standalone tools.
@@ -744,7 +748,9 @@ Inspect it with:
 systemctl --user status openlogi-agent.service
 ```
 
-Upgrades preserve the mappings in `~/.config/openlogi/config.toml`. The fork
+Upgrades preserve the mappings in `~/.config/openlogi/config.toml`. To use the
+DPI button as Super, set `DpiToggle = { HoldModifier = "Super" }` in the
+mouse's bindings. OpenLogi holds the modifier until the physical release. The fork
 includes configurable gesture hold and sensitivity. See the
 [local application builds](apps/README.md).
 

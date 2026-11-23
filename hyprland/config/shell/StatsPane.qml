@@ -53,13 +53,13 @@ ColumnLayout {
                 objectName: "systemHeader:" + meter.modelData.key
                 Layout.fillWidth: true
                 spacing: 12
-                ShellIcon { objectName: "systemIcon:" + meter.modelData.key; name: meter.modelData.icon; Layout.preferredWidth: metricText.implicitHeight; Layout.preferredHeight: metricText.implicitHeight }
+                ShellIcon { objectName: "systemIcon:" + meter.modelData.key; name: meter.modelData.icon; Layout.preferredWidth: metricText.implicitHeight; Layout.preferredHeight: metricText.implicitHeight; tint: root.theme.text }
                 ColumnLayout {
                     id: metricText
                     Layout.fillWidth: true; Layout.minimumWidth: 0
                     spacing: 0
                     Text { text: meter.modelData.label; color: root.theme.text; font: root.theme.textFont }
-                    Text { Layout.fillWidth: true; text: root.detail(meter.modelData.key); color: root.theme.secondary; font: root.theme.textFont; elide: Text.ElideRight }
+                    Text { Layout.fillWidth: true; text: root.detail(meter.modelData.key); color: root.theme.text; font: root.theme.textFont; elide: Text.ElideRight }
                 }
                 Text { objectName: "systemValue:" + meter.modelData.key; text: root.percent(root.snapshot[meter.modelData.key]); color: root.theme.text; font: root.valueFont }
             }
@@ -108,8 +108,8 @@ ColumnLayout {
                 Layout.fillWidth: true; Layout.minimumWidth: 0; spacing: 6
                 RowLayout {
                     spacing: 8
-                    ShellIcon { name: modelData.icon; width: 24; height: 24 }
-                    Text { text: modelData.label; font: root.theme.textFont; color: root.theme.secondary }
+                    ShellIcon { name: modelData.icon; width: 24; height: 24; tint: root.theme.text }
+                    Text { text: modelData.label; font: root.theme.textFont; color: root.theme.text }
                 }
                 Text { Layout.fillWidth: true; text: root.stats.bytes(root.snapshot[modelData.key]) + "/s"; font: root.theme.textFont; color: root.theme.text; elide: Text.ElideRight }
             }
@@ -124,7 +124,7 @@ ColumnLayout {
             RowLayout {
                 required property var modelData
                 Layout.fillWidth: true; Layout.minimumWidth: 0; spacing: 8
-                Text { text: modelData.label; color: root.theme.secondary; font: root.theme.textFont }
+                Text { text: modelData.label; color: root.theme.text; font: root.theme.textFont }
                 Text { Layout.fillWidth: true; text: modelData.value; color: root.theme.text; font: root.theme.textFont; elide: Text.ElideRight }
             }
         }

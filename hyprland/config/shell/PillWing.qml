@@ -13,7 +13,7 @@ Item {
     property alias workspaceIndicator: switches
     width: naturalWidth; height: 40
     opacity: reveal
-    visible: !shell.pillHidden && reveal > 0
+    visible: reveal > 0
     Behavior on reveal { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
     WorkspaceDots {
         id: switches

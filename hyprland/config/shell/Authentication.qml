@@ -40,7 +40,7 @@ Scope {
         cleared();
         updatePrompt();
         if (active) {
-            shell.pillHidden = false;
+            shell.superHeld = false;
             shell.panel = "authentication";
             focusRequested();
         } else if (shell.panel === "authentication") shell.panel = "";

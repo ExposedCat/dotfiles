@@ -60,7 +60,6 @@ hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:mag
 -- window drag active on wheel events, but ends it on key or button events.
 local openLogiDevices = { "ol-action-injector", "ol-action-injector-1" }
 local wheelSwitchPending = false
-local moveButtonDown = false
 local grabbedWindow
 
 local function windowBeingDragged()
@@ -108,29 +107,38 @@ for direction, wheel in pairs({ [-1] = "mouse_up", [1] = "mouse_down" }) do
 end
 
 -- Move/resize windows with mainMod + LMB/RMB and dragging
-hl.bind(mainMod .. " + mouse:272", function()
-    pill.cancel()
-    local result = hl.dispatch(hl.dsp.window.drag())
-    -- The native dispatcher calls this binding again on release.
-    moveButtonDown = not moveButtonDown
-    grabbedWindow = moveButtonDown and result.ok and not result.pass_event and hl.get_active_window() or nil
-end, { mouse = true })
-hl.on("input.keyboard.key", function() grabbedWindow = nil end)
-hl.bind(mainMod .. " + mouse:273", function()
-    grabbedWindow = nil
-    pill.cancel()
-    hl.dispatch(hl.dsp.window.resize())
-end, { mouse = true })
--- A release within drag_threshold is an ordinary app click, without Super.
--- Send both states here: click binds run after the physical button is released.
-for _, button in ipairs({ "mouse:272", "mouse:273" }) do
+local function bindWindowMouse(button, action, movesWindow)
+    local dragging, forwarded = false, false
+    hl.bind(mainMod .. " + " .. button, function()
+        -- The native dispatcher calls this binding again on release.
+        if dragging then
+            dragging = false
+            grabbedWindow = nil
+            hl.dispatch(action)
+            return
+        end
+        pill.cancel()
+        forwarded = pill.fullscreenPeekAtCursor()
+        if forwarded then return { pass_event = true } end
+
+        dragging = true
+        local result = hl.dispatch(action)
+        grabbedWindow = movesWindow and result.ok and not result.pass_event and hl.get_active_window() or nil
+    end, { mouse = true })
+
+    -- Replay short windowed clicks without Super. A press already delivered to
+    -- the fullscreen overlay gets its physical release, even if Super is up.
     local press = hl.dsp.send_key_state({ mods = "", key = button, state = "down" })
     local release = hl.dsp.send_key_state({ mods = "", key = button, state = "up" })
     hl.bind(mainMod .. " + " .. button, function()
+        if forwarded then return end
         hl.dispatch(press)
         hl.dispatch(release)
-    end, { click = true })
+    end, { click = true, non_consuming = true })
 end
+bindWindowMouse("mouse:272", hl.dsp.window.drag(), true)
+bindWindowMouse("mouse:273", hl.dsp.window.resize(), false)
+hl.on("input.keyboard.key", function() grabbedWindow = nil end)
 
 -- Audio and external-monitor brightness (DDC/CI on the focused display).
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })

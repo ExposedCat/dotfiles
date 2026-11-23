@@ -69,11 +69,12 @@ ColumnLayout {
             property alias statusSlot: statusSlot
             Layout.fillWidth: true; spacing: 10
             Item {
-                implicitWidth: statusLabel.implicitWidth + 20; implicitHeight: 32
-                Rectangle { anchors.fill: parent; radius: 16; color: root.theme.surface; visible: !statusSlot.occupied }
-                EmberSlot { id: statusSlot; shell: root.shell; anchors.fill: parent; shapeOpacity: 0.45 }
-                Text { id: statusLabel; anchors.centerIn: parent; font: root.theme.textFont; text: modelData.state; color: root.theme.text }
+                implicitWidth: 34; implicitHeight: 34
+                Rectangle { anchors.fill: parent; radius: 10; color: root.theme.overviewButton }
+                EmberSlot { id: statusSlot; shell: root.shell; anchors.fill: parent; shapeRadius: 10; shapeOpacity: 0.28 }
+                ShellIcon { anchors.centerIn: parent; width: 22; height: 22; name: "ethernet-port"; tint: modelData.connected ? root.theme.overviewAccent : root.theme.overviewSecondary }
             }
+            Text { font: root.theme.textFont; text: modelData.state; color: root.theme.text }
             Text { Layout.fillWidth: true; visible: root.devices.length > 1; text: modelData.name; textFormat: Text.PlainText; elide: Text.ElideRight; color: root.theme.secondary; font: root.theme.textFont }
             Item { Layout.fillWidth: true; visible: root.devices.length === 1 }
             Text { font: root.theme.textFont; text: modelData.speed > 0 ? Number(modelData.speed / (modelData.speed >= 1000 ? 1000 : 1)) + (modelData.speed >= 1000 ? " Gb/s link" : " Mb/s link") : ""; color: root.theme.secondary }
@@ -81,23 +82,24 @@ ColumnLayout {
     }
     Text { font: root.theme.textFont; visible: root.unavailable || root.devices.length === 0; text: root.unavailable ? "Connection status unavailable" : reader.running ? "Checking…" : "No Ethernet connection"; color: root.theme.secondary; wrapMode: Text.Wrap; Layout.fillWidth: true }
     RowLayout {
-        Layout.fillWidth: true; spacing: 24
+        Layout.fillWidth: true; spacing: 10
         Repeater {
             model: [{label: "Download", icon: "arrow-down", key: "download"}, {label: "Upload", icon: "arrow-up", key: "upload"}]
-            ColumnLayout {
+            Rectangle {
                 id: rate
                 required property var modelData
                 readonly property var value: root.result ? root.result[modelData.key] : null
                 objectName: "network-" + modelData.key
-                Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; spacing: 8
+                Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0
+                implicitHeight: rateContents.implicitHeight + 22
+                radius: 14; color: root.theme.overviewControls
+                Accessible.name: modelData.label
                 RowLayout {
+                    id: rateContents
+                    anchors { left: parent.left; right: parent.right; margins: 10; verticalCenter: parent.verticalCenter }
                     spacing: 6
-                    ShellIcon { name: rate.modelData.icon; Layout.preferredWidth: 16; Layout.preferredHeight: 16 }
-                    Text { text: rate.modelData.label; color: root.theme.secondary; font: root.theme.textFont }
-                }
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 6
-                    Text { objectName: "network-value-" + rate.modelData.key; text: root.rateNumber(rate.value); color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: 28; font.weight: Font.Medium; font.features: {"tnum": 1}; Layout.alignment: Qt.AlignBaseline }
+                    ShellIcon { name: rate.modelData.icon; tint: root.theme.overviewAccent; Layout.preferredWidth: 20; Layout.preferredHeight: 20 }
+                    Text { objectName: "network-value-" + rate.modelData.key; text: root.rateNumber(rate.value); color: root.theme.text; font: root.theme.textFont; Layout.alignment: Qt.AlignBaseline }
                     Text { text: root.rateUnit(rate.value); color: root.theme.secondary; font: root.theme.textFont; Layout.alignment: Qt.AlignBaseline }
                     Item { Layout.fillWidth: true }
                 }
@@ -118,7 +120,8 @@ ColumnLayout {
             id: measure
             objectName: "network-measure"
             theme: root.theme; emberShell: root.shell
-            icon: "rotate-cw"; pending: root.testing; enabled: !pending
+            icon: "gauge"; pending: root.testing; enabled: !pending
+            iconTint: root.theme.overviewInk
             hint: "Measure internet speed"; implicitWidth: 40; implicitHeight: 40; radius: 10
             onHoveredChanged: root.follow(this, true, hovered)
             onActiveFocusChanged: root.follow(this, false, activeFocus)

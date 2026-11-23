@@ -3,48 +3,63 @@ import QtQuick.Controls
 
 Slider {
     id: root
-    required property var theme
     property real backendValue: 0
-    property bool thickTrack: false
     property bool muted: false
-    Binding { target: root; property: "value"; value: root.backendValue; when: !root.pressed; restoreMode: Binding.RestoreNone }
     property var emberShell: null
-    readonly property Item emberSlot: thickTrack ? fillSlot : handleSlot
-    from: 0; to: 1
-    implicitWidth: horizontal ? 200 : 32
-    implicitHeight: horizontal ? 30 : 132
-    background: Rectangle {
-        x: root.leftPadding + (root.horizontal ? 0 : Math.round((root.availableWidth - width) / 2))
-        y: root.topPadding + (root.horizontal ? Math.round((root.availableHeight - height) / 2) : 0)
-        width: root.horizontal ? root.availableWidth : 2
-        height: root.horizontal ? (root.thickTrack ? 20 : 4) : root.availableHeight
-        radius: Math.min(width, height) / 2
-        color: root.thickTrack ? "#685f59" : root.horizontal ? root.theme.surface : Qt.alpha(root.theme.text, 0.18)
+    readonly property Item emberSlot: thumbSlot
+    readonly property bool emphasized: enabled && (hovered || pressed || visualFocus)
+    implicitHeight: 26
+    hoverEnabled: true
+    Binding {
+        target: root
+        property: "value"
+        value: root.backendValue
+        when: !root.pressed
+        restoreMode: Binding.RestoreNone
+    }
+    background: Item {
+        x: root.leftPadding; width: root.availableWidth
+        y: root.topPadding; height: root.availableHeight
+        readonly property real center: root.visualPosition * (width - root.handle.width) + root.handle.width / 2
         Rectangle {
-            x: 0; y: root.horizontal ? 0 : parent.height - height
-            width: {
-                if (!root.horizontal) return parent.width;
-                // Put the fill's rounded cap directly beneath the entire
-                // thumb, so their curved edges coincide at every value.
-                if (root.thickTrack && root.handle)
-                    return Math.max(0, Math.min(parent.width, root.handle.x + root.handle.width - parent.x));
-                return parent.width * root.position;
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.max(0, parent.center - 5)
+            height: root.emphasized ? 15 : 12
+            radius: Math.min(width, height) / 2
+            color: "#6be4cdb8"
+            gradient: root.muted ? null : progressGradient
+            Gradient {
+                id: progressGradient
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0; color: "#b77560" }
+                GradientStop { position: 0.8; color: "#eeb08d" }
+                GradientStop { position: 1; color: "#f6c8a8" }
             }
-            height: root.horizontal ? parent.height : parent.height * root.position
-            radius: root.thickTrack ? height / 2 : 2
-            EmberSlot { id: fillSlot; shell: root.emberShell; anchors.fill: parent }
-            color: root.thickTrack ? (fillSlot.landed ? "transparent" : root.muted ? root.theme.secondary : root.theme.text) : !root.horizontal && root.emberSlot && root.emberSlot.occupied ? "#cc7855" : root.theme.accent
-            opacity: root.horizontal ? 1 : 0.72
+            Behavior on height { NumberAnimation { duration: 150 } }
+        }
+        Rectangle {
+            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+            width: Math.max(0, parent.width - parent.center - 5)
+            height: root.emphasized ? 11 : 8
+            radius: Math.min(width, height) / 2
+            color: "#29e6bcaa"
+            Behavior on height { NumberAnimation { duration: 150 } }
         }
     }
     handle: Rectangle {
-        x: root.leftPadding + (root.horizontal ? root.visualPosition * (root.availableWidth - width) : Math.round((root.availableWidth - width) / 2))
-        y: root.topPadding + (root.horizontal ? Math.round((root.availableHeight - height) / 2) : root.visualPosition * (root.availableHeight - height))
-        width: root.horizontal ? (root.thickTrack ? root.background.height : (root.pressed ? 15 : 12)) : 14
-        height: root.horizontal ? width : 4
-        radius: Math.min(width, height) / 2
-        EmberSlot { id: handleSlot; shell: root.emberShell; anchors.fill: parent }
-        color: (root.thickTrack ? root.emberSlot.landed : root.emberSlot.occupied) ? "transparent"
-            : root.activeFocus ? root.theme.focusColor : root.theme.text
+        x: root.leftPadding + root.visualPosition * (root.availableWidth - width)
+        y: root.topPadding + (root.availableHeight - height) / 2
+        width: root.visualFocus ? 4 : 3
+        height: root.emphasized ? 19 : 15
+        radius: width / 2
+        color: root.visualFocus ? "#fff4ec" : "#f6e1d4"
+        EmberSlot {
+            id: thumbSlot
+            anchors.fill: parent
+            shell: root.emberShell
+            shapeOpacity: 0
+        }
+        Behavior on height { NumberAnimation { duration: 150 } }
     }
+    HoverHandler { cursorShape: root.enabled ? Qt.SizeHorCursor : Qt.ArrowCursor }
 }

@@ -6,14 +6,19 @@ Canvas {
     required property real radius
     property bool weather: false
     property bool highlighted: false
-    readonly property int shadowMargin: weather ? 0 : 72
-    readonly property real surfaceWidth: Math.max(0, width - 2 * shadowMargin)
-    readonly property real surfaceHeight: Math.max(0, height - 2 * shadowMargin)
+    property bool frameOnly: false
+    property color rimColor: theme.overviewRim
+    property color highlightColor: theme.overviewHighlight
+    property bool highlightInsideRim: true
 
     onWidthChanged: requestPaint()
     onHeightChanged: requestPaint()
     onRadiusChanged: requestPaint()
     onHighlightedChanged: requestPaint()
+    onRimColorChanged: requestPaint()
+    onHighlightColorChanged: requestPaint()
+    onHighlightInsideRimChanged: requestPaint()
+    onVisibleChanged: { if (visible) requestPaint(); }
     onAvailableChanged: { if (available) requestPaint(); }
 
     function framePath(ctx, x, y, w, h, r) {
@@ -83,30 +88,25 @@ Canvas {
         ctx.fillStyle = wash;
         ctx.fillRect(-x / rx, -y / ry, w / rx, h / ry);
         ctx.restore();
-        strokeRim(ctx, w, h, radius, theme.overviewRim);
-        insetHighlight(ctx, 1.25, 1.25, w - 2.5, h - 2.5, radius - 1.25, theme.overviewHighlight);
+        paintFrame(ctx, w, h);
+    }
+
+    function paintFrame(ctx, w, h) {
+        if (rimColor.a > 0) strokeRim(ctx, w, h, radius, rimColor);
+        const inset = highlightInsideRim && rimColor.a > 0 ? 1.25 : 0;
+        insetHighlight(ctx, inset, inset, w - 2 * inset, h - 2 * inset, radius - inset, highlightColor);
     }
 
     onPaint: {
         const ctx = getContext("2d");
         ctx.reset();
         ctx.clearRect(0, 0, width, height);
-        const w = surfaceWidth, h = surfaceHeight;
+        const w = width, h = height;
         if (w < 3 || h < 3) return;
-        ctx.translate(shadowMargin, shadowMargin);
-        if (!weather) {
-            ctx.save();
-            ctx.shadowColor = theme.overviewShadow;
-            ctx.shadowOffsetY = 20;
-            ctx.shadowBlur = 45;
-            ctx.fillStyle = theme.overviewBase;
-            framePath(ctx, 0, 0, w, h, radius);
-            ctx.fill();
-            ctx.restore();
-        }
         framePath(ctx, 0, 0, w, h, radius);
         ctx.clip();
-        if (weather) paintWeather(ctx, w, h);
+        if (frameOnly) paintFrame(ctx, w, h);
+        else if (weather) paintWeather(ctx, w, h);
         else paintPanel(ctx, w, h);
     }
 }

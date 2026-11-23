@@ -43,7 +43,7 @@ Scope {
                 if (device) root.shell.pill.activePane?.selectDevice(device.address);
             }
             root.client = sender; root.data = request; root.submitting = false;
-            root.shell.pillHidden = false; root.shell.panel = "credentials";
+            root.shell.superHeld = false; root.shell.panel = "credentials";
             reply(sender, {accepted: true});
         }
     }

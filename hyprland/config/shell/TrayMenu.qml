@@ -76,8 +76,8 @@ PopupWindow {
     Rectangle {
         anchors.fill: parent
         color: popup.theme.background
-        border.width: 1; border.color: popup.theme.border
-        radius: 12
+        border.width: 1; border.color: popup.theme.overviewRim
+        radius: 19
     }
     FocusScope {
         id: content

@@ -26,7 +26,7 @@ ColumnLayout {
                     onHoveredChanged: { if (hovered) root.hoveredButton = this; else if (root.hoveredButton === this) root.hoveredButton = null; }
                     onActiveFocusChanged: { if (activeFocus) root.focusedButton = this; else if (root.focusedButton === this) root.focusedButton = null; }
                     implicitWidth: 70; implicitHeight: 60; radius: 20
-                    theme: root.theme; icon: modelData.icon; iconSize: 26
+                    theme: root.theme; icon: modelData.icon; iconSize: 32
                     hint: (root.confirmAction === modelData.id ? "Confirm " : "") + modelData.title
                     selected: root.confirmAction === modelData.id
                     color: selected ? root.theme.hover : root.theme.surface

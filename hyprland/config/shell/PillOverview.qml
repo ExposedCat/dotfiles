@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import Quickshell.Services.SystemTray
 
 Item {
@@ -11,11 +12,11 @@ Item {
 
     readonly property Item workspaceSlot: workspaceWidget.emberSlot
     readonly property real actionsHeight: controlsSurface.height
-    readonly property int gap: 14
+    readonly property int gap: theme.overviewGap
     readonly property int footerSpacing: 6
     readonly property int footerHeight: 42
-    readonly property int controlSize: 54
-    readonly property int controlPadding: 9
+    readonly property int controlSize: theme.overviewControlSize
+    readonly property int controlPadding: theme.overviewControlPadding
     readonly property int trayIconWidth: 42
     readonly property var weatherIcons: ({
         "weather-clear-symbolic": "sun",
@@ -31,7 +32,8 @@ Item {
         "weather-storm-symbolic": "cloud-lightning"
     })
     implicitWidth: Math.max(444, workspaceWidget.x + workspaceWidget.implicitWidth + gap + controlsSurface.width)
-    implicitHeight: actionsHeight + footerSpacing + footerHeight
+    readonly property real footerTop: actionsHeight + (mediaStrip.player ? gap + mediaStrip.height : 0) + footerSpacing
+    implicitHeight: footerTop + footerHeight
 
     ShellButton {
         id: weatherTile
@@ -39,7 +41,7 @@ Item {
         theme: root.theme
         width: Math.max(0, controlsSurface.x - root.gap)
         height: root.actionsHeight
-        radius: 21.25
+        radius: root.theme.overviewTileRadius
         hint: root.shell.weather.summary
         // The tile owns hover and focus, and the arrow owns the landing.
         emberSlot.parent: forecastArrow
@@ -61,7 +63,7 @@ Item {
             spacing: 5
 
             Item {
-                width: parent.width; height: 21
+                width: parent.width; height: city.implicitHeight
                 Text {
                     id: city
                     anchors { left: parent.left; right: forecastArrow.left; rightMargin: 6 }
@@ -70,7 +72,7 @@ Item {
                     elide: Text.ElideRight
                     font.family: root.theme.fontFamily
                     font.weight: Font.Medium
-                    font.pixelSize: 16
+                    font.pixelSize: root.theme.bodySize
                     color: root.theme.weatherAccent
                 }
                 ShellIcon {
@@ -89,16 +91,17 @@ Item {
                     }
                 }
             }
-            Row {
-                height: 44.5; spacing: 11
+            RowLayout {
+                width: parent.width
+                height: Math.max(44.5, implicitHeight)
+                spacing: 8
                 ShellIcon {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 22; height: 22
+                    Layout.preferredWidth: 32; Layout.preferredHeight: 32
                     name: root.weatherIcons[root.shell.weather.day.icon] ?? "cloud-sun"
-                    tint: root.theme.weatherIcon
+                    tint: root.theme.weatherIconColor(root.shell.weather.day.icon)
                 }
                 Text {
-                    anchors.verticalCenter: parent.verticalCenter
+                    Layout.alignment: Qt.AlignBaseline
                     visible: !!root.shell.weather.current
                     text: Number.isFinite(root.shell.weather.current?.temperature_2m)
                         ? root.shell.weather.rounded(root.shell.weather.current.temperature_2m, "")
@@ -111,15 +114,25 @@ Item {
                     font.letterSpacing: -1.25
                     color: root.theme.overviewInk
                 }
+                Text {
+                    readonly property real apparent: root.shell.weather.current?.apparent_temperature ?? NaN
+                    Layout.alignment: Qt.AlignBaseline
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    visible: Number.isFinite(apparent)
+                    text: visible ? root.shell.weather.rounded(apparent, "°") : ""
+                    Accessible.name: visible ? "Feels like " + text : ""
+                    elide: Text.ElideRight
+                    font: root.theme.textFont
+                    color: root.theme.weatherCondition
+                }
             }
             Text {
                 width: parent.width
                 text: root.shell.weather.current ? root.shell.weather.day.label
                     : root.shell.weather.location ? root.shell.weather.summary : "Set location"
                 elide: Text.ElideRight
-                height: 21
-                font.family: root.theme.fontFamily
-                font.pixelSize: 16
+                font: root.theme.textFont
                 color: root.theme.weatherCondition
             }
         }
@@ -127,10 +140,9 @@ Item {
 
     WorkspaceDots {
         id: workspaceWidget
-        x: 14; y: root.actionsHeight + root.footerSpacing
+        x: 14; y: root.footerTop
         height: root.footerHeight
         dot: 6; gap: 17; minimumActiveWidth: 26
-        activeColor: root.theme.overviewAccent
         inactiveColor: root.theme.overviewDot
         shell: root.shell; theme: root.theme; spaces: root.spaces; floating: true
     }
@@ -139,8 +151,8 @@ Item {
         readonly property bool highlighted: hovered || (root.shell.emberEnabled && root.shell.emberTarget === emberSlot)
         theme: root.theme
         width: root.controlSize; height: root.controlSize
-        radius: 16.25
-        iconSize: 23
+        radius: root.theme.overviewControlRadius
+        iconSize: root.theme.overviewControlIconSize
         iconTint: danger ? root.theme.overviewPowerInk : root.theme.overviewInk
         color: highlighted ? root.theme.overviewButtonHover : danger ? root.theme.overviewPowerFill : root.theme.overviewButton
     }
@@ -151,13 +163,13 @@ Item {
         anchors.right: parent.right
         width: controlGrid.width + 2 * root.controlPadding
         height: controlGrid.implicitHeight + 2 * root.controlPadding
-        radius: 21.25
+        radius: root.theme.overviewTileRadius
         color: root.theme.overviewControls
         Grid {
             id: controlGrid
             objectName: "pillControlButtons"
             x: root.controlPadding; y: root.controlPadding
-            columns: 3; spacing: 6
+            columns: 3; spacing: root.theme.overviewControlGap
             width: columns * root.controlSize + (columns - 1) * spacing
             Control {
                 objectName: "pillAppearanceButton"
@@ -180,11 +192,6 @@ Item {
             }
             Control { icon: "power"; hint: "Power"; danger: true; onClicked: root.panelRequested("power") }
             Control {
-                objectName: "pillMusicButton"
-                visible: !!root.shell.media.player
-                icon: "music"; hint: "Now playing"; onClicked: root.panelRequested("media")
-            }
-            Control {
                 objectName: "pillOverviewMicrophone"
                 visible: root.shell.audio.micInUse
                 icon: root.shell.audio.activeMicsMuted ? "mic-off" : "mic"
@@ -200,9 +207,20 @@ Item {
         }
     }
 
+    MediaStrip {
+        id: mediaStrip
+        objectName: "pillMediaStrip"
+        y: root.actionsHeight + root.gap
+        width: root.width; height: implicitHeight
+        visible: !!player
+        shell: root.shell; theme: root.theme; player: root.shell.media.player
+        showPlayerList: root.shell.media.players.length > 1
+        onPlayerListRequested: root.panelRequested("media")
+    }
+
     Flickable {
         anchors { right: parent.right; rightMargin: 4 }
-        y: root.actionsHeight + root.footerSpacing
+        y: root.footerTop
         width: Math.min(trayIcons.implicitWidth, controlsSurface.width - anchors.rightMargin)
         height: root.footerHeight
         contentWidth: trayIcons.implicitWidth; contentHeight: height

@@ -8,7 +8,7 @@ QtObject {
     readonly property int screenCornerRadius: 16
     readonly property string fontFamily: "Adwaita Sans"
     readonly property int fontWeight: Font.Normal
-    readonly property int bodySize: 18
+    readonly property int bodySize: 20
     readonly property int smallSize: bodySize
     readonly property font textFont: Qt.font({family: fontFamily, pixelSize: bodySize, weight: fontWeight, features: {"tnum": 1}})
     readonly property color focusColor: "#cc7855"

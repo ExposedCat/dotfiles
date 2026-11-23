@@ -83,7 +83,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true; spacing: 10
             ShellIcon { name: root.headingIcon; Layout.preferredWidth: 24; Layout.preferredHeight: 24 }
-            Text { Layout.fillWidth: true; text: root.heading; textFormat: Text.PlainText; color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: 18; font.weight: Font.DemiBold; wrapMode: Text.Wrap }
+            Text { Layout.fillWidth: true; text: root.heading; textFormat: Text.PlainText; color: root.theme.text; font.family: root.theme.fontFamily; font.pixelSize: root.theme.bodySize; font.weight: Font.DemiBold; wrapMode: Text.Wrap }
             ShellButton {
                 id: close; theme: root.theme; emberShell: root.shell
                 icon: "x"; hint: "Cancel"; implicitWidth: 30; implicitHeight: 30

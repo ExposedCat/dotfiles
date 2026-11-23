@@ -27,7 +27,7 @@ Scope {
                     || (request.kind === "apps" && !Array.isArray(request.apps))) throw Error("Invalid portal request");
             data = request;
             if (!presented) {
-                shell.pillHidden = false;
+                shell.superHeld = false;
                 shell.panel = "portal";
                 presented = true;
                 endpoint.reply(client, {accepted: true});

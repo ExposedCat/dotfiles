@@ -6,7 +6,8 @@ Scope {
     id: root
     property bool fixture: false
     property var fixtureData: ({})
-    property bool mixerOpen: false
+    property bool deviceControlsOpen: false
+    property string basicOutputName: ""
     readonly property var nodes: fixture ? [] : Pipewire.nodes.values.filter(n => n && n.audio && !n.isStream)
     readonly property var outputs: fixture ? (fixtureData.audioOutputs || [{id: 1, name: "fixture-output", description: "Speakers"}]) : nodes.filter(n => n.isSink)
     readonly property var inputs: fixture ? (fixtureData.audioInputs || [{id: 2, name: "fixture-input", description: "Microphone"}]) : nodes.filter(n => !n.isSink)
@@ -62,13 +63,38 @@ Scope {
         if (microphone) Pipewire.preferredDefaultAudioSource = node;
         else Pipewire.preferredDefaultAudioSink = node;
     }
+    function matchesBluetoothOutput(node, address) {
+        const mac = address.toLowerCase().replace(/:/g, "_");
+        const name = node.name.toLowerCase();
+        return name.startsWith("bluez_output." + mac + ".")
+            || name === "bluez_output." + mac
+            || node.properties?.["api.bluez5.address"]?.toLowerCase() === address.toLowerCase();
+    }
+    function bluetoothOutput(address) {
+        if (sink && matchesBluetoothOutput(sink, address)) return sink;
+        return outputs.find(node => matchesBluetoothOutput(node, address)) || null;
+    }
+    function alternativeOutput(address) {
+        const others = outputs.filter(node => !matchesBluetoothOutput(node, address));
+        return others.find(node => node.name === basicOutputName)
+            || others.find(node => !node.name.startsWith("bluez_output."))
+            || others[0] || null;
+    }
+    function toggleBluetoothOutput(address) {
+        const node = bluetoothOutput(address), other = alternativeOutput(address);
+        if (node && other) selectDevice(outputs.indexOf(sink === node ? other : node), false);
+    }
     onVolumeChanged: show(false)
     onMutedChanged: show(false)
     onMicVolumeChanged: show(true)
     onMicMutedChanged: show(true)
-    onSinkChanged: { armed = false; arm.restart(); }
+    onSinkChanged: {
+        if (sink && !sink.name.startsWith("bluez_output.")) basicOutputName = sink.name;
+        armed = false;
+        arm.restart();
+    }
     onSourceChanged: { armed = false; arm.restart(); }
-    PwObjectTracker { objects: root.fixture ? [] : [...new Set((root.mixerOpen ? root.nodes : root.activeMics).concat([root.sink, root.source]).filter(n => n !== null))] }
+    PwObjectTracker { objects: root.fixture ? [] : [...new Set((root.deviceControlsOpen ? root.nodes : root.activeMics).concat([root.sink, root.source]).filter(n => n !== null))] }
     PwObjectTracker { objects: root.fixture ? [] : root.micLinks }
     Timer { id: arm; interval: 700; running: true; onTriggered: root.armed = true }
 }

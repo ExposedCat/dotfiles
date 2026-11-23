@@ -12,7 +12,7 @@ Scope {
     PanelWindow {
         id: toasts
         screen: root.shell.mainScreen
-        visible: toastBanners.presentationCount > 0
+        visible: !root.shell.bannersHidden && toastBanners.presentationCount > 0
         anchors { top: true; right: true }
         margins { top: root.theme.panelGap; right: 0 }
         implicitWidth: root.theme.notificationWidth + root.theme.panelGap
@@ -24,7 +24,11 @@ Scope {
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "dotfiles-notifications"
         WlrLayershell.keyboardFocus: bannerFocus.keyboardMode
-        ReplyFocus { id: bannerFocus; store: root.shell.notifications; surface: "banner"; targetWindow: toasts }
+        ReplyFocus {
+            id: bannerFocus
+            available: !root.shell.bannersHidden
+            store: root.shell.notifications; surface: "banner"; targetWindow: toasts
+        }
         NotificationBanners {
             id: toastBanners
             width: parent.width

@@ -17,7 +17,6 @@ Item {
     property real gap: 10
     property real dot: 7
     property real minimumActiveWidth: dot
-    property color activeColor: theme.focusColor
     property color inactiveColor: Qt.alpha(theme.secondary, 0.4)
     readonly property real activeWidth: Math.max(minimumActiveWidth, 66 - Math.max(0, spaces.length - 1) * (dot + gap))
     implicitWidth: floating ? activeWidth + Math.max(0, spaces.length - 1) * (dot + gap) : Math.max(108, spaces.length * (dot + gap) + 32) + theme.panelWing * 2
@@ -41,7 +40,12 @@ Item {
                 width: index === root.current ? root.activeWidth : root.dot
                 height: 26
                 Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.InOutCubic } }
-                Rectangle { anchors.centerIn: parent; width: root.dot; height: root.dot; radius: height / 2; color: root.floating ? root.inactiveColor : "#5e6074" }
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: parent.width; height: root.dot
+                    radius: height / 2
+                    color: root.floating ? root.inactiveColor : "#5e6074"
+                }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.activate(parent.index) }
                 Accessible.role: Accessible.Button
                 Accessible.name: "Workspace " + modelData.id
@@ -62,7 +66,13 @@ Item {
             // Land at the new workspace while its dots are still sliding.
             motionOffset: Qt.point(marker.settledX - marker.x, 0)
         }
-        Rectangle { objectName: "workspaceActiveFallback"; anchors.fill: parent; radius: height / 2; color: root.floating && root.shell.emberEnabled ? root.activeColor : root.theme.text; visible: !activeSlot.occupied }
+        Rectangle {
+            objectName: "workspaceActiveFallback"
+            anchors.fill: parent
+            radius: height / 2
+            color: root.theme.text
+            visible: !root.shell.emberEnabled
+        }
         y: Math.round((root.height - height) / 2)
         x: settledX
         Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.InOutCubic } }

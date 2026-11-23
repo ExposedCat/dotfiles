@@ -11,6 +11,15 @@ ShellTheme {
     green: "#b8c79b"
     red: "#ed9c87"
     amber: "#e4c393"
+    readonly property int overviewInset: 21
+    readonly property real overviewRadius: 31.25
+    readonly property int overviewGap: 14
+    readonly property real overviewTileRadius: 21.25
+    readonly property int overviewControlSize: 54
+    readonly property int overviewControlPadding: 9
+    readonly property int overviewControlGap: 6
+    readonly property real overviewControlRadius: 16.25
+    readonly property int overviewControlIconSize: 23
     readonly property color glassTop: "#e53b302a"
     readonly property color glassBottom: "#ed241e1b"
     readonly property color overviewRim: "#16fff1e4"
@@ -34,6 +43,14 @@ ShellTheme {
     readonly property color weatherHighlight: "#20f8d3b8"
     readonly property color weatherHoverRim: "#36ffddc6"
     readonly property color weatherAccent: "#ffe2cf"
-    readonly property color weatherIcon: "#ffd6b9"
     readonly property color weatherCondition: "#ffe7d4"
+
+    function weatherIconColor(name): color {
+        if (name.includes("-night")) return "#c8bdf2";
+        if (name.includes("clear") || name.includes("few-clouds")) return "#ffd491";
+        if (name.includes("snow")) return "#d9edff";
+        if (name.includes("showers") || name.includes("rain")) return "#9dcaf2";
+        if (name.includes("storm")) return "#e6bbf0";
+        return "#d8cbd2";
+    }
 }
