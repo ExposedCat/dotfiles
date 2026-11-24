@@ -4,9 +4,9 @@ set -euo pipefail
 script=$(realpath "${BASH_SOURCE[0]}")
 source_dir=$(dirname "$script")
 
-case "${1:-}" in
-    install|dump) ;;
-    *) echo "Usage: $0 {install|dump}" >&2; exit 2 ;;
+case "$#:${1:-}" in
+    1:install|1:dump|2:dump) ;;
+    *) echo "Usage: $0 install | dump [DIRECTORY]" >&2; exit 2 ;;
 esac
 
 # System sleep belongs to the host, even when dotfiles are managed in Distrobox.
@@ -21,12 +21,13 @@ wake_script=/usr/local/sbin/sleep-disable-receiver-wake
 wake_rule=/etc/udev/rules.d/99-logi-bolt-no-wake.rules
 
 if [[ $1 == dump ]]; then
+    output=${2:-$source_dir}
     # Check every source before replacing any tracked files.
     for source in "$sleep_config" "$diagnostics_config" "$diagnostics_script" "$wake_script" "$wake_rule"; do
         [[ -r $source ]] || { echo "Cannot read $source" >&2; exit 1; }
     done
-    cp "$sleep_config" "$diagnostics_config" "$diagnostics_script" "$wake_script" "$wake_rule" "$source_dir/"
-    chmod +x "$source_dir/sleep-wake-diagnostics" "$source_dir/sleep-disable-receiver-wake"
+    cp "$sleep_config" "$diagnostics_config" "$diagnostics_script" "$wake_script" "$wake_rule" "$output/"
+    chmod +x "$output/sleep-wake-diagnostics" "$output/sleep-disable-receiver-wake"
     exit 0
 fi
 

@@ -1,39 +1,48 @@
 #!/usr/bin/env bash
+set -euo pipefail
+cd -- "$(dirname -- "$(realpath -- "${BASH_SOURCE[0]}")")/.."
 
-# Codex: capture updates to skill files tracked in this checkout.
+config=${XDG_CONFIG_HOME:-$HOME/.config}
+cache=${XDG_CACHE_HOME:-$HOME/.cache}
+mkdir -p -- "$cache"
+work=$(mktemp -d "$cache/dotfiles-dump.XXXXXX")
+pending=
+trap 'if [[ -n $pending ]]; then rm -f -- "$pending"; fi; rm -rf -- "$work"' EXIT
+stage=$work/files
+mkdir -p "$stage"/{claude,services/sleep,services/mdns,fastfetch,ptyxis,gtk,xdg-desktop-portal,alsa-card-profile/mixer/profile-sets,wireplumber/wireplumber.conf.d}
+
+# Read every source before writing back to the checkout.
+git ls-files -z -- codex/skills/ > "$work/skills"
 while IFS= read -r -d '' path; do
     installed=$HOME/.codex/skills/${path#codex/skills/}
     [[ -f $path && -f $installed ]] || continue
-    cp -- "$installed" "$path"
-done < <(git ls-files -z -- codex/skills/)
+    install -D -m "$(stat -c '%a' -- "$path")" -- "$installed" "$stage/$path"
+done < "$work/skills"
 
-# Claude: capture the global instructions.
-mkdir -p ./claude
-cp ~/.claude/CLAUDE.md ./claude/CLAUDE.md
-
-# System sleep: capture the host configuration and wake diagnostic helper.
-./services/sleep/manage dump
-
-# LAN hostname resolution on this PC.
-./services/mdns/manage dump
-
-# Fastfetch
-cp ~/.config/fastfetch/* ./fastfetch
-
-# Ptyxis
-./ptyxis/manage dump
-
-# Shared GTK client decoration rules
-mkdir -p ./gtk
-cp ~/.config/gtk-4.0/gtk.css ./gtk/gtk.css
-
-# Hyprland portal preferences
-./xdg-desktop-portal/manage dump
-
-# Audio: keep profile references independent of the local home directory.
-mkdir -p ./alsa-card-profile/mixer/profile-sets ./wireplumber/wireplumber.conf.d
-cp ~/.config/alsa-card-profile/mixer/profile-sets/{omen-hdmi5-only,podmic-input-only}.conf ./alsa-card-profile/mixer/profile-sets/
+cp -- "$HOME/.claude/CLAUDE.md" "$stage/claude/CLAUDE.md"
+./services/sleep/manage dump "$stage/services/sleep"
+./services/mdns/manage dump "$stage/services/mdns"
+cp -- "$config/fastfetch/"{bongo.txt,config.jsonc} "$stage/fastfetch/"
+./ptyxis/manage dump "$stage/ptyxis"
+cp -- "$config/gtk-4.0/gtk.css" "$stage/gtk/gtk.css"
+./xdg-desktop-portal/manage dump "$stage/xdg-desktop-portal"
+cp -- "$config/alsa-card-profile/mixer/profile-sets/"{omen-hdmi5-only,podmic-input-only}.conf \
+    "$stage/alsa-card-profile/mixer/profile-sets/"
 sed -E 's|(device\.profile-set = ")[^"]*/|\1|' \
-    ~/.config/wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf \
-    > ./wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf
-cp ~/.config/wireplumber/wireplumber.conf.d/52-bluetooth-headphones-only.conf ./wireplumber/wireplumber.conf.d/
+    "$config/wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf" \
+    > "$stage/wireplumber/wireplumber.conf.d/51-audio-output-cleanup.conf"
+cp -- "$config/wireplumber/wireplumber.conf.d/52-bluetooth-headphones-only.conf" \
+    "$stage/wireplumber/wireplumber.conf.d/"
+
+find "$stage" -type f -print0 > "$work/files-to-publish"
+while IFS= read -r -d '' source; do
+    target=${source#"$stage/"}
+    if cmp -s -- "$source" "$target"; then continue; fi
+    pending=$(mktemp "${target%/*}/.dotfiles-dump.XXXXXX")
+    cp -- "$source" "$pending"
+    mode_source=$source
+    if [[ -f $target ]]; then mode_source=$target; fi
+    chmod --reference="$mode_source" -- "$pending"
+    mv -T -- "$pending" "$target"
+    pending=
+done < "$work/files-to-publish"

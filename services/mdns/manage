@@ -3,9 +3,9 @@ set -euo pipefail
 
 script=$(realpath "${BASH_SOURCE[0]}")
 source_dir=$(dirname "$script")
-case "${1:-}" in
-    install|dump|check) ;;
-    *) echo "Usage: $0 {install|dump|check}" >&2; exit 2 ;;
+case "$#:${1:-}" in
+    1:install|1:check|1:dump|2:dump) ;;
+    *) echo "Usage: $0 {install|check} | dump [DIRECTORY]" >&2; exit 2 ;;
 esac
 
 # These settings belong to the PC host, including when loaded in Distrobox.
@@ -22,10 +22,11 @@ targets=(/etc/systemd/resolved.conf.d/mdns.conf /etc/NetworkManager/conf.d/60-md
 
 case $1 in
     dump)
+        output=${2:-$source_dir}
         for target in "${targets[@]}"; do
             [[ -r $target ]] || { echo "Cannot read $target" >&2; exit 1; }
         done
-        for i in "${!targets[@]}"; do cp "${targets[$i]}" "${sources[$i]}"; done
+        for i in "${!targets[@]}"; do cp "${targets[$i]}" "$output/${sources[$i]##*/}"; done
         exit 0
         ;;
     check)

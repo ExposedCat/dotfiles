@@ -6,11 +6,19 @@ if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
 fi
 source_dir=$(dirname "$script")
 action=${1:-install}
-case "$action" in install|dump) ;; *) echo "Usage: $0 [install|dump]" >&2; exit 2 ;; esac
+case "$#:$action" in
+    0:install|1:install|1:dump|2:dump) ;;
+    *) echo "Usage: $0 [install] | dump [DIRECTORY]" >&2; exit 2 ;;
+esac
 dev_id=$(podman inspect dev --format '{{.Id}}')
 [[ "$dev_id" =~ ^[a-f0-9]{64}$ ]] || { echo "Cannot find the dev container" >&2; exit 1; }
 if [[ "$action" = dump ]]; then
-    dconf dump /org/gnome/Ptyxis/ | sed "s/^default-container='$dev_id'$/default-container='@DEV_CONTAINER_ID@'/" > "$source_dir/ptyxis.dconf"
+    output=${2:-$source_dir}
+    temporary=$(mktemp "$output/.ptyxis-XXXXXX")
+    trap 'rm -f -- "$temporary"' EXIT
+    dconf dump /org/gnome/Ptyxis/ | sed "s/^default-container='$dev_id'$/default-container='@DEV_CONTAINER_ID@'/" > "$temporary"
+    chmod 0644 "$temporary"
+    mv -T -- "$temporary" "$output/ptyxis.dconf"
     exit
 fi
 

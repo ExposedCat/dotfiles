@@ -1,7 +1,26 @@
 #!/usr/bin/env bash
+set -euo pipefail
+cd -- "$(dirname -- "$(realpath -- "${BASH_SOURCE[0]}")")/.."
+trap 'printf "dotfiles load failed at line %s (exit %s).\n" "$LINENO" "$?" >&2' ERR
+
+case "$#:${1:-}" in
+    0:) auto_login=true ;;
+    1:--skip-auto-login) auto_login=false ;;
+    *) echo "Usage: $0 [--skip-auto-login]" >&2; exit 2 ;;
+esac
+
+host=()
+if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
+    host=(distrobox-host-exec)
+fi
+if "$auto_login" && ! "${host[@]}" bash -c 'for binary in greetd agreety uwsm; do command -v "$binary" >/dev/null || exit 1; done'; then
+    echo 'greetd, agreety and uwsm must be available on the host. Boot into the deployment with greetd installed, or use --skip-auto-login.' >&2
+    exit 1
+fi
+config=${XDG_CONFIG_HOME:-$HOME/.config}
 
 # Install the repository skills and share installed Codex skills with Claude.
-./claude/install || exit
+./claude/install
 
 # System sleep: install on the host, including when called from Distrobox.
 ./services/sleep/manage install
@@ -12,29 +31,19 @@
 # Secret Service: start oo7 at desktop login and recover after bus loss.
 ./services/secrets/manage install
 
-# Boot straight into Hyprland with greetd auto-login instead of GDM.
-./services/login/manage install
-
 # Install Dokument from FlatPark and set it as the default PDF viewer.
-host=()
-if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
-    host=(distrobox-host-exec)
-fi
 flathub=https://dl.flathub.org/repo/flathub.flatpakrepo
-if "${host[@]}" flatpak info com.chipichapa.Dokument >/dev/null 2>&1 || {
-    "${host[@]}" flatpak --user remote-add --if-not-exists flathub "$flathub" &&
-    "${host[@]}" flatpak --user remote-add --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo &&
+if ! "${host[@]}" flatpak info com.chipichapa.Dokument >/dev/null 2>&1; then
+    "${host[@]}" flatpak --user remote-add --if-not-exists flathub "$flathub"
+    "${host[@]}" flatpak --user remote-add --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo
     "${host[@]}" flatpak --user install --noninteractive flatpark com.chipichapa.Dokument
-}; then
-    "${host[@]}" xdg-mime default com.chipichapa.Dokument.desktop application/pdf
 fi
+"${host[@]}" xdg-mime default com.chipichapa.Dokument.desktop application/pdf
 
 # Locally built apps
 (
-    set -euo pipefail
     state=${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/apps
     cache=${XDG_CACHE_HOME:-$HOME/.cache}
-    config=${XDG_CONFIG_HOME:-$HOME/.config}
     applications=$HOME/.local/share/applications
     mkdir -p "$state" "$applications"
     exec 9>"$state/load.lock"
@@ -234,27 +243,21 @@ fi
     install_openlogi
     install_wl_screenrec
 )
-app_setup_status=$?
-if (( app_setup_status != 0 )); then
-    exit "$app_setup_status"
-fi
 
 # Fastfetch
-cp ./fastfetch/* ~/.config/fastfetch/
+install -d -- "$config/fastfetch"
+install -m 0644 ./fastfetch/{bongo.txt,config.jsonc} "$config/fastfetch/"
 
 # Fish
-sudo cp fish/* /etc/fish/conf.d
+sudo install -d -m 0755 /etc/fish/conf.d
+sudo install -m 0644 fish/*.fish /etc/fish/conf.d/
 
-# System font fallback
-./fonts/manage install
-
-# Ptyxis
+# Ptyxis also installs the shared font fallback.
 ./ptyxis/manage install
 
 # GTK client decorations
-mkdir -p ~/.config/gtk-{3,4}.0
-cp ./gtk/gtk.css ~/.config/gtk-3.0/gtk.css
-cp ./gtk/gtk.css ~/.config/gtk-4.0/gtk.css
+install -Dm0644 ./gtk/gtk.css "$config/gtk-3.0/gtk.css"
+install -Dm0644 ./gtk/gtk.css "$config/gtk-4.0/gtk.css"
 
 # PrusaSlicer's bundled GTK chooser needs GVfs to list and mount removable drives.
 "${host[@]}" flatpak override --user \
@@ -262,7 +265,7 @@ cp ./gtk/gtk.css ~/.config/gtk-4.0/gtk.css
     com.prusa3d.PrusaSlicer
 
 # Remove the retired Brevlada entry only after migration to the installed app ID.
-brevlada_old_autostart=${XDG_CONFIG_HOME:-$HOME/.config}/autostart/io.github.ExposedCat.Brevlada.desktop
+brevlada_old_autostart=$config/autostart/io.github.ExposedCat.Brevlada.desktop
 if "${host[@]}" flatpak info com.chipichapa.Brevlada >/dev/null 2>&1 \
     && ! "${host[@]}" flatpak info io.github.ExposedCat.Brevlada >/dev/null 2>&1 \
     && [[ -f $brevlada_old_autostart ]] \
@@ -270,11 +273,17 @@ if "${host[@]}" flatpak info com.chipichapa.Brevlada >/dev/null 2>&1 \
     rm -- "$brevlada_old_autostart"
 fi
 
-# Build the pinned local portal release and install its routing and dialogs.
+# The portal backend and picker use the installed Hyprland executable.
+./hyprland/manage install
 ./xdg-desktop-portal/manage install
 
 # Audio: install profiles before enabling the WirePlumber rules.
-mkdir -p ~/.config/alsa-card-profile/mixer/profile-sets ~/.config/wireplumber/wireplumber.conf.d
-cp ./alsa-card-profile/mixer/profile-sets/{omen-hdmi5-only,podmic-input-only}.conf ~/.config/alsa-card-profile/mixer/profile-sets/ &&
-    cp ./wireplumber/wireplumber.conf.d/{51-audio-output-cleanup,52-bluetooth-headphones-only}.conf ~/.config/wireplumber/wireplumber.conf.d/ &&
-    systemctl --user restart wireplumber
+install -d -- "$config/alsa-card-profile/mixer/profile-sets" "$config/wireplumber/wireplumber.conf.d"
+install -m 0644 ./alsa-card-profile/mixer/profile-sets/{omen-hdmi5-only,podmic-input-only}.conf "$config/alsa-card-profile/mixer/profile-sets/"
+install -m 0644 ./wireplumber/wireplumber.conf.d/{51-audio-output-cleanup,52-bluetooth-headphones-only}.conf "$config/wireplumber/wireplumber.conf.d/"
+"${host[@]}" systemctl --user restart wireplumber
+
+# Change the next boot's login manager only after the desktop is installed.
+if "$auto_login"; then
+    ./services/login/manage install
+fi

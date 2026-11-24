@@ -584,9 +584,13 @@ fn portals(repo: &Path, args: &[String]) -> Result<()> {
     let _lock = Lock::acquire(&state.join("manage.lock"), false)?;
     let action = arg(args, 0)?;
     if action == "dump" {
+        let output = args
+            .get(1)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| repo.join("xdg-desktop-portal"));
         fs::copy(
             xdg("XDG_CONFIG_HOME", ".config").join("xdg-desktop-portal/hyprland-portals.conf"),
-            repo.join("xdg-desktop-portal/hyprland-portals.conf"),
+            output.join("hyprland-portals.conf"),
         )?;
         return Ok(());
     }
