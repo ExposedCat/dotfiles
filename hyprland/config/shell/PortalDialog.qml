@@ -11,11 +11,11 @@ Item {
     property var requestData: ({kind: "apps", apps: []})
     property bool submitting: false
     property string error: ""
+    readonly property string shownError: error || requestData.error || ""
     property string selected: ""
     property var selections: ({})
     property string tab: "screen"
     property bool remember: false
-    property bool regionMode: false
     readonly property bool fixture: !!requestData.fixture
     readonly property bool sharing: requestData.kind === "share"
     readonly property bool permission: requestData.kind === "access"
@@ -27,8 +27,9 @@ Item {
     readonly property int columns: tab === "screen" ? 2 : 3
     readonly property var chosenSource: sources.find(s => s.id === selected) || null
     readonly property bool canAccept: permission || (sharing ? !!chosenSource : results.some(a => a.id === selected))
+    readonly property bool canSelectRegion: sharing && tab === "screen" && !!chosenSource
     readonly property real desiredWidth: sharing ? 680 : permission ? 440 : 560
-    readonly property real desiredHeight: sharing ? Math.min(700, Math.max(402, 198 + Math.ceil(sources.length / columns) * 204)) + (selectedSourceName.visible ? Math.max(0, selectedSourceName.implicitHeight - 22) : 0)
+    readonly property real desiredHeight: sharing ? Math.min(700, Math.max(402, 198 + Math.ceil(sources.length / columns) * 204)) + (selectedSourceName.visible ? Math.max(0, selectedSourceName.implicitHeight - 22) : 0) + (errorMessage.visible ? errorMessage.implicitHeight + 14 : 0)
                         : permission ? Math.min(620, permissionContent.implicitHeight + 108) : 428
     signal responded(var response)
     enabled: !submitting
@@ -52,12 +53,13 @@ Item {
         else appPicker.focusSearch();
     }
     function activate() {
-        error = ""; selected = ""; tab = "screen"; regionMode = false;
+        error = ""; selected = ""; tab = "screen";
         remember = !!requestData.remember;
         const values = {};
         for (const choice of requestData.choices || []) values[choice.id] = choice.selected;
         selections = values;
         appPicker.activate();
+        if (sharing) selected = requestData.initialChoice || "";
         Qt.callLater(focusSearch);
     }
     function choose(identity) { selected = identity }
@@ -65,16 +67,16 @@ Item {
     function accept() { decide(0); }
     function setTab(value) {
         if (tab === value) return;
-        tab = value; selected = ""; regionMode = false;
+        tab = value; selected = "";
         tabChange.restart();
     }
-    function decide(code) {
-        if (submitting || (code === 0 && !canAccept)) return;
+    function decide(code, selectRegion = false) {
+        if (submitting || (code === 0 && !(selectRegion ? canSelectRegion : canAccept))) return;
         const response = {response: code};
         if (code === 0) {
             if (permission) response.choices = selections;
             else response.choice = selected;
-            if (sharing) { response.remember = remember; if (regionMode) response.selectRegion = true }
+            if (sharing) { response.remember = remember; if (selectRegion) response.selectRegion = true }
         }
         responded(response);
     }
@@ -238,7 +240,7 @@ Item {
             Text { anchors.centerIn: parent; visible: sourceGrid.count === 0; text: "No sources"; color: portalTheme.secondary; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize }
         }
         Text { id: selectedSourceName; objectName: "shareSelectedName"; visible: root.sharing && !!root.chosenSource && root.chosenSource.name.length > 36; Layout.fillWidth: true; text: root.chosenSource ? root.chosenSource.name : ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; font: portalTheme.textFont; color: portalTheme.text }
-        Text { visible: root.error.length > 0; text: root.error; Layout.fillWidth: true; wrapMode: Text.Wrap; color: portalTheme.red; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize }
+        Text { id: errorMessage; visible: root.shownError.length > 0; text: root.shownError; textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap; color: portalTheme.red; font: portalTheme.textFont }
         RowLayout {
             visible: root.sharing || root.permission
             Layout.fillWidth: true; spacing: 8
@@ -255,8 +257,14 @@ Item {
                     } else root.remember = checked;
                 }
             }
-            PortalCheckBox { visible: root.sharing && root.tab === "screen" && !!root.chosenSource; theme: portalTheme; text: "Region"; checked: root.regionMode; onToggled: root.regionMode = checked }
             Item { Layout.fillWidth: true }
+            ShellButton {
+                visible: root.sharing && root.tab === "screen"; enabled: root.canSelectRegion
+                theme: portalTheme; text: "Select region…"; textTint: portalTheme.overviewInk
+                radius: height / 2
+                color: hovered && enabled ? portalTheme.overviewButtonHover : portalTheme.overviewButton
+                onClicked: root.decide(0, true)
+            }
             PortalButton { id: cancel; visible: !root.sharing; theme: portalTheme; text: root.permission ? root.requestData.denyLabel || "Deny" : "Cancel"; enabled: !root.submitting; onClicked: root.decide(1) }
             PortalButton { theme: portalTheme; text: root.sharing ? "Share" : root.permission ? root.requestData.grantLabel || "Allow" : "Open"; primary: true; enabled: root.canAccept && !root.submitting; onClicked: root.decide(0) }
         }

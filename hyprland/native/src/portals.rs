@@ -800,19 +800,28 @@ fn share_result(data: &Value, result: &Value) -> Result<String> {
 fn share(args: &[String], stop: &AtomicBool) -> Result<()> {
     let mut data = sharing_sources()?;
     data["remember"] = json!(args.iter().any(|a| a == "--allow-token"));
-    let mut result = Dialog::open(&data)?.wait_until(stop)?;
-    if result["response"] != 0 || stop.load(Ordering::Relaxed) {
-        return Ok(());
-    }
-    if result["selectRegion"] == true {
-        let source = sharing_source(&data, &result)?;
-        let Some(region) = crate::capture::select_share_region(source, stop)? else {
-            return Ok(());
-        };
-        result["region"] = json!(region);
-    }
-    if !stop.load(Ordering::Relaxed) {
-        println!("{}", share_result(&data, &result)?);
+    while !stop.load(Ordering::Relaxed) {
+        let mut result = Dialog::open(&data)?.wait_until(stop)?;
+        if result["response"] != 0 || stop.load(Ordering::Relaxed) {
+            break;
+        }
+        if result["selectRegion"] == true {
+            let source = sharing_source(&data, &result)?;
+            match crate::capture::select_share_region(source, stop) {
+                Ok(Some(region)) => result["region"] = json!(region),
+                Ok(None) => break,
+                Err(error) => {
+                    data["error"] = json!(format!("Could not select a region. {error:#}"));
+                    data["initialChoice"] = result["choice"].take();
+                    data["remember"] = result["remember"].take();
+                    continue;
+                }
+            }
+        }
+        if !stop.load(Ordering::Relaxed) {
+            println!("{}", share_result(&data, &result)?);
+        }
+        break;
     }
     Ok(())
 }
