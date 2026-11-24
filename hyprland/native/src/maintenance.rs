@@ -42,7 +42,7 @@ fn files(source: &Path) -> Result<Vec<PathBuf>> {
                 collect(&e.path(), all)?;
             // Shared components are linked between configs; install their contents.
             } else if (kind.is_file() || (kind.is_symlink() && e.path().is_file()))
-                && ["lua", "conf", "qml", "js", "svg", "txt"].contains(
+                && ["lua", "conf", "qml", "js", "svg", "jpg", "txt"].contains(
                     &e.path()
                         .extension()
                         .unwrap_or_default()

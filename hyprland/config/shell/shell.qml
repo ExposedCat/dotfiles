@@ -3,6 +3,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
+import Quickshell.Wayland
 
 ShellRoot {
     id: root
@@ -135,6 +136,26 @@ ShellRoot {
     BluetoothController { id: bluetoothController; shell: root }
     Agenda { id: agenda; shell: root }
     Weather { id: weather; shell: root }
+    Variants {
+        model: Quickshell.screens
+        PanelWindow {
+            required property var modelData
+            screen: modelData
+            anchors { top: true; bottom: true; left: true; right: true }
+            exclusionMode: ExclusionMode.Ignore
+            mask: Region {}
+            WlrLayershell.namespace: "dotfiles-wallpaper"
+            WlrLayershell.layer: WlrLayer.Background
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+            Image {
+                anchors.fill: parent
+                source: "wallpaper.jpg"
+                fillMode: Image.PreserveAspectCrop
+                clip: true
+            }
+        }
+    }
     Variants {
         model: Quickshell.screens
         ScreenCorners {
