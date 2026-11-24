@@ -39,13 +39,6 @@ hl.layer_rule({
     no_anim = true,
 })
 
-hl.window_rule({
-    name = "app-launcher",
-    match = { class = "org.quickshell", title = "Applications" },
-    float = true,
-    center = true,
-})
-
 -- BEGIN dotfiles-steam-notifications
 -- Steam uses its own Xwayland windows for desktop toasts. Place them using
 -- monitor-local dimensions so stacked/mixed-resolution displays do not offset them.

@@ -5,16 +5,7 @@ use glib::variant::ToVariant;
 use serde_json::{Value, json};
 use std::{env, process::Command, time::Duration};
 const PREFIX: &str = "dotfiles-hyprland-";
-const BACKGROUND: &[&str] = &[
-    "agents",
-    "automount",
-    "clipboard",
-    "clipboard-text",
-    "clipboard-image",
-    "shell",
-    "capture",
-    "idle",
-];
+const BACKGROUND: &[&str] = &["agents", "automount", "clipboard", "shell", "capture"];
 fn active(name: &str) -> bool {
     Command::new("systemctl")
         .args(["--user", "is-active", "--quiet", &format!("{PREFIX}{name}")])
@@ -90,11 +81,6 @@ pub fn session_start(refresh: bool) -> Result<()> {
             true,
         )?;
     }
-    for legacy in ["clipboard-text", "clipboard-image"] {
-        if active(legacy) {
-            run(&["systemctl", "--user", "stop", &format!("{PREFIX}{legacy}")])?;
-        }
-    }
     if refresh && active("clipboard") {
         run(&[
             "systemctl",
@@ -112,9 +98,6 @@ pub fn session_start(refresh: bool) -> Result<()> {
             ]),
             true,
         )?;
-    }
-    if active("idle") {
-        run(&["systemctl", "--user", "stop", &format!("{PREFIX}idle")])?;
     }
     std::fs::create_dir_all(xdg("XDG_STATE_HOME", ".local/state").join("dotfiles/hyprland"))?;
     for (name, path, field) in [
@@ -356,7 +339,6 @@ pub fn main(args: &[String]) -> Result<()> {
         "clipboard-preview" => clipboard::preview(arg(args, 1)?, arg(args, 2)?),
         "clipboard-paste" => clipboard::paste(arg(args, 1)?, arg(args, 2)?),
         "clipboard-serve" => clipboard::serve(arg(args, 1)?),
-        "clipboard-copy" => clipboard::legacy_copy(arg(args, 1)?),
         "copy-text" => {
             status(
                 command(&["wl-copy"]),

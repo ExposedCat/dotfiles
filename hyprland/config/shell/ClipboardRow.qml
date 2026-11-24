@@ -22,7 +22,7 @@ ClippingRectangle {
     readonly property bool mediaOutline: stillImage || kind === "video"
     readonly property bool staticFocus: selected && !focusSlot.occupied
     readonly property bool hasSource: stillImage && !!modelData.source
-    readonly property bool previewable: remote || kind === "legacy-media" || !!modelData.mime && (stillImage || kind === "video")
+    readonly property bool previewable: remote || !!modelData.mime && (stillImage || kind === "video")
     signal activated()
 
     radius: 10
@@ -123,12 +123,14 @@ ClippingRectangle {
         visible: !root.stillImage && root.kind !== "html"
         anchors.fill: parent
         anchors.margins: 10
+        // Leave vertical room so the swatch border is not clipped in 44 px rows.
+        anchors.topMargin: 6; anchors.bottomMargin: 6
         clip: true
         RowLayout {
             anchors.fill: parent
             spacing: 10
             Rectangle {
-                Layout.preferredWidth: 25; Layout.preferredHeight: 25
+                Layout.preferredWidth: 24; Layout.preferredHeight: 24
                 radius: 6
                 visible: root.kind === "color"
                 color: root.modelData.swatch || "transparent"

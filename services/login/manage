@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Boot straight into the Hyprland session with greetd auto-login, in place of
+# GDM. After a logout greetd shows its plain text login. The keyring unlocks
+# itself through `services/secrets/manage seal`, so no password is needed.
+set -euo pipefail
+
+script=$(realpath "${BASH_SOURCE[0]}")
+
+case "${1:-}" in
+    install|check|revert) ;;
+    *) echo "Usage: $0 {install|check|revert}" >&2; exit 2 ;;
+esac
+
+# The display manager belongs to the host, even when called from Distrobox.
+if [[ -e /run/.containerenv || -e /.dockerenv ]]; then
+    exec distrobox-host-exec bash "$script" "$@"
+fi
+
+user=${SUDO_USER:-$USER}
+[[ $user != root ]] || { echo "Run as your own user; the script uses sudo itself." >&2; exit 1; }
+session='uwsm start -e -D Hyprland hyprland.desktop'
+config=/etc/greetd/config.toml
+expected="# Managed by dotfiles: services/login/manage
+[terminal]
+vt = 1
+
+# Boot: start the session for $user without a login screen.
+[initial_session]
+command = \"$session\"
+user = \"$user\"
+
+# After a logout: plain text login.
+[default_session]
+command = \"agreety --cmd '$session'\"
+user = \"greetd\""
+
+display_manager() {
+    basename "$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)"
+}
+
+if [[ $1 == check ]]; then
+    [[ $(cat "$config" 2>/dev/null) == "$expected" ]] \
+        || { echo "$config differs from the auto-login configuration." >&2; exit 1; }
+    [[ $(display_manager) == greetd.service ]] \
+        || { echo "The display manager is $(display_manager), not greetd." >&2; exit 1; }
+    echo "greetd auto-login for $user is configured."
+    exit 0
+fi
+
+if (( EUID != 0 )); then
+    exec sudo bash "$script" "$@"
+fi
+
+if [[ $1 == revert ]]; then
+    systemctl disable greetd.service
+    systemctl enable --force gdm.service
+    echo "GDM is the display manager again from the next boot."
+    exit 0
+fi
+
+for binary in greetd agreety uwsm; do
+    command -v "$binary" >/dev/null || {
+        echo "Missing $binary. Layer greetd with rpm-ostree and reboot first:" >&2
+        echo "  rpm-ostree install greetd greetd-selinux" >&2
+        exit 1
+    }
+done
+getent passwd "$user" greetd >/dev/null
+
+if [[ -f $config && ! -f $config.before-dotfiles ]]; then
+    cp -p "$config" "$config.before-dotfiles"
+fi
+install -d -m 0755 /etc/greetd
+printf '%s\n' "$expected" > "$config.new"
+chmod 0644 "$config.new"
+mv "$config.new" "$config"
+restorecon "$config" 2>/dev/null || true
+
+# Takes effect on the next boot; the running session is left alone.
+systemctl disable gdm.service
+systemctl enable --force greetd.service
+echo "Auto-login for $user is set up. It takes effect on the next boot."
+echo "To return to GDM: $script revert"

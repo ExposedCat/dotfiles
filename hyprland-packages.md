@@ -3,9 +3,9 @@
 - hyprland
 - hyprland-guiutils
 - uwsm
+- greetd and greetd-selinux (boot auto-login in place of GDM; `services/login/manage`)
 - quickshell (0.3.2+; bar, notifications/history, Polkit, volume OSD, power menu)
 - hyprlock
-- hypridle (optional, unused; automatic locking is disabled)
 - polkit
 - ptyxis
 - nautilus
@@ -40,7 +40,6 @@
 - wl-screenrec
 - ffmpeg (VA-API decode, scale/overlay and H.264/HEVC encode; libx264 for recording composition recovery)
 - wl-clipboard
-- cliphist
 - gnome-online-accounts
 - evolution-data-server (selected GNOME calendars and today's events)
 - libgweather4 (saved GNOME Clocks locations)

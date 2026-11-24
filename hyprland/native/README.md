@@ -35,8 +35,8 @@ The same executable supports these command groups:
 | `manage` | Hyprland install/check/rollback, portal routing, pinned frontend build/verification |
 
 Installed `portals/share-picker` and `~/.local/libexec/dotfiles/brevlada-email`
-are native multicall entry points. Their executable basename selects the
-appropriate command. They do not start a shell or interpreter.
+are symbolic links to the installed binary. Their link name selects the
+appropriate command, so they always run the current build without a shell.
 
 ## Interfaces and lifetimes
 
@@ -92,7 +92,7 @@ this checkout's absolute `hyprland/config` path. Diagnostic state, profiles,
 captures, and logs must stay outside this checkout.
 
 Installation stages the binary with the configuration and validates before
-activation. A failed reload restores the entire previous directory. Historical
-backups from before this migration retain their original Python entry point.
+activation. A failed reload restores the entire previous directory. The ten
+newest backups are kept.
 The frontend release recipe/fingerprint stays compatible with the previous
 installer, including its patched-source and binary provenance receipts.

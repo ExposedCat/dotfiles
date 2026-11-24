@@ -58,7 +58,7 @@ Scope {
         onExited: { if (root.refreshPending || root.queryRevision !== root.revision) refreshDelay.restart(); }
     }
     Timer { id: refreshDelay; interval: 80; onTriggered: root.refresh() }
-    // Reconcile after hotplug, resume, or an event missed while IPC reconnects.
-    Timer { interval: 5000; running: !root.shell.fixture; repeat: true; onTriggered: root.refresh() }
+    // Layout events drive updates; this only reconciles an event missed while IPC reconnects.
+    Timer { interval: 60000; running: !root.shell.fixture; repeat: true; onTriggered: root.refresh() }
     Component.onCompleted: refresh()
 }

@@ -7,6 +7,7 @@ Item {
     property Item ember: null
     property EmberHoverGroup hoverGroup: null
     property real shapeRadius: Math.min(width, height) / 2
+    property real shapeBend: 0
     property real shapeOpacity: 1
     property real shapeBorderWidth: 0
     readonly property Item motion: ember || shell?.pill?.ember || null

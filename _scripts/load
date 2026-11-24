@@ -12,6 +12,9 @@
 # Secret Service: start oo7 at desktop login and recover after bus loss.
 ./services/secrets/manage install
 
+# Boot straight into Hyprland with greetd auto-login instead of GDM.
+./services/login/manage install
+
 # Install Dokument from FlatPark and set it as the default PDF viewer.
 host=()
 if [[ -e /run/.containerenv || -e /.dockerenv ]]; then

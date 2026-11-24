@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 
 // One shape: pull out into a bead, leap, then unfold into the destination.
 // Dock beneath the destination's labels only after the landing has settled.
@@ -29,6 +30,7 @@ Item {
     property rect origin: Qt.rect(0, 0, 10, 10)
     property rect destination: origin
     property real originRadius: 5
+    property real originBend: 0
     property real originOpacity: 1
     property real originBorder: 0
     property real originFill: 1
@@ -47,11 +49,12 @@ Item {
         const t = travel;
         const start = Qt.point(origin.x + origin.width / 2, origin.y + origin.height / 2);
         const end = Qt.point(destination.x + destination.width / 2, destination.y + destination.height / 2);
-        let center = start, w = beadSize, h = beadSize, radius = beadSize / 2, alpha = 1, border = 0, fill = 1;
+        let center = start, w = beadSize, h = beadSize, radius = beadSize / 2, bend = 0, alpha = 1, border = 0, fill = 1;
         if (t < takeoffEnd) {
             const u = outCubic(t / takeoffEnd);
             w = mix(origin.width, beadSize, u); h = mix(origin.height, beadSize, u);
             radius = mix(originRadius, beadSize / 2, u); alpha = mix(originOpacity, 1, u);
+            bend = mix(originBend, 0, u);
             border = mix(originBorder, 0, u);
             fill = mix(originFill, 1, u);
         } else if (t < landingStart) {
@@ -76,13 +79,14 @@ Item {
                 const v = u - 1, spring = 1 + 2.2 * v * v * v + 1.2 * v * v;
                 w = mix(beadSize, destination.width, spring); h = mix(beadSize, destination.height, spring);
                 radius = mix(beadSize / 2, target ? target.shapeRadius : originRadius, spring);
+                bend = (target?.shapeBend ?? 0) * landing;
                 const thickness = target?.shapeBorderWidth ?? 0;
                 border = thickness * landing;
                 fill = thickness > 0 ? 1 - landing : 1;
             }
         }
         return {rect: Qt.rect(center.x - w / 2, center.y - h / 2, Math.max(1, w), Math.max(1, h)),
-            radius: Math.max(0, radius), alpha: alpha, border: border, fill: fill};
+            radius: Math.max(0, radius), bend: bend, alpha: alpha, border: border, fill: fill};
     }
     readonly property rect geometry: pose.rect
     function follow(slot, inside, keyboard) {
@@ -105,7 +109,7 @@ Item {
     function depart() {
         const p = shape.mapToItem(root, 0, 0);
         let bounds = Qt.rect(p.x, p.y, shape.width, shape.height);
-        let radius = shape.radius, alpha = shape.opacity;
+        let radius = shape.radius, bend = shape.bend, alpha = shape.opacity;
         let border = shape.border.width, fill = shape.fillOpacity;
         const wasMoving = flight.running;
         const continuing = wasMoving || Date.now() - interruptedAt < 120;
@@ -113,15 +117,15 @@ Item {
         dock = null;
         if (!target) {
             if (wasMoving) interruptedAt = Date.now();
-            origin = bounds; destination = bounds; originRadius = radius; originOpacity = alpha;
+            origin = bounds; destination = bounds; originRadius = radius; originBend = bend; originOpacity = alpha;
             travel = 1; return;
         }
         locate();
         if (!hasPosition) {
             bounds = Qt.rect(destination.x + (destination.width - beadSize) / 2, destination.y + (destination.height - beadSize) / 2, beadSize, beadSize);
-            radius = beadSize / 2; alpha = 1; border = 0; fill = 1; hasPosition = true;
+            radius = beadSize / 2; bend = 0; alpha = 1; border = 0; fill = 1; hasPosition = true;
         }
-        origin = bounds; originRadius = radius; originOpacity = alpha; originBorder = border; originFill = fill;
+        origin = bounds; originRadius = radius; originBend = bend; originOpacity = alpha; originBorder = border; originFill = fill;
         redirecting = continuing;
         takeoffEnd = continuing ? 0.06 : 0.22;
         travel = continuing && bounds.width <= 12 && bounds.height <= 12 && alpha >= 0.99 ? takeoffEnd : 0;
@@ -155,12 +159,39 @@ Item {
         width: root.dock ? (dockedBead ? root.beadSize : root.dock.width) : root.geometry.width
         height: root.dock ? (dockedBead ? root.beadSize : root.dock.height) : root.geometry.height
         radius: root.dock ? (dockedBead ? root.beadSize / 2 : root.dock.shapeRadius) : root.pose.radius
+        readonly property real bend: Math.max(0, Math.min(root.dock ? root.dock.shapeBend : root.pose.bend, (height - width) / 2))
         readonly property real fillOpacity: root.dock ? ((root.dock.shapeBorderWidth ?? 0) > 0 ? 0 : 1) : root.pose.fill
-        color: Qt.alpha(root.color, fillOpacity)
+        color: bend > 0 ? "transparent" : Qt.alpha(root.color, fillOpacity)
         border.color: root.color
         border.width: root.dock ? (root.dock.shapeBorderWidth ?? 0) : root.pose.border
         opacity: root.active && root.target ? (root.dock ? root.dock.shapeOpacity * (root.dock.caret ? root.blink : 1) : root.pose.alpha) : 0
         Behavior on opacity { enabled: !flight.running; NumberAnimation { duration: 90 } }
         visible: root.active && opacity > 0
+        Shape {
+            width: shape.width + shape.bend; height: shape.height
+            visible: shape.bend > 0
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                id: curve
+                readonly property real inset: shape.width / 2
+                readonly property real corner: inset + shape.bend
+                strokeWidth: shape.width
+                strokeColor: root.color
+                fillColor: "transparent"
+                capStyle: ShapePath.RoundCap
+                startX: corner; startY: inset
+                PathArc {
+                    x: curve.inset; y: curve.corner
+                    radiusX: shape.bend; radiusY: shape.bend
+                    direction: PathArc.Counterclockwise
+                }
+                PathLine { x: curve.inset; y: shape.height - curve.corner }
+                PathArc {
+                    x: curve.corner; y: shape.height - curve.inset
+                    radiusX: shape.bend; radiusY: shape.bend
+                    direction: PathArc.Counterclockwise
+                }
+            }
+        }
     }
 }

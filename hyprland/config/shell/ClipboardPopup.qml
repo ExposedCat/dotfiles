@@ -73,7 +73,7 @@ PanelWindow {
         opened = opening;
         transition.start();
     }
-    function isImage(entry) { return ["image", "legacy-media", "remote-image"].includes(entry.kind); }
+    function isImage(entry) { return ["image", "remote-image"].includes(entry.kind); }
     function rowHeight(entry, richHeight) {
         if (isImage(entry)) return 150 + (entry.source ? 32 : 0);
         if (entry.kind === "html") return clamp(richHeight, 44, 86);

@@ -11,6 +11,11 @@ Item {
     property int presentationSerial: 0
     property int regionRevision: 0
     readonly property int presentationCount: popupModel.count
+    readonly property bool hoverHeld: {
+        const revision = regionRevision;
+        for (let i = 0; i < banners.count; ++i) if (banners.itemAt(i)?.hoverHeld) return true;
+        return false;
+    }
     readonly property bool groupsUnfolded: {
         const revision = regionRevision;
         for (let i = 0; i < banners.count; ++i) {

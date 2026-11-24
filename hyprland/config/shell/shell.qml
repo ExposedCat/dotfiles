@@ -128,6 +128,7 @@ ShellRoot {
         singlePopup: false
         centerOpen: root.panel === "notifications"
         presentationPaused: root.bannersHidden || centerOpen
+        bannerHovered: overlays.banners.hoverHeld
         statePath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/dotfiles/hyprland/notifications.json"
     }
     BluetoothController { id: bluetoothController; shell: root }

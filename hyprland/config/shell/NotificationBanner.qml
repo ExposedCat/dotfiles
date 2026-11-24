@@ -25,6 +25,8 @@ Item {
     property real heldHeight: 0
     property bool ready: false
     property bool retiredSent: false
+    property point lastHoverPosition: Qt.point(-1, -1)
+    readonly property bool hoverHeld: groupHover.enabled && (groupHover.hovered || hoverExit.running)
     readonly property alias inputRegion: input
     signal retired()
     signal inputGeometryChanged()
@@ -97,15 +99,29 @@ Item {
     ListModel { id: cardModel }
     HoverHandler {
         id: groupHover
-        onHoveredChanged: {
-            if (hovered) { hoverExit.stop(); root.store.hoverPopupGroup(root.group.key, true); }
-            else hoverExit.restart();
+        enabled: root.enabled && !root.store.presentationPaused
+        function rememberPosition() {
+            if (root.contains(point.position)) root.lastHoverPosition = point.scenePosition;
         }
+        onPointChanged: { if (hovered) rememberPosition(); }
+        onHoveredChanged: {
+            if (hovered) {
+                rememberPosition();
+                hoverExit.stop();
+            } else if (enabled) {
+                // Reflow can move or shrink a card under a stationary pointer.
+                hoverExit.consume = root.contains(root.mapFromItem(null, root.lastHoverPosition));
+                hoverExit.restart();
+            }
+        }
+        onEnabledChanged: { if (!enabled) hoverExit.stop(); }
     }
     Timer {
         id: hoverExit; interval: 80
+        property bool consume: false
         onTriggered: {
-            if (!groupHover.hovered && root.presented) root.store.hoverPopupGroup(root.group.key, false);
+            if (consume && groupHover.enabled && !groupHover.hovered)
+                root.store.dismissPopupGroup(root.group.key);
         }
     }
     Item {
@@ -144,7 +160,6 @@ Item {
                         duration: 300; easing.type: Easing.OutCubic
                     }
                     theme: root.theme; store: root.store; entry: root.cardData[entryId]
-                    manageHover: false
                     groupControls: index === 0 && cardModel.count > 1
                     groupCount: cardModel.count
                     groupExpanded: root.expanded

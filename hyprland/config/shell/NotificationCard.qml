@@ -24,13 +24,17 @@ Item {
         while (item) { if (item === root) return true; item = item.parent; }
         return false;
     }
-    EmberSlot { id: unreadSlot; shell: root.emberShell; x: 4; y: 12; width: 3; height: Math.max(4, parent.height - 24); shapeRadius: 1.5 }
+    EmberSlot {
+        id: unreadSlot
+        shell: root.emberShell
+        x: 4; y: x; width: 3; height: Math.max(width, parent.height - 2 * y)
+        shapeBend: surface.radius - x - width / 2
+    }
     property bool embedded: false
     readonly property bool isBanner: !inCenter && !embedded
     property bool groupControls: false
     property bool groupExpanded: false
     property int groupCount: 1
-    property bool manageHover: true
     signal toggleGroup()
     signal dismissGroup()
     property bool geometryReady: false
@@ -84,6 +88,7 @@ Item {
         onFinished: root.retired()
     }
     NotificationSurface {
+        id: surface
         visible: !root.embedded
         anchors.fill: parent; z: -1
         theme: root.theme; inset: root.inCenter; critical: !!root.entry.critical
@@ -102,25 +107,10 @@ Item {
     HoverHandler {
         id: cardHover
         onHoveredChanged: {
-            if (hovered) {
-                hoverExit.stop();
-                if (!root.inCenter && root.hoverExpansionAllowed) root.actionsExpanded = true;
-                if (!root.inCenter && root.manageHover) root.store.hoverPopup(root.entry.id, true);
-            } else hoverExit.restart();
+            if (hovered && !root.inCenter && root.hoverExpansionAllowed) root.actionsExpanded = true;
         }
     }
-    Timer {
-        id: hoverExit; interval: 80
-        onTriggered: {
-            if (cardHover.hovered || !root.hoverExpansionAllowed) return;
-            // Retain the expanded pixels while a hovered banner slides away.
-            if (!root.inCenter && root.manageHover) root.store.hoverPopup(root.entry.id, false);
-        }
-    }
-    onComposingChanged: {
-        if (composing) { hoverExit.stop(); actionsExpanded = true }
-        else if (!cardHover.hovered) hoverExit.restart();
-    }
+    onComposingChanged: { if (composing) actionsExpanded = true; }
     Item {
         anchors.fill: parent
         clip: true
@@ -136,7 +126,8 @@ Item {
                 symbolicColor: root.theme.text
                 Layout.preferredWidth: root.inCenter ? 40 : root.isBanner ? 56 : 48
                 Layout.preferredHeight: Layout.preferredWidth
-                Layout.alignment: root.inCenter || root.isBanner ? Qt.AlignVCenter : Qt.AlignTop
+                Layout.alignment: Qt.AlignTop
+                Layout.topMargin: content.anchors.leftMargin - content.anchors.topMargin
                 sourceSize.width: 112; sourceSize.height: 112
                 fillMode: iconSource.startsWith("image://icon/") ? Image.PreserveAspectFit : Image.PreserveAspectCrop
                 asynchronous: true

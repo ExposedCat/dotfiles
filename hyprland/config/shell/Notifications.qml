@@ -10,6 +10,7 @@ Scope {
     property bool centerOpen: false
     property bool singlePopup: false
     property bool presentationPaused: false
+    property bool bannerHovered: false
     property var entries: []
     property var removing: ({})
     property var removals: ({})
@@ -18,7 +19,7 @@ Scope {
     property var popupTimeouts: ({})
     property var centerOnly: ({})
     property real pausedAt: 0
-    readonly property bool bannerFrozen: presentationPaused || popups.some(e => !!hovered[e.id] || replying[e.id] === "banner")
+    readonly property bool bannerFrozen: presentationPaused || bannerHovered || bannerReplyActive
     onCenterOpenChanged: {
         if (!centerOpen) return;
         markRead();
@@ -45,7 +46,6 @@ Scope {
     }
     property var live: ({})
     property var deadlines: ({})
-    property var hovered: ({})
     property var replying: ({})
     property var drafts: ({})
     signal replyFocusRequested(string surface)
@@ -72,15 +72,9 @@ Scope {
         for (const entry of popups.concat(queuedPopups))
             if (popupKey(entry) === key) remove(entry.id);
     }
-    function hoverPopupGroup(key, inside) {
-        const members = popups.filter(entry => popupKey(entry) === key);
-        if (inside) {
-            const next = Object.assign({}, hovered);
-            for (const entry of members) next[entry.id] = true;
-            hovered = next;
-        } else {
-            for (const entry of members) dismissBanner(entry.id);
-        }
+    function dismissPopupGroup(key) {
+        for (const entry of popups)
+            if (popupKey(entry) === key) dismissBanner(entry.id);
     }
     readonly property var groups: {
         const grouped = new Map();
@@ -96,7 +90,6 @@ Scope {
     function closePopup(id) {
         queuedPopups = queuedPopups.filter(p => p.id !== id);
         popups = popups.filter(p => p.id !== id);
-        const over = Object.assign({}, hovered); delete over[id]; hovered = over;
         if (singlePopup) Qt.callLater(root.flushQueuedPopups);
     }
     function showPopup(entry) {
@@ -136,7 +129,6 @@ Scope {
     function hidePopup(id) {
         closePopup(id);
         const times = Object.assign({}, deadlines); delete times[id]; deadlines = times;
-        const over = Object.assign({}, hovered); delete over[id]; hovered = over;
         // Persistent notifications retain their app actions in the center.
         const n = live[id];
         if (n && n.transient) Qt.callLater(() => { if (root.live[id] === n) n.expire(); });
@@ -147,14 +139,6 @@ Scope {
             const replies = Object.assign({}, replying); replies[id] = "center"; replying = replies;
         }
         hidePopup(id);
-    }
-    function hoverPopup(id, inside) {
-        const wasHovered = !!hovered[id];
-        const next = Object.assign({}, hovered);
-        if (inside) next[id] = true;
-        else delete next[id];
-        hovered = next;
-        if (!inside && wasHovered) dismissBanner(id);
     }
     function remove(id) {
         if (removing[id]) return;
@@ -260,7 +244,6 @@ Scope {
                 const durations = Object.assign({}, root.popupTimeouts); delete durations[id]; root.popupTimeouts = durations;
                 const seen = Object.assign({}, root.centerOnly); delete seen[id]; root.centerOnly = seen;
                 root.cancelReply(id);
-                const over = Object.assign({}, root.hovered); delete over[id]; root.hovered = over;
                 root.entries = root.entries.filter(entry => entry.id !== id);
             }
         });
@@ -285,7 +268,7 @@ Scope {
         onTriggered: {
             if (root.bannerFrozen) return;
             const now = Date.now();
-            const expired = Object.keys(root.deadlines).filter(id => !root.hovered[id] && !root.replying[id] && root.deadlines[id] > 0 && root.deadlines[id] <= now);
+            const expired = Object.keys(root.deadlines).filter(id => !root.replying[id] && root.deadlines[id] > 0 && root.deadlines[id] <= now);
             for (const id of expired) root.hidePopup(id);
         }
     }

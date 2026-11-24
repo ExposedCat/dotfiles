@@ -617,54 +617,6 @@ fn describe(contents: &Contents) -> Value {
     description
 }
 
-fn valid_id(id: &str) -> bool {
-    !id.is_empty() && id.bytes().all(|n| n.is_ascii_digit())
-}
-
-fn legacy_ids() -> Result<Vec<(String, String)>> {
-    if !exists("cliphist") {
-        return Ok(Vec::new());
-    }
-    let out = Command::new("cliphist").arg("list").output()?;
-    if !out.status.success()
-        && !String::from_utf8_lossy(&out.stderr)
-            .to_lowercase()
-            .contains("no such file")
-    {
-        bail!("{}", String::from_utf8_lossy(&out.stderr));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .filter_map(|line| {
-            let (id, preview) = line.split_once('\t')?;
-            valid_id(id).then(|| (id.to_owned(), preview.to_owned()))
-        })
-        .collect())
-}
-
-fn legacy_contents(id: &str) -> Result<Vec<u8>> {
-    if !valid_id(id) {
-        bail!("Clipboard entry IDs must be numbers");
-    }
-    let mut child = command(&["cliphist", "decode"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()?;
-    child.stdin.take().unwrap().write_all(id.as_bytes())?;
-    let output = child.wait_with_output()?;
-    if !output.status.success() {
-        bail!("Cannot decode clipboard entry");
-    }
-    Ok(output.stdout)
-}
-
-fn content_type(data: &[u8]) -> String {
-    let (kind, _) = gio::content_type_guess(None::<&Path>, Some(data));
-    gio::content_type_get_mime_type(&kind)
-        .map(|mime| mime.to_string())
-        .unwrap_or_else(|| "application/octet-stream".into())
-}
-
 pub fn list() -> Result<()> {
     let db = database()?;
     let mut stmt = db.prepare("SELECT id, description FROM entry ORDER BY id DESC LIMIT ?1")?;
@@ -696,62 +648,16 @@ pub fn list() -> Result<()> {
         description["id"] = json!(id.to_string());
         entries.push(description);
     }
-    let mut seen: HashSet<String> = entries
-        .iter()
-        .filter(|row| matches!(s(row, "kind"), "text" | "link" | "color" | "html"))
-        .map(|row| s(row, "preview").to_owned())
-        .collect();
-    for (id, preview) in legacy_ids()?.into_iter() {
-        if entries.len() == HISTORY_LIMIT {
-            break;
-        }
-        let mut description = if preview.starts_with("[[ binary data") {
-            json!({"kind":"legacy-media","preview":"Image"})
-        } else if preview
-            .trim_start_matches('\u{feff}')
-            .trim_start()
-            .starts_with('<')
-            && let Ok(data) = legacy_contents(&id)
-            && let Some(reference) = image_reference_in_markup(&data)
-        {
-            // Cliphist's short preview can end before the image tag or its URL.
-            image_description(None, Some(&reference), "Image")
-        } else {
-            let description = describe_text(&preview);
-            if !seen.insert(s(&description, "preview").to_owned()) {
-                continue;
-            }
-            description
-        };
-        description["id"] = json!(format!("legacy-{id}"));
-        entries.push(description);
-    }
     emit(&json!(entries))
 }
 
 pub fn clear() -> Result<()> {
     let _lock = history_lock()?;
-    if !legacy_ids()?.is_empty() {
-        run(&["cliphist", "wipe"])?;
-    }
     database()?.execute("DELETE FROM entry", [])?;
     Ok(())
 }
 
-pub fn legacy_copy(id: &str) -> Result<()> {
-    status(
-        command(&["wl-copy"]),
-        Some(legacy_contents(id)?),
-        Duration::from_secs(5),
-    )
-}
-
 fn contents(id: &str) -> Result<Contents> {
-    if let Some(id) = id.strip_prefix("legacy-") {
-        let data = legacy_contents(id)?;
-        let mime = content_type(&data);
-        return Ok(vec![(mime, data)]);
-    }
     let db = database()?;
     let mut stmt = db.prepare("SELECT mime, data FROM format WHERE entry = ?1")?;
     Ok(stmt
@@ -906,16 +812,11 @@ pub fn preview(id: &str, requested: &str) -> Result<()> {
         };
         return emit_thumbnail(&data, true);
     }
-    let (mime, data) = if let Some(id) = id.strip_prefix("legacy-") {
-        let data = legacy_contents(id)?;
-        (content_type(&data), data)
-    } else {
-        database()?.query_row(
-            "SELECT mime, data FROM format WHERE entry = ?1 AND mime = ?2",
-            params![id.parse::<i64>()?, requested],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )?
-    };
+    let (mime, data): (String, Vec<u8>) = database()?.query_row(
+        "SELECT mime, data FROM format WHERE entry = ?1 AND mime = ?2",
+        params![id.parse::<i64>()?, requested],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
     let (frame, cover) = if file_offer(&mime) {
         let Some(frame) = media_file_frame(&preview_text(&data))? else {
             return emit(&json!(""));
