@@ -77,7 +77,7 @@ ShellTheme {
     readonly property var notificationGlassStops: [
         [[0, "#30241e"], [0.66, "#291f1a"], [1, "#231a16"]],
         [[0, "#2b201a"], [0.66, "#241914"], [1, "#1f1712"]],
-        [[0, "#2f221b"], [0.66, "#291e18"], [1, "#251a14"]]
+        [[0, "#261b15"], [0.66, "#201610"], [1, "#1b130e"]]
     ]
     readonly property var selectedGlassStops: [[0, "#604439"], [0.66, "#50362c"], [1, "#432e25"]]
     readonly property color selectedGlassInk: "#ffe0cf"

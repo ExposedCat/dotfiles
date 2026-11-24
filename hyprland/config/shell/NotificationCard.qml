@@ -27,8 +27,7 @@ Item {
     EmberSlot {
         id: unreadSlot
         shell: root.emberShell
-        x: 4; y: x; width: 3; height: Math.max(width, parent.height - 2 * y)
-        shapeBend: surface.radius - x - width / 2
+        x: 4; y: surface.radius; width: 3; height: Math.max(width, parent.height - 2 * y)
     }
     property bool embedded: false
     readonly property bool isBanner: !inCenter && !embedded

@@ -75,6 +75,7 @@ PanelWindow {
         id: button
         property string caption
         property string icon
+        property int iconSize: 19
         property string label: ""
         property bool chosen: false
         property bool checkable: false
@@ -88,7 +89,7 @@ PanelWindow {
         Accessible.checkable: checkable
         Accessible.checked: checkable && chosen
         Accessible.onPressAction: clicked()
-        Image { visible: !button.label; anchors.centerIn: parent; width: 19; height: 19; sourceSize: Qt.size(19, 19); source: button.icon ? Qt.resolvedUrl("icons/" + button.icon + ".svg") : "" }
+        Image { visible: !button.label; anchors.centerIn: parent; width: button.iconSize; height: width; sourceSize: Qt.size(width, height); source: button.icon ? Qt.resolvedUrl("icons/" + button.icon + ".svg") : "" }
         Text { visible: !!button.label; anchors.centerIn: parent; text: button.label; color: "#f4e9e2"; font.family: "Adwaita Sans"; font.pixelSize: 13; font.weight: Font.Medium }
         MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: button.clicked() }
     }
@@ -262,15 +263,28 @@ PanelWindow {
             visible: window.current && window.selected && !controller.dragging
             enabled: !window.busy
             readonly property int buttonCount: toolButtons.count + inkButtons.count + 1 + (window.video ? 4 : 0)
-            readonly property var horizontalSize: ({width: Math.min(scene.width - 16,
+            readonly property size shareSize: Qt.size(shareButton.implicitHeight, shareButton.implicitHeight)
+            readonly property var horizontalSize: window.sharing ? shareSize : ({width: Math.min(scene.width - 16,
                 toolButtons.count * 38 + inkButtons.count * 24 + primaryButton.implicitWidth + (window.video ? 152 : 0) + (buttonCount - 1) * controls.spacing + 20), height: 54})
-            readonly property var verticalSize: ({width: primaryButton.implicitWidth + 20, height: Math.min(scene.height - 16, buttonCount * 36 + (buttonCount - 1) * controls.spacing + 20)})
+            readonly property var verticalSize: window.sharing ? shareSize : ({width: primaryButton.implicitWidth + 20, height: Math.min(scene.height - 16, buttonCount * 36 + (buttonCount - 1) * controls.spacing + 20)})
             readonly property var placement: Geometry.toolbar(window.localSelection, scene.width, scene.height, horizontalSize, verticalSize)
             readonly property bool vertical: placement.vertical
             x: placement.x; y: placement.y
             width: placement.width; height: placement.height
-            PillBackground { anchors.fill: parent; theme: typography; radius: 20 }
+            PillBackground { visible: !window.sharing; anchors.fill: parent; theme: typography; radius: 20 }
+            ActionButton {
+                id: shareButton
+                objectName: "captureShareButton"
+                visible: window.sharing
+                anchors.fill: parent
+                radius: height / 2
+                caption: "Share region"
+                icon: "screen-share"; iconSize: 18
+                PillBackground { anchors.fill: parent; radius: parent.radius; theme: typography; z: -1 }
+                onClicked: window.finish()
+            }
             Flickable {
+                visible: !window.sharing
                 anchors.fill: parent; anchors.margins: 8; clip: true
                 contentWidth: controls.implicitWidth; contentHeight: controls.implicitHeight
                 flickableDirection: toolbar.vertical ? Flickable.VerticalFlick : Flickable.HorizontalFlick; boundsBehavior: Flickable.StopAtBounds
@@ -304,16 +318,11 @@ PanelWindow {
                     }
                     ActionButton {
                         id: primaryButton
-                        objectName: window.sharing ? "captureShareButton" : "captureCursorButton"
-                        implicitWidth: window.sharing ? 68 : 38
-                        caption: window.sharing ? "Share region" : "Cursor " + (controller.includeCursor ? "On" : "Off")
-                        label: window.sharing ? "Share" : ""
+                        objectName: "captureCursorButton"
+                        caption: "Cursor " + (controller.includeCursor ? "On" : "Off")
                         icon: controller.includeCursor ? "mouse-pointer-2" : "mouse-pointer-2-off"
-                        chosen: window.sharing || controller.includeCursor
-                        onClicked: {
-                            if (window.sharing) window.finish();
-                            else { controller.includeCursor = !controller.includeCursor; controller.remember(); }
-                        }
+                        chosen: controller.includeCursor
+                        onClicked: { controller.includeCursor = !controller.includeCursor; controller.remember(); }
                     }
                     ActionButton { objectName: "captureSpeakersButton"; visible: window.video; checkable: true; caption: "Record speakers " + (controller.recordSpeakers ? "On" : "Off"); icon: controller.recordSpeakers ? "volume-2" : "volume-x"; chosen: controller.recordSpeakers; onClicked: { controller.recordSpeakers = !controller.recordSpeakers; controller.remember(); } }
                     ActionButton { objectName: "captureMicButton"; visible: window.video; checkable: true; caption: "Record mic " + (controller.recordMic ? "On" : "Off"); icon: controller.recordMic ? "mic" : "mic-off"; chosen: controller.recordMic; onClicked: { controller.recordMic = !controller.recordMic; controller.remember(); } }
@@ -323,7 +332,7 @@ PanelWindow {
             }
         }
         Rectangle {
-            visible: controller.error.length > 0 || (window.current && !window.selected && !controller.dragging)
+            visible: controller.error.length > 0 || (!window.sharing && window.current && !window.selected && !controller.dragging)
             anchors { top: parent.top; topMargin: 18; horizontalCenter: parent.horizontalCenter }
             width: Math.min(scene.width - 32, status.implicitWidth + 30); height: status.implicitHeight + 20; radius: 20
             color: typography.background

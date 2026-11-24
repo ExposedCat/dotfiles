@@ -108,6 +108,21 @@ class Preview:
             path = Path(directory) / 'request.json'
             path.write_text(json.dumps(data))
             path.chmod(0o600)
+            if kind == 'share':
+                config = Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config')
+                helper = os.environ.get('DOTFILES_DESKTOP_BINARY') or config / 'hypr/bin/dotfiles-desktop'
+                self.process = subprocess.Popen(
+                    [helper, 'portal', 'preview', path, '--in-pill'],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                )
+                if self.cancelled.is_set():
+                    self.process.terminate()
+                stdout, _ = self.process.communicate()
+                if self.cancelled.is_set():
+                    return 'Dismissed'
+                if self.process.returncode:
+                    return 'Could not open the screen sharing preview'
+                return 'Preview completed' if json.loads(stdout)['response'] == 0 else 'Dismissed'
             try:
                 return self.exchange('dotfiles-portal-shell.sock', {'action': 'open', 'directory': directory})
             finally:

@@ -62,8 +62,8 @@ selection and the custom Quickshell picker for sharing. Finish any active
 portal requests or screen sharing before reinstalling it.
 
 To share a region, select a monitor and click **Select region…** to open the
-screenshot selector. Drag on that monitor, then click **Share** or press any key
-except Escape to confirm. Escape cancels the request.
+screenshot selector. Drag on that monitor, then click the screen-share icon
+or press any key except Escape to confirm. Escape cancels the request.
 
 ## Auto-login and keyring
 

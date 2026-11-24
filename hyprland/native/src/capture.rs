@@ -392,7 +392,11 @@ fn run_capture_ui(directory: &Path, config: &str, stop: Option<&AtomicBool>) -> 
     }
     Ok(())
 }
-pub fn select_share_region(source: &Value, stop: &AtomicBool) -> Result<Option<[i64; 4]>> {
+pub fn select_share_region(
+    source: &Value,
+    stop: &AtomicBool,
+    preview: bool,
+) -> Result<Option<[i64; 4]>> {
     if source["kind"] != "screen" {
         bail!("Regions can only be selected on a monitor");
     }
@@ -403,10 +407,28 @@ pub fn select_share_region(source: &Value, stop: &AtomicBool) -> Result<Option<[
         .prefix("dotfiles-capture-")
         .tempdir_in(runtime()?)?;
     let monitors = json(&["hyprctl", "monitors", "-j"])?;
-    let monitor = rows(&monitors)
+    let enabled: Vec<_> = rows(&monitors)
         .iter()
-        .find(|monitor| monitor["name"] == source["output"] && monitor["disabled"] != true)
-        .context("The selected monitor is unavailable")?;
+        .filter(|monitor| monitor["disabled"] != true)
+        .collect();
+    let selected = enabled
+        .iter()
+        .copied()
+        .find(|monitor| monitor["name"] == source["output"]);
+    // Gallery samples can name outputs that aren't attached to this machine.
+    let monitor = if preview {
+        selected
+            .or_else(|| {
+                enabled
+                    .iter()
+                    .copied()
+                    .find(|monitor| monitor["focused"] == true)
+            })
+            .or_else(|| enabled.first().copied())
+    } else {
+        selected
+    }
+    .context("The selected monitor is unavailable")?;
     let outputs = capture_outputs(&json!([monitor]), dir.path(), false)?;
     if stop.load(Ordering::Relaxed) {
         return Ok(None);
@@ -428,9 +450,18 @@ pub fn select_share_region(source: &Value, stop: &AtomicBool) -> Result<Option<[
     if result["selection"].is_null() {
         return Ok(None);
     }
-    share_region_coordinates(&result["selection"], &outputs[0], source).map(Some)
+    share_region_coordinates(
+        &result["selection"],
+        &outputs[0],
+        (!preview).then_some(source),
+    )
+    .map(Some)
 }
-fn share_region_coordinates(selection: &Value, output: &Value, source: &Value) -> Result<[i64; 4]> {
+fn share_region_coordinates(
+    selection: &Value,
+    output: &Value,
+    source: Option<&Value>,
+) -> Result<[i64; 4]> {
     let axis = |origin, length| -> Result<(i64, i64)> {
         let start = selection[origin]
             .as_f64()
@@ -440,7 +471,10 @@ fn share_region_coordinates(selection: &Value, output: &Value, source: &Value) -
             .context("Missing selection size")?;
         let output_start = n(output, origin);
         let output_extent = n(output, length);
-        let limit = source[length].as_i64().context("Missing monitor size")?;
+        let limit = match source {
+            Some(source) => source[length].as_i64().context("Missing monitor size")?,
+            None => output_extent.round() as i64,
+        };
         // The portal takes monitor-local logical coordinates, as does the
         // screenshot overlay. Permit only rounding of fractional output sizes.
         if limit <= 0 || (output_extent - limit as f64).abs() > 1. {

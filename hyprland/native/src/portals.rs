@@ -81,13 +81,16 @@ pub struct Dialog {
 }
 impl Dialog {
     pub fn open(data: &Value) -> Result<Self> {
+        Self::open_with_pill(data, data["fixture"] != true)
+    }
+    fn open_with_pill(data: &Value, use_pill: bool) -> Result<Self> {
         let dir = tempfile::Builder::new()
             .prefix("dotfiles-portal-")
             .tempdir_in(runtime()?)?;
         atomic_json(&dir.path().join("request.json"), data)?;
         let socket = runtime()?.join("dotfiles-portal-shell.sock");
         let mut transport = None;
-        if data["fixture"] != true {
+        if use_pill {
             match UnixStream::connect(socket) {
                 Ok(mut socket) => {
                     socket.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -797,19 +800,24 @@ fn share_result(data: &Value, result: &Value) -> Result<String> {
         if result["remember"] == true { "r" } else { "" }
     ))
 }
-fn share(args: &[String], stop: &AtomicBool) -> Result<()> {
-    let mut data = sharing_sources()?;
-    data["remember"] = json!(args.iter().any(|a| a == "--allow-token"));
+fn choose_share(
+    data: &mut Value,
+    stop: &AtomicBool,
+    use_pill: bool,
+    preview: bool,
+) -> Result<Value> {
     while !stop.load(Ordering::Relaxed) {
-        let mut result = Dialog::open(&data)?.wait_until(stop)?;
-        if result["response"] != 0 || stop.load(Ordering::Relaxed) {
+        let mut result = Dialog::open_with_pill(data, use_pill)?.wait_until(stop)?;
+        if stop.load(Ordering::Relaxed) {
             break;
         }
-        if result["selectRegion"] == true {
-            let source = sharing_source(&data, &result)?;
-            match crate::capture::select_share_region(source, stop) {
-                Ok(Some(region)) => result["region"] = json!(region),
-                Ok(None) => break,
+        if result["response"] == 0 && result["selectRegion"] == true {
+            let source = sharing_source(data, &result)?;
+            match crate::capture::select_share_region(source, stop, preview) {
+                Ok(Some(region)) => {
+                    result["region"] = json!(region);
+                }
+                Ok(None) => return Ok(json!({"response":1})),
                 Err(error) => {
                     data["error"] = json!(format!("Could not select a region. {error:#}"));
                     data["initialChoice"] = result["choice"].take();
@@ -818,10 +826,16 @@ fn share(args: &[String], stop: &AtomicBool) -> Result<()> {
                 }
             }
         }
-        if !stop.load(Ordering::Relaxed) {
-            println!("{}", share_result(&data, &result)?);
-        }
-        break;
+        return Ok(result);
+    }
+    Ok(json!({"response":2}))
+}
+fn share(args: &[String], stop: &AtomicBool) -> Result<()> {
+    let mut data = sharing_sources()?;
+    data["remember"] = json!(args.iter().any(|a| a == "--allow-token"));
+    let result = choose_share(&mut data, stop, true, false)?;
+    if result["response"] == 0 && !stop.load(Ordering::Relaxed) {
+        println!("{}", share_result(&data, &result)?);
     }
     Ok(())
 }
@@ -837,7 +851,11 @@ pub fn main(args: &[String]) -> Result<()> {
             atomic_json(&directory.join("response.json"), &data)
         }
         "preview" => {
-            let data = read_json(std::path::Path::new(arg(args, 1)?))?;
+            let mut data = read_json(std::path::Path::new(arg(args, 1)?))?;
+            if data["kind"] == "share" {
+                let use_pill = data["fixture"] != true || args.iter().any(|arg| arg == "--in-pill");
+                return cancellable(|stop| emit(&choose_share(&mut data, stop, use_pill, true)?));
+            }
             let mut dialog = Dialog::open(&data)?;
             let result = dialog.wait()?;
             emit(&result)
