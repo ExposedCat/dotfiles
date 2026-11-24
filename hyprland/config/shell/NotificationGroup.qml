@@ -13,6 +13,7 @@ Item {
     property bool expanded: false
     property real unfold: expanded && cardModel.count > 1 ? 1 : 0
     Behavior on unfold { NumberAnimation { duration: 260; easing.type: Easing.InOutCubic } }
+    signal cardClicked()
     signal toggleExpanded()
     readonly property var hoveredCard: findCard(c => c.hovered)
     readonly property var focusedCard: findCard(c => c.containsFocus)
@@ -133,6 +134,7 @@ Item {
                     groupControls: index === root.frontIndex && root.activeCount > 1
                     groupCount: root.activeCount
                     groupExpanded: root.expanded
+                    onClicked: root.cardClicked()
                     onToggleGroup: root.toggleExpanded()
                     onDismissGroup: root.store.removeGroup(root.group.key)
                 }

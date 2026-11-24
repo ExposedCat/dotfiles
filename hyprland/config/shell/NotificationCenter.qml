@@ -112,6 +112,7 @@ ColumnLayout {
             // so changing group heights continue to reflow their neighbors.
             NumberAnimation on opacity { from: 0; to: 1; duration: 120 }
             expanded: !!root.expandedGroups[groupKey]
+            onCardClicked: { if (root.shell.panel === "notifications") root.shell.panel = ""; }
             onToggleExpanded: root.toggleGroup(groupKey)
         }
         Column {

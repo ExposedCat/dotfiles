@@ -34,6 +34,7 @@ Item {
     property bool groupControls: false
     property bool groupExpanded: false
     property int groupCount: 1
+    signal clicked()
     signal toggleGroup()
     signal dismissGroup()
     property bool geometryReady: false
@@ -99,9 +100,13 @@ Item {
     }
     MouseArea {
         anchors.fill: parent
-        enabled: root.canActivate
+        enabled: !root.removing && (root.canActivate || root.inCenter || root.isBanner)
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.store.invoke(root.entry.id, "default")
+        onClicked: {
+            if (root.canActivate) root.store.invoke(root.entry.id, "default");
+            else if (root.isBanner) root.store.dismissBanner(root.entry.id);
+            root.clicked();
+        }
     }
     HoverHandler {
         id: cardHover
