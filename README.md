@@ -61,6 +61,10 @@ See the [full keybindings](hyprland/config/modules/keybindings.lua) and
 selection and the custom Quickshell picker for sharing. Finish any active
 portal requests or screen sharing before reinstalling it.
 
+To share a region, select a monitor, enable **Region**, and click **Share**.
+Drag on that monitor using the screenshot selector. Press any key except
+Escape or click **Share** to confirm. Escape cancels the request.
+
 ## Auto-login and keyring
 
 On the host, layer `greetd` and `greetd-selinux` with rpm-ostree and boot into

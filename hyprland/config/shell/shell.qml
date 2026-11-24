@@ -25,6 +25,7 @@ ShellRoot {
     readonly property bool screenSharing: sharing.active
     function stopScreenSharing() { sharing.stop(); }
     property bool captureActive: false
+    property var captureClient: null
     property string actionError: ""
     property alias audio: sound
     property alias osd: osd
@@ -153,8 +154,14 @@ ShellRoot {
         endpoint: "dotfiles-capture-shell.sock"
         onRequest: (message, client) => {
             if (message.action !== "capture" || typeof message.active !== "boolean") return;
+            root.captureClient = message.active ? client : null;
             root.captureActive = message.active;
             reply(client, {id: message.id, accepted: true});
+        }
+        onDisconnected: client => {
+            if (client !== root.captureClient) return;
+            root.captureClient = null;
+            root.captureActive = false;
         }
     }
     IpcHandler {
@@ -165,7 +172,7 @@ ShellRoot {
             catch (error) { console.warn("Invalid clipboard position:", error); }
         }
         function gesture(action: string, timestamp: string): void { root.gesture(action, timestamp); }
-        function capture(active: bool): void { root.captureActive = active; }
+        function capture(active: bool): void { root.captureClient = null; root.captureActive = active; }
         function applications(): string {
             const pane = root.panel === "launcher" ? bar.activePane : null;
             return JSON.stringify({helper: root.helper, open: !!pane, count: pane ? pane.apps.length : 0, loading: pane ? pane.loading : false, error: pane ? pane.error : ""});

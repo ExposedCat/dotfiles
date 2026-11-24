@@ -6,6 +6,7 @@ SocketServer {
     id: server
     property string endpoint: ""
     signal request(var message, var client)
+    signal disconnected(var client)
     active: endpoint !== ""
     path: endpoint ? Quickshell.env("XDG_RUNTIME_DIR") + "/" + endpoint : ""
     function reply(client, value) {
@@ -14,6 +15,7 @@ SocketServer {
     }
     handler: Socket {
         id: client
+        onConnectionStateChanged: { if (!connected) server.disconnected(client); }
         parser: SplitParser {
             onRead: line => {
                 try { server.request(JSON.parse(line), client); }

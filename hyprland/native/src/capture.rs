@@ -7,9 +7,9 @@ use serde_json::{Value, json};
 use std::{
     fs,
     io::{Cursor, Read, Write},
-    os::unix::net::UnixStream,
+    os::unix::{net::UnixStream, process::CommandExt},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -208,64 +208,69 @@ fn capture_ipc(args: &[&str]) -> Result<String> {
     c.args(args);
     output(c, None, Duration::from_secs(2))
 }
-fn open_warm(directory: &Path) -> Result<bool> {
-    let pid = match UnixStream::connect(runtime()?.join("dotfiles-capture.sock")) {
-        Ok(mut client) => {
-            client.set_read_timeout(Some(Duration::from_secs(2)))?;
-            client.set_write_timeout(Some(Duration::from_secs(2)))?;
-            writeln!(client, "{}", json!({"action":"open","directory":directory}))?;
-            let mut bytes = vec![];
-            let mut b = [0; 1024];
-            loop {
-                let n = client.read(&mut b)?;
-                if n == 0 || bytes.len() > 65536 {
-                    bail!("Capture UI did not acknowledge the session");
-                }
-                bytes.extend_from_slice(&b[..n]);
-                if bytes.contains(&b'\n') {
-                    break;
-                }
-            }
-            let line = bytes.split(|&b| b == b'\n').next().unwrap();
-            let reply: Value = serde_json::from_slice(line)?;
-            if reply["accepted"] != true {
-                bail!("The capture UI is already busy");
-            }
-            reply["pid"]
-                .as_i64()
-                .filter(|&pid| pid > 0 && pid <= i32::MAX as i64)
-                .context("Invalid capture UI process ID")? as i32
-        }
+fn cancel_capture_ui(pid: u32, directory: &Path) {
+    let cmd = command(&[
+        "quickshell",
+        "ipc",
+        "--pid",
+        &pid.to_string(),
+        "call",
+        "capture",
+        "cancelSession",
+        &directory.to_string_lossy(),
+    ]);
+    let _ = output(cmd, None, Duration::from_secs(2));
+}
+fn open_warm(directory: &Path, stop: Option<&AtomicBool>) -> Result<bool> {
+    // Keep the connection open until completion so the warm UI can release
+    // its surfaces if this caller exits or loses the acknowledgement.
+    let mut client = match UnixStream::connect(runtime()?.join("dotfiles-capture.sock")) {
+        Ok(client) => client,
         Err(e)
             if matches!(
                 e.kind(),
                 std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
             ) =>
         {
-            let pid = run(&[
-                "systemctl",
-                "--user",
-                "show",
-                "dotfiles-hyprland-capture.service",
-                "--property=MainPID",
-                "--value",
-            ])
-            .ok()
-            .and_then(|s| s.trim().parse::<i32>().ok())
-            .unwrap_or(0);
-            if pid <= 0
-                || capture_ipc(&["open", &directory.to_string_lossy()])
-                    .ok()
-                    .is_none_or(|s| s.trim() != "true")
-            {
-                return Ok(false);
-            }
-            pid
+            return Ok(false);
         }
         Err(e) => return Err(e.into()),
     };
+    let pid = {
+        client.set_read_timeout(Some(Duration::from_secs(2)))?;
+        client.set_write_timeout(Some(Duration::from_secs(2)))?;
+        writeln!(
+            client,
+            "{}",
+            json!({"action":"open","directory":directory,"keepAlive":true})
+        )?;
+        let mut bytes = vec![];
+        let mut b = [0; 1024];
+        loop {
+            let n = client.read(&mut b)?;
+            if n == 0 || bytes.len() > 65536 {
+                bail!("Capture UI did not acknowledge the session");
+            }
+            bytes.extend_from_slice(&b[..n]);
+            if bytes.contains(&b'\n') {
+                break;
+            }
+        }
+        let line = bytes.split(|&b| b == b'\n').next().unwrap();
+        let reply: Value = serde_json::from_slice(line)?;
+        if reply["accepted"] != true {
+            bail!("The capture UI is already busy");
+        }
+        reply["pid"]
+            .as_i64()
+            .filter(|&pid| pid > 0 && pid <= i32::MAX as i64)
+            .context("Invalid capture UI process ID")? as i32
+    };
     let mut polls = 0;
     while !directory.join("result.json").is_file() {
+        if stop.is_some_and(|stop| stop.load(Ordering::Relaxed)) {
+            return Ok(true);
+        }
         if unsafe { libc::kill(pid, 0) } != 0
             && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
         {
@@ -313,27 +318,145 @@ fn select(mode: &str) -> Result<()> {
             &dir.path().join("session.json"),
             &json!({"outputs": outputs}),
         )?;
-        run_capture_ui(dir.path(), "color-picker.qml")?;
+        run_capture_ui(dir.path(), "color-picker.qml", None)?;
         return copy_picked_color(dir.path(), &outputs);
     }
     let data = json!({"mode":mode,"outputs":outputs,"render":dir.path().join("render.png"),"selection":null,"preferences":preferences()});
     atomic_json(&dir.path().join("session.json"), &data)?;
-    if open_warm(dir.path())? {
-        return Ok(());
+    if !open_warm(dir.path(), None)? {
+        run_capture_ui(dir.path(), "capture.qml", None)?;
     }
-    run_capture_ui(dir.path(), "capture.qml")
+    let result = dir.path().join("result.json");
+    if result.is_file() {
+        let result = read_json(&result)?;
+        if let Some(error) = result["error"].as_str() {
+            bail!("{error}");
+        }
+    }
+    Ok(())
 }
-fn run_capture_ui(directory: &Path, config: &str) -> Result<()> {
+fn run_capture_ui(directory: &Path, config: &str, stop: Option<&AtomicBool>) -> Result<()> {
     let mut c = command(&[
         "quickshell",
         "--path",
         &root().join("tools").join(config).to_string_lossy(),
     ]);
     c.env("DOTFILES_CAPTURE_SESSION", directory);
-    if !c.status()?.success() {
+    let parent = std::process::id() as libc::pid_t;
+    // Standalone windows must also disappear if their caller exits. Checking
+    // the parent after arming the signal covers an exit during the fork.
+    unsafe {
+        c.pre_exec(move || {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::getppid() != parent {
+                return Err(std::io::Error::from_raw_os_error(libc::ESRCH));
+            }
+            Ok(())
+        });
+    }
+    let status = if let Some(stop) = stop {
+        use wait_timeout::ChildExt;
+        // The portal picker reserves stdout for its selection response.
+        let mut child = c.stdout(Stdio::from(std::io::stderr())).spawn()?;
+        loop {
+            if stop.load(Ordering::Relaxed) {
+                cancel_capture_ui(child.id(), directory);
+                if child.wait_timeout(Duration::from_secs(1))?.is_none() {
+                    let _ = child.kill();
+                    child.wait()?;
+                    let cmd = command(&[
+                        "quickshell",
+                        "ipc",
+                        "--path",
+                        &root().join("shell/shell.qml").to_string_lossy(),
+                        "call",
+                        "shell",
+                        "capture",
+                        "false",
+                    ]);
+                    let _ = output(cmd, None, Duration::from_secs(2));
+                }
+                return Ok(());
+            }
+            if let Some(status) = child.wait_timeout(Duration::from_millis(25))? {
+                break status;
+            }
+        }
+    } else {
+        c.status()?
+    };
+    if !status.success() {
         bail!("Capture UI failed");
     }
     Ok(())
+}
+pub fn select_share_region(source: &Value, stop: &AtomicBool) -> Result<Option<[i64; 4]>> {
+    if source["kind"] != "screen" {
+        bail!("Regions can only be selected on a monitor");
+    }
+    let Some(_lock) = try_lock(&runtime()?.join("dotfiles-capture.lock"))? else {
+        bail!("Another capture selector is open");
+    };
+    let dir = tempfile::Builder::new()
+        .prefix("dotfiles-capture-")
+        .tempdir_in(runtime()?)?;
+    let monitors = json(&["hyprctl", "monitors", "-j"])?;
+    let monitor = rows(&monitors)
+        .iter()
+        .find(|monitor| monitor["name"] == source["output"] && monitor["disabled"] != true)
+        .context("The selected monitor is unavailable")?;
+    let outputs = capture_outputs(&json!([monitor]), dir.path(), false)?;
+    if stop.load(Ordering::Relaxed) {
+        return Ok(None);
+    }
+    atomic_json(
+        &dir.path().join("session.json"),
+        &json!({"mode":"share","outputs":outputs}),
+    )?;
+    if !open_warm(dir.path(), Some(stop))? {
+        run_capture_ui(dir.path(), "capture.qml", Some(stop))?;
+    }
+    if stop.load(Ordering::Relaxed) {
+        return Ok(None);
+    }
+    let result = read_json(&dir.path().join("result.json"))?;
+    if let Some(error) = result["error"].as_str() {
+        bail!("{error}");
+    }
+    if result["selection"].is_null() {
+        return Ok(None);
+    }
+    share_region_coordinates(&result["selection"], &outputs[0], source).map(Some)
+}
+fn share_region_coordinates(selection: &Value, output: &Value, source: &Value) -> Result<[i64; 4]> {
+    let axis = |origin, length| -> Result<(i64, i64)> {
+        let start = selection[origin]
+            .as_f64()
+            .context("Missing selection origin")?;
+        let extent = selection[length]
+            .as_f64()
+            .context("Missing selection size")?;
+        let output_start = n(output, origin);
+        let output_extent = n(output, length);
+        let limit = source[length].as_i64().context("Missing monitor size")?;
+        // The portal takes monitor-local logical coordinates, as does the
+        // screenshot overlay. Permit only rounding of fractional output sizes.
+        if limit <= 0 || (output_extent - limit as f64).abs() > 1. {
+            bail!("The monitor size changed while selecting the sharing region");
+        }
+        let position = |logical: f64| ((logical - output_start).floor() as i64).clamp(0, limit);
+        let left = position(start);
+        let right = position(start + extent);
+        if right <= left {
+            bail!("The selected region is empty");
+        }
+        Ok((left, right - left))
+    };
+    let (x, width) = axis("x", "width")?;
+    let (y, height) = axis("y", "height")?;
+    Ok([x, y, width, height])
 }
 fn copy_picked_color(directory: &Path, outputs: &Value) -> Result<()> {
     let result = match fs::read(directory.join("result.json")) {

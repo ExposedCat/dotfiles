@@ -10,8 +10,13 @@ PanelWindow {
     PillTheme { id: typography }
     required property var controller
     required property var display
-    screen: Quickshell.screens.find(s => s.name === display.name) || Quickshell.screens[0]
-    readonly property bool showing: controller.active && !controller.recording && display.width > 0 && display.height > 0
+    readonly property bool targeted: display.width > 0 && display.height > 0
+    readonly property bool snapshotFailed: targeted && (snapshot.status === Image.Error || cursorSnapshot.status === Image.Error)
+    readonly property bool snapshotReady: targeted && snapshot.status === Image.Ready && (!display.cursor || cursorSnapshot.status === Image.Ready)
+        && !!screen && screen.x === display.x && screen.y === display.y
+        && Math.abs(width - display.width) < 1 && Math.abs(height - display.height) < 1
+    readonly property bool showing: targeted && controller.active && !controller.recording && controller.snapshotsReady
+    readonly property bool keyboardActive: showing && !!scene.Window.window?.active
     // Keep a transparent, input-free surface at its final size while idle.
     // Resizing a 1px buffer on open can briefly stretch it across the monitor
     // before the compositor receives the new full-size frame.
@@ -19,7 +24,7 @@ PanelWindow {
     mask: Region { width: window.showing ? window.width : 0; height: window.showing ? window.height : 0 }
     exclusionMode: ExclusionMode.Ignore
     color: "transparent"
-    visible: controller.persistent || showing
+    visible: controller.persistent || (targeted && (controller.opening || controller.active))
     WlrLayershell.namespace: "dotfiles-capture"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: showing && current ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
@@ -30,6 +35,8 @@ PanelWindow {
     readonly property bool current: controller.current === display.name
     readonly property bool selected: controller.selected
     readonly property bool video: controller.data.mode === "record"
+    readonly property bool sharing: controller.sharing
+    readonly property bool busy: controller.closePending || controller.recordPending || controller.exporting
     readonly property var localSelection: Geometry.local(controller.selection, display)
     readonly property bool intersects: localSelection.width > 0 && localSelection.height > 0
     Connections {
@@ -53,7 +60,8 @@ PanelWindow {
     function finish() {
         if (!selected || controller.exporting || controller.closePending || controller.recordPending || controller.dragging) return;
         if (textInput.visible) { textInput.commit(); return; }
-        if (video) controller.beginRecording();
+        if (sharing) controller.shareRegion();
+        else if (video) controller.beginRecording();
         else {
             const outputs = controller.data.outputs.filter(o => Geometry.valid(Geometry.intersect(controller.selection, o)));
             controller.exportImage(selectionContent, Math.max(...outputs.map(o => o.scale)));
@@ -93,19 +101,19 @@ PanelWindow {
         Keys.onShortcutOverride: event => { if (window.command(event)) event.accepted = true; }
         Keys.onPressed: event => {
             controller.keyPressed(event.key, event.modifiers, event.isAutoRepeat, event.nativeScanCode);
-            if (controller.closePending || controller.recordPending) {
+            if (window.busy) {
                 event.accepted = true;
-                if (event.key === Qt.Key_Escape && !event.isAutoRepeat) controller.closeSession();
+                if (event.key === Qt.Key_Escape && !event.isAutoRepeat) controller.cancelSelection();
             } else if (event.key === Qt.Key_Escape) {
                 event.accepted = true;
                 if (!event.isAutoRepeat) {
                     if (textInput.visible) { textInput.visible = false; scene.forceActiveFocus(); }
-                    else controller.closeSession();
+                    else controller.cancelSelection();
                 }
             } else if (textInput.visible && [Qt.Key_Return, Qt.Key_Enter].includes(event.key)) {
                 event.accepted = true;
                 if (!event.isAutoRepeat) textInput.commit();
-            } else if (!textInput.visible && [Qt.Key_Backspace, Qt.Key_Delete].includes(event.key)) {
+            } else if (!window.sharing && !textInput.visible && [Qt.Key_Backspace, Qt.Key_Delete].includes(event.key)) {
                 event.accepted = true;
                 if (!event.isAutoRepeat) window.undo();
             } else if (window.command(event)) {
@@ -114,7 +122,7 @@ PanelWindow {
             } else event.accepted = false;
         }
         Keys.onReleased: event => {
-            const consume = controller.closePending || controller.recordPending || window.command(event);
+            const consume = window.busy || window.command(event);
             controller.keyReleased(event.key, event.isAutoRepeat, event.nativeScanCode);
             event.accepted = consume;
         }
@@ -126,9 +134,9 @@ PanelWindow {
                     controller.noteFrame(display.name);
             }
         }
-        // Session URLs are unique. Share the decoded image with the selection
-        // and blur layers rather than decoding each full monitor repeatedly.
-        Image { anchors.fill: parent; source: controller.includeCursor ? display.cursor : display.plain; fillMode: Image.Stretch }
+        // Preload both variants so toggling the cursor keeps the background in place.
+        Image { id: snapshot; anchors.fill: parent; source: display.plain; visible: !controller.includeCursor; fillMode: Image.Stretch }
+        Image { id: cursorSnapshot; anchors.fill: parent; source: display.cursor || ""; visible: controller.includeCursor; fillMode: Image.Stretch }
         CaptureContent {
             id: selectionContent
             controller: window.controller
@@ -149,6 +157,7 @@ PanelWindow {
             id: pointer
             objectName: "capturePointer"
             anchors.fill: parent
+            enabled: !window.busy
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             preventStealing: true
             hoverEnabled: true
@@ -251,10 +260,11 @@ PanelWindow {
             id: toolbar
             objectName: "captureToolbar"
             visible: window.current && window.selected && !controller.dragging
+            enabled: !window.busy
             readonly property int buttonCount: toolButtons.count + inkButtons.count + 1 + (window.video ? 4 : 0)
             readonly property var horizontalSize: ({width: Math.min(scene.width - 16,
-                toolButtons.count * 38 + inkButtons.count * 24 + 38 + (window.video ? 152 : 0) + (buttonCount - 1) * controls.spacing + 20), height: 54})
-            readonly property var verticalSize: ({width: 58, height: Math.min(scene.height - 16, buttonCount * 36 + (buttonCount - 1) * controls.spacing + 20)})
+                toolButtons.count * 38 + inkButtons.count * 24 + primaryButton.implicitWidth + (window.video ? 152 : 0) + (buttonCount - 1) * controls.spacing + 20), height: 54})
+            readonly property var verticalSize: ({width: primaryButton.implicitWidth + 20, height: Math.min(scene.height - 16, buttonCount * 36 + (buttonCount - 1) * controls.spacing + 20)})
             readonly property var placement: Geometry.toolbar(window.localSelection, scene.width, scene.height, horizontalSize, verticalSize)
             readonly property bool vertical: placement.vertical
             x: placement.x; y: placement.y
@@ -272,7 +282,7 @@ PanelWindow {
                     Repeater {
                         id: toolButtons
                         objectName: "captureTools"
-                        model: window.video ? [] : ["pen", "arrow", "box", "text", "blur"]
+                        model: window.video || window.sharing ? [] : ["pen", "arrow", "box", "text", "blur"]
                         ActionButton {
                             required property string modelData
                             objectName: "captureTool:" + modelData
@@ -284,7 +294,7 @@ PanelWindow {
                     }
                     Repeater {
                         id: inkButtons
-                        model: window.video ? [] : ["#cc7855", "#ed9c87", "#e4c393", "#ffffff"]
+                        model: window.video || window.sharing ? [] : ["#cc7855", "#ed9c87", "#e4c393", "#ffffff"]
                         Rectangle {
                             required property string modelData
                             width: 24; height: 36; radius: 7; color: modelData
@@ -292,7 +302,19 @@ PanelWindow {
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: controller.ink = parent.modelData }
                         }
                     }
-                    ActionButton { caption: "Cursor " + (controller.includeCursor ? "On" : "Off"); icon: controller.includeCursor ? "mouse-pointer-2" : "mouse-pointer-2-off"; chosen: controller.includeCursor; onClicked: { controller.includeCursor = !controller.includeCursor; controller.remember(); } }
+                    ActionButton {
+                        id: primaryButton
+                        objectName: window.sharing ? "captureShareButton" : "captureCursorButton"
+                        implicitWidth: window.sharing ? 68 : 38
+                        caption: window.sharing ? "Share region" : "Cursor " + (controller.includeCursor ? "On" : "Off")
+                        label: window.sharing ? "Share" : ""
+                        icon: controller.includeCursor ? "mouse-pointer-2" : "mouse-pointer-2-off"
+                        chosen: window.sharing || controller.includeCursor
+                        onClicked: {
+                            if (window.sharing) window.finish();
+                            else { controller.includeCursor = !controller.includeCursor; controller.remember(); }
+                        }
+                    }
                     ActionButton { objectName: "captureSpeakersButton"; visible: window.video; checkable: true; caption: "Record speakers " + (controller.recordSpeakers ? "On" : "Off"); icon: controller.recordSpeakers ? "volume-2" : "volume-x"; chosen: controller.recordSpeakers; onClicked: { controller.recordSpeakers = !controller.recordSpeakers; controller.remember(); } }
                     ActionButton { objectName: "captureMicButton"; visible: window.video; checkable: true; caption: "Record mic " + (controller.recordMic ? "On" : "Off"); icon: controller.recordMic ? "mic" : "mic-off"; chosen: controller.recordMic; onClicked: { controller.recordMic = !controller.recordMic; controller.remember(); } }
                     ActionButton { objectName: "captureFpsButton"; visible: window.video; caption: "Frame rate " + controller.recordFps + " FPS"; label: String(controller.recordFps); onClicked: controller.cycleRecordingFps() }
@@ -301,15 +323,16 @@ PanelWindow {
             }
         }
         Rectangle {
-            visible: controller.error.length > 0
+            visible: controller.error.length > 0 || (window.current && !window.selected && !controller.dragging)
             anchors { top: parent.top; topMargin: 18; horizontalCenter: parent.horizontalCenter }
             width: Math.min(scene.width - 32, status.implicitWidth + 30); height: status.implicitHeight + 20; radius: 20
             color: typography.background
-            Text { id: status; width: parent.width - 30; anchors.centerIn: parent; text: controller.error; wrapMode: Text.Wrap; font: typography.textFont; color: typography.red }
+            Text { id: status; anchors.centerIn: parent; width: Math.min(implicitWidth, scene.width - 62); text: controller.error || "Drag to select a region. Esc to cancel."; wrapMode: Text.Wrap; font: typography.textFont; color: controller.error ? typography.red : typography.text }
         }
         MouseArea {
             anchors.fill: parent
             z: 100
+            enabled: !window.busy
             acceptedButtons: Qt.RightButton
             preventStealing: true
             cursorShape: Qt.CrossCursor

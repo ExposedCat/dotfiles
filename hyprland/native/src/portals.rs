@@ -11,6 +11,10 @@ use std::{
     os::unix::net::UnixStream,
     process::{Child, Stdio},
     rc::Rc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 const BUS: &str = "org.freedesktop.impl.portal.desktop.dotfiles";
@@ -177,25 +181,31 @@ impl Dialog {
             .unwrap_or(json!({"response":2}))
     }
     fn wait(&mut self) -> Result<Value> {
-        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let mut handlers = vec![];
+        cancellable(|stop| self.wait_until(stop))
+    }
+    fn wait_until(&mut self, stop: &AtomicBool) -> Result<Value> {
+        while !stop.load(Ordering::Relaxed) {
+            if self.poll()? {
+                return Ok(self.result());
+            }
+            std::thread::sleep(Duration::from_millis(8));
+        }
+        Ok(json!({"response":2}))
+    }
+}
+fn cancellable<T>(action: impl FnOnce(&AtomicBool) -> Result<T>) -> Result<T> {
+    let stop = Arc::new(AtomicBool::new(false));
+    let mut handlers = vec![];
+    let result = (|| {
         for signal in [libc::SIGTERM, libc::SIGINT] {
             handlers.push(signal_hook::flag::register(signal, stop.clone())?);
         }
-        let result = (|| {
-            while !self.poll()? {
-                if stop.load(std::sync::atomic::Ordering::Relaxed) {
-                    return Ok(json!({"response":2}));
-                }
-                std::thread::sleep(Duration::from_millis(8));
-            }
-            Ok(self.result())
-        })();
-        for handler in handlers {
-            signal_hook::low_level::unregister(handler);
-        }
-        result
+        action(&stop)
+    })();
+    for handler in handlers {
+        signal_hook::low_level::unregister(handler);
     }
+    result
 }
 impl Drop for Dialog {
     fn drop(&mut self) {
@@ -741,19 +751,19 @@ fn workspace_previews(data: &mut Value) {
         }
     }
 }
-fn share_result(data: &Value, result: &Value) -> Result<String> {
-    if result["response"] != 0 {
-        return Ok(String::new());
-    }
+fn sharing_source<'a>(data: &'a Value, result: &Value) -> Result<&'a Value> {
     let id = result["choice"]
         .as_str()
         .context("Missing sharing choice")?;
-    let source = ["outputs", "windows", "workspaces"]
+    ["outputs", "windows", "workspaces"]
         .iter()
         .flat_map(|k| rows(&data[*k]))
         .find(|s| s["id"] == id)
-        .context("Unrecognized sharing source")?;
-    let mut id = id.to_string();
+        .context("Unrecognized sharing source")
+}
+fn share_result(data: &Value, result: &Value) -> Result<String> {
+    let source = sharing_source(data, result)?;
+    let mut id = s(source, "id").to_owned();
     if !result["region"].is_null() {
         let r = rows(&result["region"]);
         if source["kind"] != "screen" || r.len() != 4 || r.iter().any(|n| n.as_i64().is_none()) {
@@ -787,6 +797,25 @@ fn share_result(data: &Value, result: &Value) -> Result<String> {
         if result["remember"] == true { "r" } else { "" }
     ))
 }
+fn share(args: &[String], stop: &AtomicBool) -> Result<()> {
+    let mut data = sharing_sources()?;
+    data["remember"] = json!(args.iter().any(|a| a == "--allow-token"));
+    let mut result = Dialog::open(&data)?.wait_until(stop)?;
+    if result["response"] != 0 || stop.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+    if result["selectRegion"] == true {
+        let source = sharing_source(&data, &result)?;
+        let Some(region) = crate::capture::select_share_region(source, stop)? else {
+            return Ok(());
+        };
+        result["region"] = json!(region);
+    }
+    if !stop.load(Ordering::Relaxed) {
+        println!("{}", share_result(&data, &result)?);
+    }
+    Ok(())
+}
 pub fn main(args: &[String]) -> Result<()> {
     match arg(args, 0)? {
         "backend" => backend(args.iter().any(|s| s == "--test")),
@@ -804,17 +833,7 @@ pub fn main(args: &[String]) -> Result<()> {
             let result = dialog.wait()?;
             emit(&result)
         }
-        "share" => {
-            let mut data = sharing_sources()?;
-            data["remember"] = json!(args.iter().any(|a| a == "--allow-token"));
-            let mut dialog = Dialog::open(&data)?;
-            let result = dialog.wait()?;
-            let selected = share_result(&data, &result)?;
-            if !selected.is_empty() {
-                println!("{selected}");
-            }
-            Ok(())
-        }
+        "share" => cancellable(|stop| share(args, stop)),
         x => bail!("Unknown portal command: {x}"),
     }
 }

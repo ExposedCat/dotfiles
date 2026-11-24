@@ -16,7 +16,6 @@ Item {
     property string tab: "screen"
     property bool remember: false
     property bool regionMode: false
-    property var region: null
     readonly property bool fixture: !!requestData.fixture
     readonly property bool sharing: requestData.kind === "share"
     readonly property bool permission: requestData.kind === "access"
@@ -27,9 +26,9 @@ Item {
     readonly property var sources: tab === "screen" ? (requestData.outputs || []) : tab === "window" ? (requestData.windows || []) : (requestData.workspaces || [])
     readonly property int columns: tab === "screen" ? 2 : 3
     readonly property var chosenSource: sources.find(s => s.id === selected) || null
-    readonly property bool canAccept: permission || (sharing ? !!chosenSource && (!regionMode || (!!region && regionPreview.hasPreview)) : results.some(a => a.id === selected))
+    readonly property bool canAccept: permission || (sharing ? !!chosenSource : results.some(a => a.id === selected))
     readonly property real desiredWidth: sharing ? 680 : permission ? 440 : 560
-    readonly property real desiredHeight: sharing ? (regionMode ? 640 : Math.min(700, Math.max(402, 198 + Math.ceil(sources.length / columns) * 204))) + (selectedSourceName.visible ? Math.max(0, selectedSourceName.implicitHeight - 22) : 0)
+    readonly property real desiredHeight: sharing ? Math.min(700, Math.max(402, 198 + Math.ceil(sources.length / columns) * 204)) + (selectedSourceName.visible ? Math.max(0, selectedSourceName.implicitHeight - 22) : 0)
                         : permission ? Math.min(620, permissionContent.implicitHeight + 108) : 428
     signal responded(var response)
     enabled: !submitting
@@ -53,7 +52,7 @@ Item {
         else appPicker.focusSearch();
     }
     function activate() {
-        error = ""; selected = ""; tab = "screen"; regionMode = false; region = null;
+        error = ""; selected = ""; tab = "screen"; regionMode = false;
         remember = !!requestData.remember;
         const values = {};
         for (const choice of requestData.choices || []) values[choice.id] = choice.selected;
@@ -61,12 +60,12 @@ Item {
         appPicker.activate();
         Qt.callLater(focusSearch);
     }
-    function choose(identity) { selected = identity; region = null }
+    function choose(identity) { selected = identity }
     function chooseApp(index) { appPicker.choose(index); }
     function accept() { decide(0); }
     function setTab(value) {
         if (tab === value) return;
-        tab = value; selected = ""; region = null; regionMode = false;
+        tab = value; selected = ""; regionMode = false;
         tabChange.restart();
     }
     function decide(code) {
@@ -75,7 +74,7 @@ Item {
         if (code === 0) {
             if (permission) response.choices = selections;
             else response.choice = selected;
-            if (sharing) { response.remember = remember; if (regionMode) response.region = region }
+            if (sharing) { response.remember = remember; if (regionMode) response.selectRegion = true }
         }
         responded(response);
     }
@@ -239,34 +238,6 @@ Item {
             Text { anchors.centerIn: parent; visible: sourceGrid.count === 0; text: "No sources"; color: portalTheme.secondary; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize }
         }
         Text { id: selectedSourceName; objectName: "shareSelectedName"; visible: root.sharing && !!root.chosenSource && root.chosenSource.name.length > 36; Layout.fillWidth: true; text: root.chosenSource ? root.chosenSource.name : ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; font: portalTheme.textFont; color: portalTheme.text }
-        Rectangle {
-            visible: root.sharing && root.regionMode && !!root.chosenSource
-            Layout.fillWidth: true; Layout.preferredHeight: 140; color: portalTheme.surface; radius: 10; clip: true
-            SourcePreview { id: regionPreview; anchors.centerIn: parent; width: Math.min(parent.width, parent.height * ((root.chosenSource || {}).width || 1) / ((root.chosenSource || {}).height || 1)); height: parent.height; sourceData: root.chosenSource || {}; theme: portalTheme; fixture: root.fixture }
-            Rectangle {
-                visible: !!root.region
-                x: regionPreview.x + (root.region ? root.region[0] / (root.chosenSource || {}).width * regionPreview.width : 0)
-                y: root.region ? root.region[1] / (root.chosenSource || {}).height * regionPreview.height : 0
-                width: root.region ? root.region[2] / (root.chosenSource || {}).width * regionPreview.width : 0
-                height: root.region ? root.region[3] / (root.chosenSource || {}).height * regionPreview.height : 0
-                color: Qt.alpha(portalTheme.focusColor, 0.20); border.color: portalTheme.focusColor; border.width: 2
-            }
-            MouseArea {
-                x: regionPreview.x; y: 0; width: regionPreview.width; height: regionPreview.height; cursorShape: Qt.CrossCursor
-                property real startX: 0; property real startY: 0
-                function updateRegion(mouse) {
-                    const source = root.chosenSource;
-                    if (!source) return;
-                    const endX = Math.max(0, Math.min(width, mouse.x)), endY = Math.max(0, Math.min(height, mouse.y));
-                    const x = Math.floor(Math.min(startX, endX) / width * source.width), y = Math.floor(Math.min(startY, endY) / height * source.height);
-                    const right = Math.floor(Math.max(startX, endX) / width * source.width), bottom = Math.floor(Math.max(startY, endY) / height * source.height);
-                    root.region = right > x && bottom > y ? [x, y, right - x, bottom - y] : null;
-                }
-                onPressed: mouse => { startX = mouse.x; startY = mouse.y; root.region = null }
-                onPositionChanged: mouse => { if (pressed) updateRegion(mouse) }
-                onReleased: mouse => updateRegion(mouse)
-            }
-        }
         Text { visible: root.error.length > 0; text: root.error; Layout.fillWidth: true; wrapMode: Text.Wrap; color: portalTheme.red; font.family: portalTheme.fontFamily; font.weight: portalTheme.fontWeight; font.pixelSize: portalTheme.bodySize }
         RowLayout {
             visible: root.sharing || root.permission
@@ -284,7 +255,7 @@ Item {
                     } else root.remember = checked;
                 }
             }
-            PortalCheckBox { visible: root.sharing && root.tab === "screen" && !!root.chosenSource; theme: portalTheme; text: "Region"; checked: root.regionMode; onToggled: { root.regionMode = checked; root.region = null } }
+            PortalCheckBox { visible: root.sharing && root.tab === "screen" && !!root.chosenSource; theme: portalTheme; text: "Region"; checked: root.regionMode; onToggled: root.regionMode = checked }
             Item { Layout.fillWidth: true }
             PortalButton { id: cancel; visible: !root.sharing; theme: portalTheme; text: root.permission ? root.requestData.denyLabel || "Deny" : "Cancel"; enabled: !root.submitting; onClicked: root.decide(1) }
             PortalButton { theme: portalTheme; text: root.sharing ? "Share" : root.permission ? root.requestData.grantLabel || "Allow" : "Open"; primary: true; enabled: root.canAccept && !root.submitting; onClicked: root.decide(0) }
