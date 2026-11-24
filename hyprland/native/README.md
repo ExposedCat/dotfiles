@@ -58,6 +58,11 @@ appropriate command, so they always run the current build without a shell.
 - External command arguments remain data. Normal requests have deadlines;
   recording lifetime is controlled by the user. Image writes and state/receipt
   updates use atomic replacement with private permissions.
+- The clipboard watcher keeps the current source's captured formats in memory
+  and serves them when that source leaves the clipboard empty. A newer copy,
+  including a sensitive or unsupported offer, discards the old fallback. Restored
+  selections do not add history entries; clearing a restored selection leaves it
+  empty. Capture uses the same format, size and timeout limits as history.
 - `recording_compose.rs` plans display joins once, then tries VA-API decoding,
   crop metadata, GPU scaling/overlay, and hardware encoding. Wide outputs prefer
   HEVC; unsupported render nodes/codecs recover through bounded libx264 encoding.
@@ -90,6 +95,19 @@ For GUI checks, use the repository's isolated-gui skill. Set
 `DOTFILES_DESKTOP_BINARY` to the compiled executable and `DOTFILES_HYPR_ROOT` to
 this checkout's absolute `hyprland/config` path. Diagnostic state, profiles,
 captures, and logs must stay outside this checkout.
+
+The clipboard regression runs a private headless Sway compositor inside the
+isolated desktop. After building, run it with the helper (substitute the absolute
+checkout path for `$repo`):
+
+```bash
+desktop="$repo/codex/skills/isolated-gui/scripts/desktop.py"
+python3 -B "$desktop" --session clipboard-persistence start
+python3 -B "$desktop" --session clipboard-persistence run --cwd "$repo" --timeout 50 -- \
+  /usr/bin/python3 -B hyprland/native/tests/clipboard_persistence.py \
+  "$HOME/.cache/dotfiles-build/hyprland-native/release/dotfiles-desktop"
+python3 -B "$desktop" --session clipboard-persistence stop
+```
 
 Installation stages the binary with the configuration and validates before
 activation. A failed reload restores the entire previous directory. The ten

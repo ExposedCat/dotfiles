@@ -172,6 +172,9 @@ fn receive(offer: &mut Offer, mime: &str, limit: usize, deadline: Instant) -> Re
 pub fn watch() -> Result<()> {
     let mut watcher = Watcher::new(ClipboardType::Regular, Seat::Unspecified)?;
     let mut db = database()?;
+    // History and the active selection have different lifetimes. Keep only
+    // this source's captured bytes, never an arbitrary older history entry.
+    let mut pending = None;
     while let Some(event) = watcher.next_event()? {
         let ClipboardEvent::Changed {
             mime_types,
@@ -179,8 +182,26 @@ pub fn watch() -> Result<()> {
             ..
         } = event
         else {
+            if let Some(contents) = pending.take()
+                // A newer selection may already exist while this clear event
+                // was waiting behind a slow transfer. Leave it alone.
+                && matches!(
+                    paste::get_mime_types(paste::ClipboardType::Regular, Seat::Unspecified),
+                    Err(paste::Error::ClipboardEmpty)
+                )
+            {
+                let (mut options, sources) = copy_sources(contents);
+                options.foreground(false);
+                if let Err(error) = options.copy_multi(sources) {
+                    eprintln!("Could not preserve clipboard: {error}");
+                }
+            }
             continue;
         };
+        // Every replacement invalidates the fallback, including sensitive,
+        // unsupported and self-owned selections. Clearing our restored copy
+        // must leave it empty rather than continually resurrecting it.
+        pending = None;
         if mime_types
             .iter()
             .any(|mime| mime.starts_with(HISTORY_MARKER) || mime == PASSWORD_MANAGER_HINT_MIME_TYPE)
@@ -205,6 +226,7 @@ pub fn watch() -> Result<()> {
         if !contents.is_empty() {
             contents.sort_by(|a, b| a.0.cmp(&b.0));
             store(&mut db, &contents, bytes)?;
+            pending = Some(contents);
         }
     }
     Ok(())
@@ -679,6 +701,15 @@ pub fn serve(id: &str) -> Result<()> {
             image.url.as_str().as_bytes().to_vec(),
         ));
     }
+    let (options, sources) = copy_sources(data);
+    let prepared = options.prepare_copy_multi(sources)?;
+    std::io::stdout().write_all(b"1")?;
+    std::io::stdout().flush()?;
+    prepared.serve()?;
+    Ok(())
+}
+
+fn copy_sources(mut data: Contents) -> (Options, Vec<MimeSource>) {
     let plain_index = data.iter().position(|(mime, _)| plain(mime));
     if let Some(index) = plain_index {
         data.swap(0, index);
@@ -698,11 +729,7 @@ pub fn serve(id: &str) -> Result<()> {
     options
         .foreground(true)
         .omit_additional_text_mime_types(plain_index.is_none());
-    let prepared = options.prepare_copy_multi(sources)?;
-    std::io::stdout().write_all(b"1")?;
-    std::io::stdout().flush()?;
-    prepared.serve()?;
-    Ok(())
+    (options, sources)
 }
 
 fn valid_address(address: &str) -> bool {
