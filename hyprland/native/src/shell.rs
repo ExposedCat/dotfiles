@@ -13,6 +13,7 @@ pub fn main(args: &[String]) -> Result<()> {
     match arg(args, 0)? {
         "session-info" => emit(&session_info()),
         "ethernet" => emit(&ethernet()),
+        "audio-levels" => crate::visualizer::run(),
         "stats-watch" => {
             let mut sampler = Sampler::new(PathBuf::from("/"));
             loop {

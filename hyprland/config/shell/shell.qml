@@ -38,6 +38,7 @@ ShellRoot {
     property alias overlays: overlays
     property alias applications: appIndex
     property alias media: players
+    property alias musicLevels: music
     property alias brightness: monitorBrightness
     property alias stats: systemStats
     property alias appearance: systemAppearance
@@ -116,6 +117,7 @@ ShellRoot {
     KeyboardLayout { id: keyboardLayoutController; shell: root }
     Applications { id: appIndex; shell: root }
     Media { id: players; shell: root }
+    MusicLevels { id: music; shell: root; active: bar.musicEffect }
     ScreenSharing {
         id: sharing; fixture: root.fixture; fixtureData: root.fixtureData
         onFixtureSharesStopped: remainingSources => root.fixtureData = Object.assign({}, root.fixtureData, {screenSources: remainingSources})

@@ -16,6 +16,7 @@ mod release;
 mod shell;
 mod sources;
 mod util;
+mod visualizer;
 
 use anyhow::{Result, bail};
 fn main() {

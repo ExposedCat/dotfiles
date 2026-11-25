@@ -26,7 +26,7 @@ The same executable supports these command groups:
 | Command | Responsibilities |
 |---|---|
 | `desktop` | Session services, removable-media automount, Bluetooth/network credential agents, shortcuts, application catalog/launching, clipboard, media and brightness keys |
-| `shell` | System statistics, appearance, Ethernet status, speed measurements, brightness controls, power actions |
+| `shell` | System statistics, music levels for the pill, appearance, Ethernet status, speed measurements, brightness controls, power actions |
 | `launcher` | Persistent search/action worker, two bounded queues for local and file results |
 | `agenda` | Existing EDS calendars and GWeather world clocks |
 | `capture` | Capture sessions, frozen images, image export, recording supervision and composition |

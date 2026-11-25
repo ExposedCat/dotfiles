@@ -44,6 +44,9 @@ PanelWindow {
         || shell.panel.length > 0
     readonly property bool popupOpen: expanded && !shell.panel && !hiddenPanelVisible
     readonly property point pointerPosition: hover.point.position
+    // Music shapes the idle pill unless notifications are muted.
+    readonly property bool musicEffect: pillState === "compact" && !shell.notifications.dnd
+        && shell.media.playingPlayers.length > 0
     readonly property string pillState: hidden ? "hidden" : shell.panel || (popupOpen ? "expanded"
         : valueFeedbackVisible || workspaceFeedbackVisible ? "osd" : "compact")
     // Track the pointer on the fixed native surface, not the animated header.
@@ -373,6 +376,13 @@ PanelWindow {
             overviewBlend: bar.overviewOpacity
             resizing: pillResize.running
             targetArea: bar.targetWidth * bar.targetHeight
+        }
+        PillLiquid {
+            theme: colors
+            levels: bar.shell.musicLevels
+            pillWidth: pill.width
+            pillHeight: pill.height
+            active: bar.musicEffect
         }
         ClippingRectangle {
             anchors.fill: parent
