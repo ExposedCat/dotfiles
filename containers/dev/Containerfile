@@ -38,6 +38,7 @@ RUN dnf install -y \
     openbox \
     ImageMagick \
     dbus-daemon \
+    gtk3 nss alsa-lib mesa-libgbm libnotify libsecret libXScrnSaver libXtst \
     git gcc gcc-c++ clang make pkgconf-pkg-config rustup \
     systemd-devel fontconfig-devel wayland-devel libxkbcommon-x11-devel \
     libX11-devel libxcb-devel openssl-devel libzstd-devel alsa-lib-devel \

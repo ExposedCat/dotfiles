@@ -40,6 +40,9 @@ if ! "${host[@]}" flatpak info com.chipichapa.Dokument >/dev/null 2>&1; then
 fi
 "${host[@]}" xdg-mime default com.chipichapa.Dokument.desktop application/pdf
 
+# Install T3 Code in dev and export its launcher to the host.
+./apps/t3code/manage install
+
 # Locally built apps
 (
     state=${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/apps

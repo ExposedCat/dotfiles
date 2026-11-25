@@ -152,7 +152,7 @@ Item {
             id: stack
             width: root.width
             y: 28 + Math.max(root.firstBottom, root.height - height)
-            theme: root.theme; count: root.stackCount; inset: true
+            theme: root.theme; count: root.stackCount
             opacity: 1 - root.unfold
             visible: count > 0 && opacity > 0
         }

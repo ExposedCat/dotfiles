@@ -6,7 +6,6 @@ Item {
     id: root
     required property var theme
     property int count: 0
-    property bool inset: false
     readonly property int step: 6
     height: count * step
     Repeater {
@@ -21,7 +20,7 @@ Item {
             NotificationSurface {
                 width: parent.width; height: 80
                 y: parent.height - height
-                theme: root.theme; inset: root.inset
+                theme: root.theme
                 depth: layer.depth
             }
         }

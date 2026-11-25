@@ -82,7 +82,7 @@ service setup.
 
 | Path | Purpose |
 | --- | --- |
-| [App builds](apps/README.md) | Pinned Bazecor, OpenLogi, and `wl-screenrec` builds. The loader also sets Dokument as the PDF viewer. |
+| [Desktop apps](apps/README.md) | Pinned Bazecor, OpenLogi, and `wl-screenrec` builds, plus T3 Code in `dev`. The loader also sets Dokument as the PDF viewer. |
 | [Ptyxis](ptyxis/manage) | Ptyxis preferences, Fish in the `dev` container, font fallback, and the default terminal for applications that use XDG terminal selection. |
 | [Sleep](services/sleep/manage) | Deep sleep, wake diagnostics, and Logi Bolt wake rules. |
 | [mDNS](services/mdns/manage) | Resolve `.local` hostnames. Use `check` to verify. |

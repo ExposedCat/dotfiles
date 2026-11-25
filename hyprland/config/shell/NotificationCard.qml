@@ -29,8 +29,6 @@ Item {
         shell: root.emberShell
         x: 4; y: surface.radius; width: 3; height: Math.max(width, parent.height - 2 * y)
     }
-    property bool embedded: false
-    readonly property bool isBanner: !inCenter && !embedded
     property bool groupControls: false
     property bool groupExpanded: false
     property int groupCount: 1
@@ -38,10 +36,6 @@ Item {
     signal toggleGroup()
     signal dismissGroup()
     property bool geometryReady: false
-    property bool actionsExpanded: false
-    readonly property bool detailsExpanded: inCenter || actionsExpanded || composing || containsFocus
-    property bool hoverExpansionAllowed: true
-    onHoverExpansionAllowedChanged: { if (hoverExpansionAllowed) actionsExpanded = cardHover.hovered || composing || containsFocus; }
     readonly property var notification: store.live[entry.id] || null
     readonly property bool canActivate: !!notification && notification.actions.some(a => a.identifier === "default")
     readonly property bool canReply: !!notification && notification.hasInlineReply
@@ -89,9 +83,8 @@ Item {
     }
     NotificationSurface {
         id: surface
-        visible: !root.embedded
         anchors.fill: parent; z: -1
-        theme: root.theme; inset: root.inCenter; critical: !!root.entry.critical
+        theme: root.theme; critical: !!root.entry.critical
     }
     Connections {
         enabled: !root.geometryReady
@@ -100,21 +93,15 @@ Item {
     }
     MouseArea {
         anchors.fill: parent
-        enabled: !root.removing && (root.canActivate || root.inCenter || root.isBanner)
+        enabled: !root.removing
         cursorShape: Qt.PointingHandCursor
         onClicked: {
             if (root.canActivate) root.store.invoke(root.entry.id, "default");
-            else if (root.isBanner) root.store.dismissBanner(root.entry.id);
+            else if (!root.inCenter) root.store.dismissBanner(root.entry.id);
             root.clicked();
         }
     }
-    HoverHandler {
-        id: cardHover
-        onHoveredChanged: {
-            if (hovered && !root.inCenter && root.hoverExpansionAllowed) root.actionsExpanded = true;
-        }
-    }
-    onComposingChanged: { if (composing) actionsExpanded = true; }
+    HoverHandler { id: cardHover }
     Item {
         anchors.fill: parent
         clip: true
@@ -128,7 +115,7 @@ Item {
                 objectName: "notificationImage"
                 iconSource: root.entry.image || ""
                 symbolicColor: root.theme.text
-                Layout.preferredWidth: root.inCenter ? 40 : root.isBanner ? 56 : 48
+                Layout.preferredWidth: 40
                 Layout.preferredHeight: Layout.preferredWidth
                 Layout.alignment: Qt.AlignTop
                 Layout.topMargin: content.anchors.leftMargin - content.anchors.topMargin
@@ -138,8 +125,6 @@ Item {
             }
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 2
-                // The 30px dismiss control adds headroom above a two-line banner's title.
-                transform: Translate { y: root.isBanner && body.visible ? -3 : 0 }
                 RowLayout {
                     Layout.fillWidth: true; spacing: 7
                     Text { font: root.theme.textFont; Layout.fillWidth: true; text: root.entry.summary; textFormat: Text.PlainText; color: root.theme.text; wrapMode: Text.NoWrap; maximumLineCount: 1; elide: Text.ElideRight }
@@ -147,55 +132,43 @@ Item {
                     NotificationDismiss {
                         objectName: "notificationDismiss"
                         theme: root.theme
-                        hint: root.groupControls && !root.inCenter ? "Dismiss group" : "Dismiss notification"
-                        grouped: root.inCenter && root.groupCount > 1
-                        opacity: root.inCenter || root.groupControls || root.actionsExpanded || root.composing || activeFocus ? 1 : 0
-                        enabled: opacity > 0 && !root.removing
+                        hint: "Dismiss notification"
+                        grouped: root.groupCount > 1
+                        enabled: !root.removing
                         Layout.alignment: Qt.AlignTop
-                        onClicked: root.groupControls && !root.inCenter ? root.dismissGroup() : root.store.remove(root.entry.id)
+                        onClicked: root.store.remove(root.entry.id)
                         onGroupDismissed: root.dismissGroup()
                     }
                 }
-                Text { id: body; objectName: "notificationBody"; font: root.theme.textFont; visible: text.length > 0; Layout.fillWidth: true; text: root.entry.body; textFormat: Text.PlainText; color: root.theme.secondary; wrapMode: Text.Wrap; maximumLineCount: root.detailsExpanded ? 5 : 1; elide: Text.ElideRight }
+                Text { id: body; objectName: "notificationBody"; font: root.theme.textFont; visible: text.length > 0; Layout.fillWidth: true; text: root.entry.body; textFormat: Text.PlainText; color: root.theme.secondary; wrapMode: Text.Wrap; maximumLineCount: 5; elide: Text.ElideRight }
             }
         }
-        Item {
-            id: actionReveal
-            objectName: "notificationActionReveal"
+        Flow {
+            id: actions
+            objectName: "notificationActions"
             Layout.fillWidth: true
-            property real reveal: root.detailsExpanded && (root.hasActions || (root.canReply && !root.composing)) ? 1 : 0
-            visible: !root.isBanner || reveal > 0
-            Layout.topMargin: -content.spacing * (1 - reveal)
-            Layout.preferredHeight: actions.implicitHeight * reveal
-            implicitHeight: actions.implicitHeight * reveal
-            clip: true
-            Flow {
-                id: actions
-                width: parent.width
-                opacity: actionReveal.reveal
-                enabled: actionReveal.reveal > 0.9
-                spacing: 6
-                Repeater {
-                    model: root.notification ? root.notification.actions.filter(a => a.identifier !== "default" && a.identifier !== "inline-reply") : []
-                    ShellButton {
-                        required property var modelData
-                        emberShell: root.emberShell
-                        onHoveredChanged: root.followAction(this, hovered, false)
-                        onActiveFocusChanged: root.followAction(this, activeFocus, true)
-                        theme: root.theme; text: modelData.text; selected: true
-                        color: Qt.alpha(root.theme.hover, 0.36)
-                        onClicked: root.store.invoke(root.entry.id, modelData.identifier)
-                    }
-                }
+            visible: root.hasActions || (root.canReply && !root.composing)
+            spacing: 6
+            Repeater {
+                model: root.notification ? root.notification.actions.filter(a => a.identifier !== "default" && a.identifier !== "inline-reply") : []
                 ShellButton {
+                    required property var modelData
                     emberShell: root.emberShell
                     onHoveredChanged: root.followAction(this, hovered, false)
                     onActiveFocusChanged: root.followAction(this, activeFocus, true)
-                    theme: root.theme; text: "Reply"; selected: true
+                    theme: root.theme; text: modelData.text; selected: true
                     color: Qt.alpha(root.theme.hover, 0.36)
-                    visible: root.canReply && !root.composing
-                    onClicked: { root.store.startReply(root.entry.id, root.inCenter ? "center" : "banner"); Qt.callLater(() => replyText.forceActiveFocus()) }
+                    onClicked: root.store.invoke(root.entry.id, modelData.identifier)
                 }
+            }
+            ShellButton {
+                emberShell: root.emberShell
+                onHoveredChanged: root.followAction(this, hovered, false)
+                onActiveFocusChanged: root.followAction(this, activeFocus, true)
+                theme: root.theme; text: "Reply"; selected: true
+                color: Qt.alpha(root.theme.hover, 0.36)
+                visible: root.canReply && !root.composing
+                onClicked: { root.store.startReply(root.entry.id, root.inCenter ? "center" : "banner"); Qt.callLater(() => replyText.forceActiveFocus()) }
             }
         }
         ColumnLayout {

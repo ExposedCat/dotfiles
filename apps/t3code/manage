@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "$#:${1:-}" in
+    1:install|1:export) ;;
+    *) printf 'Usage: %s {install|export}\n' "$0" >&2; exit 2 ;;
+esac
+
+script=$(realpath -- "${BASH_SOURCE[0]}")
+if [[ ${CONTAINER_ID:-} != dev ]]; then
+    exec distrobox enter dev -- "$script" "$@"
+fi
+
+root=$HOME/.local/opt/t3code
+desktop=$root/t3code.desktop
+
+install_app() (
+    version=0.1.12
+    case "$(uname -m)" in
+        x86_64)
+            arch=amd64
+            digest=c1ca3e656e12ba10377513e9bbe20a5112540cda9601e21c70b85ba7c53f1b29
+            ;;
+        aarch64)
+            arch=arm64
+            digest=3ca1a4e548794e39fa11027d39f5e6a3510154c49bd771756b1744a1d5a804e0
+            ;;
+        *) printf 'T3 Code has no Linux release for %s\n' "$(uname -m)" >&2; exit 1 ;;
+    esac
+    target=$root/$version-$arch
+    cache=${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/apps/t3code
+    asset=T3-Code-$version-$arch.deb
+    archive=$cache/$asset
+    stage= download=
+    trap '[[ -z $stage ]] || rm -rf -- "$stage"; [[ -z $download ]] || rm -f -- "$download"' EXIT
+
+    if [[ ! -x $target/app/t3code ]]; then
+        mkdir -p -- "$cache"
+        if ! printf '%s  %s\n' "$digest" "$archive" | sha256sum --check --status 2>/dev/null; then
+            download=$(mktemp "$cache/.download-XXXXXX")
+            curl --fail --location --silent --show-error --retry 2 \
+                "https://github.com/pingdotgg/t3code/releases/download/v$version/$asset" \
+                --output "$download"
+            printf '%s  %s\n' "$digest" "$download" | sha256sum --check --quiet
+            mv -fT -- "$download" "$archive"
+            download=
+        fi
+
+        stage=$(mktemp -d "$root/.install-XXXXXX")
+        ar p "$archive" data.tar.xz | tar -xJf - -C "$stage"
+        binaries=("$stage"/opt/*/t3code)
+        if (( ${#binaries[@]} != 1 )) || [[ ! -x ${binaries[0]} ]]; then
+            printf 'Expected one T3 Code desktop binary in %s\n' "$asset" >&2
+            exit 1
+        fi
+        mv -- "${binaries[0]%/*}" "$stage/app"
+        mv -T -- "$stage" "$target"
+        stage=
+    fi
+
+    install -m 0755 -- "${script%/*}/launch" "$root/launch"
+    ln -sfnT -- "${target##*/}" "$root/current"
+    sed -e "s|^Exec=.*|Exec=\"$root/launch\" %U|" \
+        -e "s|^Icon=.*|Icon=$root/current/usr/share/icons/hicolor/512x512/apps/t3code.png|" \
+        "$target/usr/share/applications/t3code.desktop" > "$desktop"
+)
+
+mkdir -p -- "$root"
+exec 9>"$root/.lock"
+flock 9
+
+if [[ $1 == install ]]; then
+    install_app
+fi
+if [[ ! -f $desktop || ! -x $root/current/app/t3code ]]; then
+    printf 'Install T3 Code in dev with %s install first.\n' "$0" >&2
+    exit 1
+fi
+distrobox-export --app "$desktop" --export-label none --enter-flags '--no-tty --no-workdir'
