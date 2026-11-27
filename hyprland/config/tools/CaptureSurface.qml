@@ -57,6 +57,8 @@ PanelWindow {
         const rect = controller.selection;
         return selected && x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
     }
+    readonly property int edgeTolerance: 10
+    function edgeAt(x, y) { return selected ? Geometry.edgeAt(controller.selection, x, y, edgeTolerance) : ""; }
     function finish() {
         if (!selected || controller.exporting || controller.closePending || controller.recordPending || controller.dragging) return;
         if (textInput.visible) { textInput.commit(); return; }
@@ -154,6 +156,19 @@ PanelWindow {
             width: controller.selection.width; height: controller.selection.height
             color: "transparent"; border.color: "#cc7855"; border.width: 1
         }
+        Repeater {
+            objectName: "captureEdgeHandles"
+            model: window.selected && !(controller.dragging && pointer.dragMode !== "resize") ? ["top", "bottom", "left", "right"] : []
+            Rectangle {
+                required property string modelData
+                readonly property var rect: controller.selection
+                objectName: "captureEdgeHandle:" + modelData
+                width: 10; height: 10; radius: 5
+                color: "#f4e9e2"; border.color: "#cc7855"; border.width: 2
+                x: (modelData === "left" ? rect.x : modelData === "right" ? rect.x + rect.width : rect.x + rect.width / 2) - display.x - width / 2
+                y: (modelData === "top" ? rect.y : modelData === "bottom" ? rect.y + rect.height : rect.y + rect.height / 2) - display.y - height / 2
+            }
+        }
         MouseArea {
             id: pointer
             objectName: "capturePointer"
@@ -162,12 +177,22 @@ PanelWindow {
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             preventStealing: true
             hoverEnabled: true
-            cursorShape: dragMode === "move" && pressed ? Qt.ClosedHandCursor
-                : !window.tool && window.insideSelection(display.x + mouseX, display.y + mouseY) ? Qt.SizeAllCursor
-                : window.tool === "text" && window.insideSelection(display.x + mouseX, display.y + mouseY) ? Qt.IBeamCursor : Qt.CrossCursor
+            // While a button is held, show the running gesture; otherwise preview
+            // what a press at this spot would start.
+            cursorShape: {
+                const x = display.x + mouseX, y = display.y + mouseY;
+                const edge = dragMode ? resizeEdge : window.edgeAt(x, y);
+                if (edge) return edge === "left" || edge === "right" ? Qt.SizeHorCursor : Qt.SizeVerCursor;
+                if (dragMode === "move") return Qt.ClosedHandCursor;
+                if (dragMode === "text") return Qt.IBeamCursor;
+                if (dragMode) return Qt.CrossCursor;
+                if (window.insideSelection(x, y)) return !window.tool ? Qt.OpenHandCursor : window.tool === "text" ? Qt.IBeamCursor : Qt.CrossCursor;
+                return Qt.CrossCursor;
+            }
             property real startX: 0
             property real startY: 0
             property string dragMode: ""
+            property string resizeEdge: ""
             property var startSelection: null
             function point(mouse) {
                 const bounds = controller.desktopBounds;
@@ -176,7 +201,8 @@ PanelWindow {
             }
             function move(mouse) {
                 const p = point(mouse);
-                if (dragMode === "select") controller.selection = {x: Math.min(startX, p.x), y: Math.min(startY, p.y), width: Math.abs(p.x - startX), height: Math.abs(p.y - startY)};
+                if (dragMode === "resize") controller.selection = Geometry.resize(startSelection, resizeEdge, p);
+                else if (dragMode === "select") controller.selection = {x: Math.min(startX, p.x), y: Math.min(startY, p.y), width: Math.abs(p.x - startX), height: Math.abs(p.y - startY)};
                 else if (dragMode === "move") {
                     const bounds = controller.desktopBounds;
                     controller.selection = {
@@ -201,7 +227,11 @@ PanelWindow {
                 }
                 if (window.tool === "text" && mouse.button === Qt.LeftButton && window.insideSelection(p.x, p.y)) controller.current = display.name;
                 startSelection = Object.assign({}, controller.selection);
-                if (mouse.button === Qt.RightButton || !window.insideSelection(p.x, p.y)) {
+                resizeEdge = mouse.button === Qt.LeftButton ? window.edgeAt(p.x, p.y) : "";
+                if (resizeEdge) {
+                    dragMode = "resize";
+                    textInput.visible = false;
+                } else if (mouse.button === Qt.RightButton || !window.insideSelection(p.x, p.y)) {
                     dragMode = "select";
                     textInput.visible = false;
                     controller.selection = {x: p.x, y: p.y, width: 0, height: 0};
@@ -224,12 +254,12 @@ PanelWindow {
                     const p = point(mouse), output = controller.data.outputs.find(o => p.x >= o.x && p.x < o.x + o.width && p.y >= o.y && p.y < o.y + o.height);
                     if (output) controller.current = output.name;
                 }
-                if (dragMode === "select" || dragMode === "move") controller.remember();
-                dragMode = "";
+                if (dragMode === "select" || dragMode === "move" || dragMode === "resize") controller.remember();
+                dragMode = ""; resizeEdge = "";
                 controller.dragging = false;
                 Qt.callLater(() => controller.finishInput());
             }
-            function cancel() { controller.draft = null; dragMode = ""; controller.dragging = false; Qt.callLater(() => controller.finishInput()); }
+            function cancel() { controller.draft = null; dragMode = ""; resizeEdge = ""; controller.dragging = false; Qt.callLater(() => controller.finishInput()); }
             onPressed: mouse => begin(mouse)
             onReleased: mouse => end(mouse)
             onCanceled: cancel()
@@ -271,6 +301,7 @@ PanelWindow {
             readonly property bool vertical: placement.vertical
             x: placement.x; y: placement.y
             width: placement.width; height: placement.height
+            HoverHandler { id: toolbarHover }
             PillBackground { visible: !window.sharing; anchors.fill: parent; theme: typography; radius: 20 }
             ActionButton {
                 id: shareButton
@@ -344,7 +375,8 @@ PanelWindow {
             enabled: !window.busy
             acceptedButtons: Qt.RightButton
             preventStealing: true
-            cursorShape: Qt.CrossCursor
+            // This layer covers the toolbar too, so it owns the visible cursor.
+            cursorShape: toolbarHover.hovered && !controller.dragging ? Qt.PointingHandCursor : pointer.cursorShape
             onPressed: mouse => pointer.begin(mouse)
             onPositionChanged: mouse => { if (pressed) pointer.move(mouse); }
             onReleased: mouse => pointer.end(mouse)
