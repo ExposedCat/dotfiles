@@ -140,6 +140,27 @@ ShellRoot {
     VpnController { id: vpnController; shell: root }
     Agenda { id: agenda; shell: root }
     Weather { id: weather; shell: root }
+    property string wallpaperSource: "wallpaper.jpg"
+    FileView {
+        id: wallpaperState
+        path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/dotfiles/hyprland/wallpaper.json"
+        watchChanges: true
+        blockLoading: true
+        printErrors: false
+        function sync() {
+            try {
+                const parsed = JSON.parse(text());
+                if (typeof parsed.background === "string" && parsed.background.length > 0) {
+                    root.wallpaperSource = "file://" + parsed.background;
+                    return;
+                }
+            } catch (error) {}
+            root.wallpaperSource = "wallpaper.jpg";
+        }
+        onLoaded: sync()
+        onFileChanged: reload()
+        onLoadFailed: root.wallpaperSource = "wallpaper.jpg"
+    }
     Variants {
         model: Quickshell.screens
         PanelWindow {
@@ -154,7 +175,7 @@ ShellRoot {
 
             Image {
                 anchors.fill: parent
-                source: "wallpaper.jpg"
+                source: root.wallpaperSource
                 fillMode: Image.PreserveAspectCrop
                 clip: true
             }

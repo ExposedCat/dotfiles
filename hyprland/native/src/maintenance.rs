@@ -511,8 +511,14 @@ fn backend_check() -> Result<()> {
     ])?;
     for (bus, interface) in [
         ("org.freedesktop.impl.portal.desktop.gnome", "FileChooser"),
+        ("org.freedesktop.impl.portal.desktop.oo7", "Secret"),
         (BUS, "AppChooser"),
         (BUS, "Access"),
+        (BUS, "Background"),
+        (BUS, "Wallpaper"),
+        (BUS, "Usb"),
+        (BUS, "RemoteDesktop"),
+        (BUS, "Clipboard"),
     ] {
         run(&[
             "busctl",

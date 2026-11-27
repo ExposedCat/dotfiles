@@ -10,6 +10,8 @@ mod desktop;
 mod launcher;
 mod maintenance;
 mod portals;
+mod portals_extra;
+mod portals_remote;
 mod recording_audio;
 mod recording_compose;
 mod release;

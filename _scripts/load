@@ -83,7 +83,7 @@ done
 
     # Bazecor fork. Build with Electron Forge and install on the host.
     install_bazecor() (
-        local revision=e2daabd9b1e42b94912f1482297d6dbacdb7e100 id=com.dygma.bazecor
+        local revision=f8441c85f7a33cb6c156c19bb0ef2c00b0882b2b id=com.dygma.bazecor
         local directory=$state/bazecor
         local bundle=$directory/bazecor-$revision.flatpak location stage
         mkdir -p "$directory"

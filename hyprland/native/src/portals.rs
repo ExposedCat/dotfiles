@@ -18,9 +18,9 @@ use std::{
     time::Duration,
 };
 const BUS: &str = "org.freedesktop.impl.portal.desktop.dotfiles";
-const PATH: &str = "/org/freedesktop/portal/desktop";
+pub(crate) const PATH: &str = "/org/freedesktop/portal/desktop";
 const XML: &str = r#"<node><interface name="org.freedesktop.impl.portal.AppChooser"><property name="version" type="u" access="read"/><method name="ChooseApplication"><arg type="o" direction="in"/><arg type="s" direction="in"/><arg type="s" direction="in"/><arg type="as" direction="in"/><arg type="a{sv}" direction="in"/><arg type="u" direction="out"/><arg type="a{sv}" direction="out"/></method><method name="UpdateChoices"><arg type="o" direction="in"/><arg type="as" direction="in"/></method></interface><interface name="org.freedesktop.impl.portal.Access"><property name="version" type="u" access="read"/><method name="AccessDialog"><arg type="o" direction="in"/><arg type="s" direction="in"/><arg type="s" direction="in"/><arg type="s" direction="in"/><arg type="s" direction="in"/><arg type="s" direction="in"/><arg type="a{sv}" direction="in"/><arg type="u" direction="out"/><arg type="a{sv}" direction="out"/></method></interface></node>"#;
-const REQUEST: &str = r#"<node><interface name="org.freedesktop.impl.portal.Request"><method name="Close"/></interface></node>"#;
+pub(crate) const REQUEST: &str = r#"<node><interface name="org.freedesktop.impl.portal.Request"><method name="Close"/></interface></node>"#;
 pub fn app_metadata(id: &str) -> Value {
     let desktop = if id.ends_with(".desktop") {
         id.to_string()
@@ -335,24 +335,26 @@ impl Backend {
         }
     }
     fn authorized(&self, sender: &str) -> bool {
-        self.testing
-            || self
-                .bus
-                .call_sync(
-                    Some("org.freedesktop.DBus"),
-                    "/org/freedesktop/DBus",
-                    "org.freedesktop.DBus",
-                    "GetNameOwner",
-                    Some(&("org.freedesktop.portal.Desktop",).to_variant()),
-                    None,
-                    gio::DBusCallFlags::NONE,
-                    1500,
-                    gio::Cancellable::NONE,
-                )
-                .ok()
-                .and_then(|v| v.child_value(0).get::<String>())
-                .is_some_and(|s| s == sender)
+        is_portal_frontend(&self.bus, sender, self.testing)
     }
+}
+pub(crate) fn is_portal_frontend(bus: &gio::DBusConnection, sender: &str, testing: bool) -> bool {
+    testing
+        || bus
+            .call_sync(
+                Some("org.freedesktop.DBus"),
+                "/org/freedesktop/DBus",
+                "org.freedesktop.DBus",
+                "GetNameOwner",
+                Some(&("org.freedesktop.portal.Desktop",).to_variant()),
+                None,
+                gio::DBusCallFlags::NONE,
+                1500,
+                gio::Cancellable::NONE,
+            )
+            .ok()
+            .and_then(|v| v.child_value(0).get::<String>())
+            .is_some_and(|s| s == sender)
 }
 fn begin_call(
     state: &Rc<RefCell<Backend>>,
@@ -513,6 +515,9 @@ fn backend(testing: bool) -> Result<()> {
         pending: HashMap::new(),
         testing,
     }));
+    let stop = Arc::new(AtomicBool::new(false));
+    let _extra_regs = crate::portals_extra::register(&bus, testing, &stop)?;
+    let _remote_regs = crate::portals_remote::register(&bus, testing)?;
     for interface in gio::DBusNodeInfo::for_xml(XML)?.interfaces() {
         let state = state.clone();
         bus.register_object(PATH, interface)
@@ -578,6 +583,7 @@ fn backend(testing: bool) -> Result<()> {
         });
     }
     main_loop.run();
+    stop.store(true, Ordering::Relaxed);
     let mut b = state.borrow_mut();
     let handles: Vec<_> = b.pending.keys().cloned().collect();
     for h in handles {
