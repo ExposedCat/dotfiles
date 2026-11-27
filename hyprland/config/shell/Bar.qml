@@ -44,8 +44,9 @@ PanelWindow {
         || shell.panel.length > 0
     readonly property bool popupOpen: expanded && !shell.panel && !hiddenPanelVisible
     readonly property point pointerPosition: hover.point.position
-    // Music shapes the idle pill unless notifications are muted.
-    readonly property bool musicEffect: pillState === "compact" && !shell.notifications.dnd
+    // Music shapes the header-sized pill, idle or showing feedback, unless
+    // notifications are muted.
+    readonly property bool musicEffect: (pillState === "compact" || pillState === "osd") && !shell.notifications.dnd
         && shell.media.playingPlayers.length > 0
     readonly property string pillState: hidden ? "hidden" : shell.panel || (popupOpen ? "expanded"
         : valueFeedbackVisible || workspaceFeedbackVisible ? "osd" : "compact")
