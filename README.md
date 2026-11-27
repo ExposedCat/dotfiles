@@ -87,7 +87,7 @@ service setup.
 | [Sleep](services/sleep/manage) | Deep sleep, wake diagnostics, and Logi Bolt wake rules. |
 | [mDNS](services/mdns/manage) | Resolve `.local` hostnames. Use `check` to verify. |
 | [Dev container](containers/dev/Containerfile) | Build dependencies and Fish. Rerun `containers/dev/setup-host-commands` inside `dev` if a package update replaces the Flatpak or `xdg-open` forwarding. |
-| [Claude and Codex setup](claude/install) | Install repo skills and share the same skill directory between agents. |
+| [Agent skills setup](claude/install) | Install repo skills and share the same skill directory across Codex, Claude, and Antigravity. |
 
 Build output, local snapshots, and preview artifacts stay outside this checkout.
 Use the [isolated GUI skill](codex/skills/isolated-gui/SKILL.md) for GUI checks.

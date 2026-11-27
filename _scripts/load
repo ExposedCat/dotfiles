@@ -19,7 +19,7 @@ if "$auto_login" && ! "${host[@]}" bash -c 'for binary in greetd agreety uwsm; d
 fi
 config=${XDG_CONFIG_HOME:-$HOME/.config}
 
-# Install the repository skills and share installed Codex skills with Claude.
+# Install the repository skills and share installed Codex skills with Claude and Antigravity.
 ./claude/install
 
 # System sleep: install on the host, including when called from Distrobox.
