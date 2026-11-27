@@ -37,8 +37,9 @@ Scope {
                     || root.active || collapse.running || root.shell.captureActive || root.shell.authentication.active || root.shell.portal.active) {
                 reply(sender, {accepted: false}); return;
             }
-            root.returnPanel = request.kind === "bluetooth" && root.shell.panel === "bluetooth" ? "bluetooth" : "";
-            if (root.returnPanel) {
+            root.returnPanel = request.kind === "bluetooth" && root.shell.panel === "bluetooth" ? "bluetooth"
+                : request.kind === "network" && root.shell.panel === "vpn" ? "vpn" : "";
+            if (root.returnPanel === "bluetooth") {
                 const device = root.shell.bluetooth.devices.find(d => d.dbusPath === request.devicePath);
                 if (device) root.shell.pill.activePane?.selectDevice(device.address);
             }

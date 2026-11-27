@@ -31,17 +31,17 @@ config=${XDG_CONFIG_HOME:-$HOME/.config}
 # Secret Service: start oo7 at desktop login and recover after bus loss.
 ./services/secrets/manage install
 
-# Install Dokument from FlatPark and set it as the default PDF viewer.
+# Install Dokument and Sele from FlatPark and set Dokument as the default PDF viewer.
 flathub=https://dl.flathub.org/repo/flathub.flatpakrepo
-if ! "${host[@]}" flatpak info com.chipichapa.Dokument >/dev/null 2>&1; then
-    "${host[@]}" flatpak --user remote-add --if-not-exists flathub "$flathub"
-    "${host[@]}" flatpak --user remote-add --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo
-    "${host[@]}" flatpak --user install --noninteractive flatpark com.chipichapa.Dokument
-fi
+flatpark=https://dl.flatpark.org/flatpark.flatpakrepo
+for app in com.chipichapa.Dokument com.chipichapa.sele; do
+    if ! "${host[@]}" flatpak info "$app" >/dev/null 2>&1; then
+        "${host[@]}" flatpak --user remote-add --if-not-exists flathub "$flathub"
+        "${host[@]}" flatpak --user remote-add --if-not-exists flatpark "$flatpark"
+        "${host[@]}" flatpak --user install --noninteractive flatpark "$app"
+    fi
+done
 "${host[@]}" xdg-mime default com.chipichapa.Dokument.desktop application/pdf
-
-# Install T3 Code in dev and export its launcher to the host.
-./apps/t3code/manage install
 
 # Locally built apps
 (

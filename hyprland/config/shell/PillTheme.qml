@@ -34,6 +34,7 @@ ShellTheme {
         weather: [ellipticalWash([0.35, 0.09], [0.98, 0.78], 0.40, 0.83, 0.71)],
         calendar: [ellipticalWash([0.45, -0.21], [0.97, 1.10], 0.42, 0.83)],
         ethernet: [ellipticalWash([0.04, -0.14], [1.30, 1.64], 0.44, 0.95)],
+        vpn: [ellipticalWash([0.04, -0.14], [1.30, 1.64], 0.44, 0.95)],
         media: [linearWash(265, 0.32, 0.87, 0.83)],
         power: [linearWash(0, 0.51, 1, 0.66)],
         bluetooth: [{

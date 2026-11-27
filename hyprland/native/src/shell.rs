@@ -13,6 +13,8 @@ pub fn main(args: &[String]) -> Result<()> {
     match arg(args, 0)? {
         "session-info" => emit(&session_info()),
         "ethernet" => emit(&ethernet()),
+        "vpn-list" => emit(&vpn_list()),
+        "vpn" => vpn(arg(args, 1)?, arg(args, 2)?),
         "audio-levels" => crate::visualizer::run(),
         "stats-watch" => {
             let mut sampler = Sampler::new(PathBuf::from("/"));
@@ -124,6 +126,100 @@ fn ethernet_lines(output: &str) -> Value {
         let state=if connected {"Connected"}else{match fields[2]{"disconnected"=>"Disconnected","unavailable"=>"Cable unplugged","unmanaged"=>"Unmanaged",other=>other}};
         Some(json!({"name":fields[0],"state":state,"connected":connected,"speed":if connected{speed}else{0}}))}).collect();
     json!({"devices":devices,"unavailable":false})
+}
+fn vpn_list() -> Value {
+    let mut c = command(&[
+        "/usr/bin/nmcli",
+        "-t",
+        "--escape",
+        "no",
+        "-f",
+        "UUID,TYPE,STATE,NAME",
+        "connection",
+        "show",
+    ]);
+    c.env("LC_ALL", "C");
+    let Ok(output) = output(c, None, Duration::from_secs(3)) else {
+        return json!({"profiles":[],"unavailable":true});
+    };
+    json!({"profiles":vpn_lines(&output),"unavailable":false})
+}
+fn vpn_lines(output: &str) -> Vec<Value> {
+    let mut profiles: Vec<(String, String, Value)> = output
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.splitn(4, ':');
+            let uuid = fields.next()?.trim();
+            let kind = fields.next()?.trim();
+            let raw_state = fields.next()?.trim();
+            let name = fields.next()?.trim();
+            if uuid.is_empty() || name.is_empty() || !matches!(kind, "vpn" | "wireguard") {
+                return None;
+            }
+            let state = match raw_state {
+                "activated" => "connected",
+                "activating" => "connecting",
+                "deactivating" => "disconnecting",
+                _ => "disconnected",
+            };
+            Some((
+                name.to_ascii_lowercase(),
+                uuid.to_string(),
+                json!({
+                    "uuid": uuid,
+                    "name": name,
+                    "kind": kind,
+                    "state": state,
+                    "active": state == "connected",
+                }),
+            ))
+        })
+        .collect();
+    profiles.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+    profiles.into_iter().map(|(_, _, value)| value).collect()
+}
+fn vpn(action: &str, uuid: &str) -> Result<()> {
+    let (wait_secs, timeout) = match action {
+        "up" => ("90", Duration::from_secs(95)),
+        "down" => ("15", Duration::from_secs(20)),
+        _ => bail!("Expected up or down"),
+    };
+    if uuid.is_empty()
+        || uuid.starts_with('-')
+        || !uuid.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    {
+        bail!("Invalid VPN profile identifier");
+    }
+    let mut c = command(&[
+        "/usr/bin/nmcli",
+        "--wait",
+        wait_secs,
+        "connection",
+        action,
+        "uuid",
+        uuid,
+    ]);
+    c.env("LC_ALL", "C");
+    match output(c, None, timeout) {
+        Ok(_) => emit(&json!({"ok": true})),
+        Err(error) => {
+            let _ = emit(&json!({"ok": false, "error": nmcli_error(&error)}));
+            Err(error)
+        }
+    }
+}
+fn nmcli_error(error: &anyhow::Error) -> String {
+    let text = error.to_string();
+    let detail = text
+        .split_once("Error: ")
+        .map(|(_, rest)| rest)
+        .unwrap_or(&text);
+    let line = detail.lines().next().unwrap_or("").trim();
+    if line.is_empty() {
+        "VPN action failed.".to_string()
+    } else {
+        line.to_string()
+    }
 }
 pub struct Sampler {
     root: PathBuf,
@@ -548,5 +644,42 @@ fn speed_test() -> Result<()> {
             emit(&json!({"error":"Speed test failed. Try again."}))?;
             Err(e)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn vpn_lines_parses_vpn_and_wireguard_and_preserves_colons() {
+        let sample = "\
+fe8a11a4-6586-3d24-b8ee-00ee379cf063:802-3-ethernet:activated:eno1
+5eacc07e-942a-4e51-8096-88ea81002e06:vpn:activated:fel
+11111111-2222-3333-4444-555555555555:wireguard::Work: EU
+22222222-2222-3333-4444-555555555555:vpn:activating:alpha
+";
+        let profiles = vpn_lines(sample);
+        assert_eq!(profiles.len(), 3);
+        assert_eq!(profiles[0]["name"], "alpha");
+        assert_eq!(profiles[0]["state"], "connecting");
+        assert_eq!(profiles[0]["active"], false);
+        assert_eq!(profiles[1]["name"], "fel");
+        assert_eq!(profiles[1]["state"], "connected");
+        assert_eq!(profiles[1]["active"], true);
+        assert_eq!(profiles[2]["name"], "Work: EU");
+        assert_eq!(profiles[2]["kind"], "wireguard");
+        assert_eq!(profiles[2]["state"], "disconnected");
+    }
+
+    #[test]
+    fn nmcli_error_strips_command_prefix() {
+        let err = anyhow::anyhow!(
+            "\"/usr/bin/nmcli\" \"connection\" \"up\": Error: Connection activation failed: Secrets were required"
+        );
+        assert_eq!(
+            nmcli_error(&err),
+            "Connection activation failed: Secrets were required"
+        );
     }
 }

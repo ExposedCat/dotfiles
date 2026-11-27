@@ -16,23 +16,6 @@ wl-screenrec uses its own [Fedora 45 RPM recipe](wl-screenrec). Update the
 expected RPM version or release in `_scripts/load` when changing that recipe.
 Setting up OpenLogi's device rules can require administrator authentication.
 
-## T3 Code in dev
-
-The loader installs the pinned upstream T3 Code release under
-`~/.local/opt/t3code` and exports **T3 Code (Beta)** to the host app menu.
-Its desktop app and backend run in `dev` with access to the provider CLIs
-already on the container's path. The launcher includes `~/.local/bin` and the
-Volta and OpenCode bin directories for desktop sessions.
-
-```bash
-./apps/t3code/manage install
-./apps/t3code/manage export
-```
-
-Run `install` to install and export, or `export` to recreate the host launcher.
-Update the version and SHA-256 digests in [`t3code/manage`](t3code/manage) to
-upgrade. The dotfiles manage updates for this install.
-
 ## OpenLogi settings
 
 OpenLogi's sensitivity and axis bias default to upstream behavior. Its repeat

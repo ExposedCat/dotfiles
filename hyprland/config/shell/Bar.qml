@@ -67,7 +67,7 @@ PanelWindow {
     property bool suppressHover: false
     property string shownPanel: ""
     property bool panelCentered: false
-    readonly property var paneNames: ["launcher", "portal", "credentials", "authentication", "notifications", "calendar", "bluetooth", "ethernet", "power", "media", "mixer", "system", "weather"]
+    readonly property var paneNames: ["launcher", "portal", "credentials", "authentication", "notifications", "calendar", "bluetooth", "vpn", "ethernet", "power", "media", "mixer", "system", "weather"]
     readonly property bool paneHasSearch: ["launcher", "portal", "credentials", "authentication", "weather"].includes(shell.panel)
     property var retained: ({})
     readonly property bool workspaceFeedbackVisible: !expanded && !hiddenPanelVisible && !pillConcealed
@@ -82,13 +82,13 @@ PanelWindow {
         trayMenu.visible = false;
         if (workspaceEmpty) hoverExpanded = false;
     }
-    onPopupOpenChanged: { if (popupOpen) warm.restart(); }
+    onPopupOpenChanged: { if (popupOpen) { warm.restart(); shell.vpn.refresh(); } }
     function retain(name) {
         if (retained[name]) return;
         const next = Object.assign({}, retained); next[name] = true; retained = next;
     }
     function componentFor(name) {
-        return ({launcher: launcherComponent, portal: portalComponent, credentials: credentialComponent, authentication: authenticationComponent, notifications: notificationsComponent, calendar: calendarComponent, bluetooth: bluetoothComponent, ethernet: networkComponent, power: powerComponent, media: mediaComponent, mixer: mixerComponent, system: statsComponent, weather: weatherComponent})[name];
+        return ({launcher: launcherComponent, portal: portalComponent, credentials: credentialComponent, authentication: authenticationComponent, notifications: notificationsComponent, calendar: calendarComponent, bluetooth: bluetoothComponent, vpn: vpnComponent, ethernet: networkComponent, power: powerComponent, media: mediaComponent, mixer: mixerComponent, system: statsComponent, weather: weatherComponent})[name];
     }
     Timer { id: warm; interval: 100; onTriggered: { bar.retain("launcher"); bar.retain("media"); bar.retain("mixer"); } }
     Timer { id: unload; interval: 120000; onTriggered: { const keep = {}; for (const name of ["launcher", "media", "mixer"]) if (bar.retained[name]) keep[name] = true; bar.retained = keep; } }
@@ -100,6 +100,7 @@ PanelWindow {
     property real systemHeight: 480
     property real weatherHeight: 220
     property real networkHeight: 270
+    property real vpnHeight: 160
     property real bluetoothHeight: 340
     property real bluetoothTop: theme.panelGap
     property real powerHeight: colors.overviewControlSize + 2 * overviewInset
@@ -162,6 +163,7 @@ PanelWindow {
     onCalendarHeightChanged: { if (shell.panel === "calendar") selectPanel("calendar"); }
     onSystemHeightChanged: { if (shell.panel === "system") selectPanel("system"); }
     onNetworkHeightChanged: { if (shell.panel === "ethernet") selectPanel("ethernet"); }
+    onVpnHeightChanged: { if (shell.panel === "vpn") selectPanel("vpn"); }
     onBluetoothHeightChanged: { if (shell.panel === "bluetooth") selectPanel("bluetooth"); }
     onMixerHeightChanged: { if (shell.panel === "mixer") selectPanel("mixer"); }
     onPowerHeightChanged: { if (shell.panel === "power") selectPanel("power"); }
@@ -236,7 +238,7 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "dotfiles-bar"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: hidden || shell.captureActive ? WlrKeyboardFocus.None : shell.panel === "authentication" ? WlrKeyboardFocus.Exclusive : ["launcher", "portal", "credentials", "media", "mixer", "system", "power", "ethernet", "bluetooth", "calendar", "weather"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: hidden || shell.captureActive ? WlrKeyboardFocus.None : shell.panel === "authentication" ? WlrKeyboardFocus.Exclusive : ["launcher", "portal", "credentials", "media", "mixer", "system", "power", "ethernet", "bluetooth", "vpn", "calendar", "weather"].includes(shell.panel) ? WlrKeyboardFocus.OnDemand : shell.panel === "notifications" ? centerFocus.keyboardMode : WlrKeyboardFocus.None
     Region { id: pillInput; item: pill }
     // A fast pointer can reach the controls before the painted pill does.
     // Keep that destination interactive throughout hover expansion.
@@ -279,8 +281,8 @@ PanelWindow {
         // layout must not be resized to the compact pill while still visible.
         const portalWidth = portalPane?.desiredWidth || (shell.portal.data.kind === "share" ? 680 : shell.portal.data.kind === "access" ? 440 : 560);
         const maxHeight = name === "bluetooth" && panelCentered ? height - bluetoothY - 12 : height - 24;
-        paneWidth = Math.min(width - 24, name === "authentication" ? (authenticationPane?.desiredWidth || 480) : name === "credentials" ? (credentialPane?.desiredWidth || 460) : ["ethernet", "bluetooth"].includes(name) ? 460 : name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "weather" ? 584 : name === "mixer" ? 540 : name === "calendar" ? 1256 : name === "power" ? 480 : 620);
-        paneHeight = Math.min(maxHeight, name === "authentication" ? (authenticationPane?.desiredHeight || 260) : name === "credentials" ? (credentialPane?.desiredHeight || 340) : name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? mixerHeight : name === "notifications" ? 816 : name === "calendar" ? calendarHeight : name === "bluetooth" ? bluetoothHeight : name === "ethernet" ? networkHeight : name === "media" ? mediaHeight : name === "system" ? systemHeight : name === "weather" ? weatherHeight : name === "power" ? powerHeight : 220);
+        paneWidth = Math.min(width - 24, name === "authentication" ? (authenticationPane?.desiredWidth || 480) : name === "credentials" ? (credentialPane?.desiredWidth || 460) : ["ethernet", "bluetooth", "vpn"].includes(name) ? 460 : name === "portal" ? portalWidth : name === "launcher" ? 560 : name === "weather" ? 584 : name === "mixer" ? 540 : name === "calendar" ? 1256 : name === "power" ? 480 : 620);
+        paneHeight = Math.min(maxHeight, name === "authentication" ? (authenticationPane?.desiredHeight || 260) : name === "credentials" ? (credentialPane?.desiredHeight || 340) : name === "portal" ? (portalPane?.desiredHeight || 428) : name === "launcher" ? 428 : name === "mixer" ? mixerHeight : name === "notifications" ? 816 : name === "calendar" ? calendarHeight : name === "bluetooth" ? bluetoothHeight : name === "vpn" ? vpnHeight : name === "ethernet" ? networkHeight : name === "media" ? mediaHeight : name === "system" ? systemHeight : name === "weather" ? weatherHeight : name === "power" ? powerHeight : 220);
         retain(name); shownPanel = name;
     }
     Connections {
@@ -457,6 +459,34 @@ PanelWindow {
                     visible: !bar.feedbackReveal && opacity > 0
                 }
                 ShellButton {
+                    objectName: "pillAppearanceButton"
+                    readonly property int expandedSize: 45
+                    readonly property bool highlighted: hovered || (bar.shell.emberEnabled && bar.emberTarget === emberSlot)
+                    readonly property color fill: highlighted ? colors.overviewButtonHover : colors.overviewButton
+                    readonly property real compactX: bar.sideInset
+                    readonly property real expandedX: bar.overviewControlLeft
+                    x: Math.round(compactX + (expandedX - compactX) * bar.detailsOpacity)
+                    y: Math.round(4 + 17 * bar.detailsOpacity)
+                    width: Math.round(18 + (expandedSize - 18) * bar.detailsOpacity)
+                    height: Math.round(32 + (expandedSize - 32) * bar.detailsOpacity)
+                    radius: height / 2
+                    color: Qt.alpha(fill, fill.a * bar.detailsOpacity)
+                    opacity: bar.detailsOpacity
+                    visible: !bar.feedbackReveal && opacity > 0
+                    enabled: bar.popupOpen && opacity > 0.95 && bar.shell.appearance.available && !bar.shell.appearance.pending
+                    theme: colors
+                    hint: bar.shell.appearance.error || (bar.shell.appearance.dark ? "Switch to light style" : "Switch to dark style")
+                    onClicked: bar.shell.appearance.toggle()
+                    ShellIcon {
+                        name: bar.shell.appearance.dark ? "moon" : "sun"
+                        tint: colors.overviewInk
+                        width: 21; height: 21
+                        anchors.centerIn: parent
+                        opacity: bar.detailsOpacity
+                        visible: opacity > 0
+                    }
+                }
+                ShellButton {
                     objectName: "pillNotificationIndicator"
                     readonly property int expandedSize: 45
                     readonly property bool highlighted: hovered || (bar.shell.emberEnabled && bar.emberTarget === emberSlot)
@@ -544,7 +574,7 @@ PanelWindow {
                 readonly property real bottomInset: ["notifications", "calendar"].includes(bar.shownPanel) ? y : inset
                 // Give these scroll views the full height. Their own margins
                 // add the inset at the end of the scroll range.
-                readonly property bool scrollsToBottom: ["launcher", "notifications", "calendar", "bluetooth", "weather", "media", "mixer"].includes(bar.shownPanel)
+                readonly property bool scrollsToBottom: ["launcher", "notifications", "calendar", "bluetooth", "vpn", "weather", "media", "mixer"].includes(bar.shownPanel)
                 x: bar.launcherDragged ? inset : Math.round((bar.width - bar.paneWidth) / 2) - pill.x + inset
                 y: ["mixer", "calendar", "power"].includes(bar.shownPanel) ? inset : ["launcher", "portal", "credentials", "authentication"].includes(bar.shownPanel) ? 8 : 16
                 width: bar.paneWidth - inset * 2
@@ -633,6 +663,15 @@ PanelWindow {
             scrollBottomPadding: panelLoader.bottomInset
             onImplicitHeightChanged: bar.bluetoothHeight = implicitHeight + 40
             Component.onCompleted: bar.bluetoothHeight = implicitHeight + 40
+        }
+    }
+    Component {
+        id: vpnComponent
+        VpnMenu {
+            shell: bar.shell; theme: colors
+            scrollBottomPadding: panelLoader.bottomInset
+            onImplicitHeightChanged: bar.vpnHeight = implicitHeight + 40
+            Component.onCompleted: bar.vpnHeight = implicitHeight + 40
         }
     }
     Component {

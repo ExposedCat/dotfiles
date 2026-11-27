@@ -166,11 +166,11 @@ Item {
             columns: 3; spacing: root.theme.overviewControlGap
             width: columns * root.controlSize + (columns - 1) * spacing
             Control {
-                objectName: "pillAppearanceButton"
-                icon: root.shell.appearance.dark ? "moon" : "sun"
-                hint: root.shell.appearance.error || (root.shell.appearance.dark ? "Switch to light style" : "Switch to dark style")
-                enabled: root.shell.appearance.available && !root.shell.appearance.pending
-                onClicked: root.shell.appearance.toggle()
+                objectName: "pillVpnButton"
+                icon: root.shell.vpn.active ? "shield-check" : "shield-lock"
+                selected: root.shell.vpn.active
+                hint: root.shell.vpn.active ? "VPN (" + root.shell.vpn.activeNames.join(", ") + ")" : "VPN"
+                onClicked: root.panelRequested("vpn")
             }
             Control {
                 icon: root.shell.audio.muted ? "volume-x" : "volume-2"

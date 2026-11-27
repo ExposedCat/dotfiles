@@ -19,6 +19,7 @@ ShellRoot {
     property real panelOriginX: 0
     property real panelOriginWidth: 56
     property alias bluetooth: bluetoothController
+    property alias vpn: vpnController
     property var panelScreen: null
     property alias layout: keyboardLayoutController.layout
     property alias keyboard: keyboardLayoutController.keyboard
@@ -136,6 +137,7 @@ ShellRoot {
         statePath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/dotfiles/hyprland/notifications.json"
     }
     BluetoothController { id: bluetoothController; shell: root }
+    VpnController { id: vpnController; shell: root }
     Agenda { id: agenda; shell: root }
     Weather { id: weather; shell: root }
     Variants {
@@ -189,7 +191,7 @@ ShellRoot {
     }
     IpcHandler {
         target: "shell"
-        function toggle(panel: string): void { if (["launcher", "notifications", "calendar", "power", "connections", "ethernet", "bluetooth", "media", "mixer", "system", "weather"].includes(panel)) root.toggle(panel); }
+        function toggle(panel: string): void { if (["launcher", "notifications", "calendar", "power", "connections", "ethernet", "bluetooth", "vpn", "media", "mixer", "system", "weather"].includes(panel)) root.toggle(panel); }
         function clipboard(position: string): void {
             try { clipboardPopup.toggle(JSON.parse(position)); }
             catch (error) { console.warn("Invalid clipboard position:", error); }
